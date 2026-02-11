@@ -4,6 +4,13 @@ import fs from 'fs';
 
 // Disguise as Chrome — Google blocks login from "Electron" apps
 app.setName('Google Chrome');
+
+// Critical: remove "Electron" from the UA that Chromium sends at the network level
+app.userAgentFallback = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+// Chromium flags to appear as regular Chrome
+app.commandLine.appendSwitch('disable-features', 'ElectronSerialChooser,ElectronBluetoothChooser');
+app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
 import os from 'os';
 import { TandemAPI } from './api/server';
 import { StealthManager } from './stealth/manager';
