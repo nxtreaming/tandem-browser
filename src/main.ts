@@ -78,77 +78,17 @@ async function createWindow(): Promise<BrowserWindow> {
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() === 'webview') {
       contents.on('dom-ready', () => {
+        // Skip stealth injection on Google auth pages — our patches break their login detection
+        const url = contents.getURL();
+        if (url.includes('accounts.google.com') || url.includes('consent.google.com')) {
+          console.log('🔑 Skipping stealth for Google auth:', url.substring(0, 60));
+          return;
+        }
         contents.executeJavaScript(stealthScript).catch((e) => console.warn('Stealth script injection failed:', e.message));
       });
 
-      // Intercept Google login — open in native BrowserWindow (not webview)
-      // Google blocks sign-in from embedded browsers (webview), but allows BrowserWindow
-      const isGoogleLogin = (url: string) => 
-        url.includes('accounts.google.com/') && 
-        !url.includes('accounts.google.com/CheckCookie') &&
-        !url.includes('accounts.google.com/RotateCookies');
-
-      contents.on('will-navigate', (event, url) => {
-        if (isGoogleLogin(url)) {
-          console.log('🔑 Intercepting Google login (will-navigate):', url.substring(0, 80));
-          event.preventDefault();
-          openGoogleLoginPopup(url, contents);
-        }
-      });
-
-      contents.on('will-redirect', (event, url) => {
-        if (isGoogleLogin(url)) {
-          console.log('🔑 Intercepting Google login (will-redirect):', url.substring(0, 80));
-          event.preventDefault();
-          openGoogleLoginPopup(url, contents);
-        }
-      });
-
-      // Catch when Google login page is already loaded (direct URL entry)
-      contents.on('did-navigate', (_event, url) => {
-        if (isGoogleLogin(url)) {
-          console.log('🔑 Google login detected after load (did-navigate):', url.substring(0, 80));
-          openGoogleLoginPopup(url, contents);
-        }
-      });
     }
   });
-
-  // Google Login Popup — opens in a real BrowserWindow (not webview) to bypass Google's block
-  function openGoogleLoginPopup(url: string, sourceContents: Electron.WebContents): void {
-    const loginWin = new BrowserWindow({
-      width: 500,
-      height: 700,
-      title: 'Sign in — Google',
-      parent: mainWindow!,
-      modal: true,
-      webPreferences: {
-        partition,  // Same partition = shares cookies with webviews
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    loginWin.loadURL(url);
-
-    // When user finishes login and gets redirected away from accounts.google.com
-    loginWin.webContents.on('will-navigate', (_event, newUrl) => {
-      if (!newUrl.includes('accounts.google.com')) {
-        // Login complete — close popup, reload the original page
-        loginWin.close();
-        sourceContents.reload();
-      }
-    });
-
-    loginWin.webContents.on('will-redirect', (_event, newUrl) => {
-      if (!newUrl.includes('accounts.google.com') && 
-          !newUrl.includes('consent.google.com') &&
-          !newUrl.includes('myaccount.google.com')) {
-        loginWin.close();
-        sourceContents.reload();
-      }
-    });
-  }
 
   mainWindow = new BrowserWindow({
     width: 1400,
