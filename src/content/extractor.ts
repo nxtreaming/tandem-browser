@@ -1,5 +1,5 @@
 import { BrowserWindow, webContents } from 'electron';
-import * as TurndownService from 'turndown';
+const TurndownService = require('turndown');
 import * as path from 'path';
 import * as fs from 'fs';
 
