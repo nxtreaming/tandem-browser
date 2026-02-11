@@ -21,6 +21,10 @@ import { FormMemoryManager } from '../memory/form-memory';
 import { ContextBridge } from '../bridge/context-bridge';
 import { PiPManager } from '../pip/manager';
 import { NetworkInspector } from '../network/inspector';
+import { ChromeImporter } from '../import/chrome-importer';
+import { BookmarkManager } from '../bookmarks/manager';
+import { HistoryManager } from '../history/manager';
+import { DownloadManager } from '../downloads/manager';
 
 export class TandemAPI {
   private app: express.Application;
@@ -41,8 +45,12 @@ export class TandemAPI {
   private contextBridge: ContextBridge;
   private pipManager: PiPManager;
   private networkInspector: NetworkInspector;
+  private chromeImporter: ChromeImporter;
+  private bookmarkManager: BookmarkManager;
+  private historyManager: HistoryManager;
+  private downloadManager: DownloadManager;
 
-  constructor(win: BrowserWindow, port: number = 8765, tabManager: TabManager, panelManager: PanelManager, drawManager: DrawOverlayManager, activityTracker: ActivityTracker, voiceManager: VoiceManager, behaviorObserver: BehaviorObserver, configManager: ConfigManager, siteMemory: SiteMemoryManager, watchManager: WatchManager, headlessManager: HeadlessManager, formMemory: FormMemoryManager, contextBridge: ContextBridge, pipManager: PiPManager, networkInspector: NetworkInspector) {
+  constructor(win: BrowserWindow, port: number = 8765, tabManager: TabManager, panelManager: PanelManager, drawManager: DrawOverlayManager, activityTracker: ActivityTracker, voiceManager: VoiceManager, behaviorObserver: BehaviorObserver, configManager: ConfigManager, siteMemory: SiteMemoryManager, watchManager: WatchManager, headlessManager: HeadlessManager, formMemory: FormMemoryManager, contextBridge: ContextBridge, pipManager: PiPManager, networkInspector: NetworkInspector, chromeImporter: ChromeImporter, bookmarkManager: BookmarkManager, historyManager: HistoryManager, downloadManager: DownloadManager) {
     this.win = win;
     this.port = port;
     this.tabManager = tabManager;
@@ -59,6 +67,10 @@ export class TandemAPI {
     this.contextBridge = contextBridge;
     this.pipManager = pipManager;
     this.networkInspector = networkInspector;
+    this.chromeImporter = chromeImporter;
+    this.bookmarkManager = bookmarkManager;
+    this.historyManager = historyManager;
+    this.downloadManager = downloadManager;
     this.app = express();
     this.app.use(cors());
     this.app.use(express.json());
@@ -992,6 +1004,173 @@ export class TandemAPI {
       try {
         this.networkInspector.clear();
         res.json({ ok: true });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // CHROME IMPORT — Phase 4.1
+    // ═══════════════════════════════════════════════
+
+    this.app.get('/import/chrome/status', (_req: Request, res: Response) => {
+      try {
+        res.json(this.chromeImporter.getStatus());
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.post('/import/chrome/bookmarks', (_req: Request, res: Response) => {
+      try {
+        const result = this.chromeImporter.importBookmarks();
+        res.json(result);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.post('/import/chrome/history', (_req: Request, res: Response) => {
+      try {
+        const result = this.chromeImporter.importHistory();
+        res.json(result);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.post('/import/chrome/cookies', async (_req: Request, res: Response) => {
+      try {
+        const result = await this.chromeImporter.importCookies(this.win.webContents.session);
+        res.json(result);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // BOOKMARKS — Phase 4.2
+    // ═══════════════════════════════════════════════
+
+    this.app.get('/bookmarks', (_req: Request, res: Response) => {
+      try {
+        const bookmarks = this.bookmarkManager.list();
+        const bar = this.bookmarkManager.getBarItems();
+        res.json({ bookmarks, bar });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.post('/bookmarks/add', (req: Request, res: Response) => {
+      try {
+        const { name, url, parentId } = req.body;
+        if (!name || !url) { res.status(400).json({ error: 'name and url required' }); return; }
+        const bookmark = this.bookmarkManager.add(name, url, parentId);
+        res.json({ ok: true, bookmark });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.delete('/bookmarks/remove', (req: Request, res: Response) => {
+      try {
+        const { id } = req.body;
+        if (!id) { res.status(400).json({ error: 'id required' }); return; }
+        const removed = this.bookmarkManager.remove(id);
+        res.json({ ok: removed });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.put('/bookmarks/update', (req: Request, res: Response) => {
+      try {
+        const { id, name, url } = req.body;
+        if (!id) { res.status(400).json({ error: 'id required' }); return; }
+        const updated = this.bookmarkManager.update(id, { name, url });
+        if (!updated) { res.status(404).json({ error: 'Bookmark not found' }); return; }
+        res.json({ ok: true, bookmark: updated });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.get('/bookmarks/search', (req: Request, res: Response) => {
+      try {
+        const q = req.query.q as string;
+        if (!q) { res.status(400).json({ error: 'q parameter required' }); return; }
+        const results = this.bookmarkManager.search(q);
+        res.json({ results });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.get('/bookmarks/check', (req: Request, res: Response) => {
+      try {
+        const url = req.query.url as string;
+        if (!url) { res.status(400).json({ error: 'url parameter required' }); return; }
+        const bookmarked = this.bookmarkManager.isBookmarked(url);
+        const bookmark = this.bookmarkManager.findByUrl(url);
+        res.json({ bookmarked, bookmark });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // HISTORY — Phase 4.3
+    // ═══════════════════════════════════════════════
+
+    this.app.get('/history', (req: Request, res: Response) => {
+      try {
+        const limit = parseInt(req.query.limit as string) || 100;
+        const offset = parseInt(req.query.offset as string) || 0;
+        const entries = this.historyManager.getHistory(limit, offset);
+        res.json({ entries, total: this.historyManager.count });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.get('/history/search', (req: Request, res: Response) => {
+      try {
+        const q = req.query.q as string;
+        if (!q) { res.status(400).json({ error: 'q parameter required' }); return; }
+        const results = this.historyManager.search(q);
+        res.json({ results });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.delete('/history/clear', (_req: Request, res: Response) => {
+      try {
+        this.historyManager.clear();
+        res.json({ ok: true });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // DOWNLOADS — Phase 4.4
+    // ═══════════════════════════════════════════════
+
+    this.app.get('/downloads', (_req: Request, res: Response) => {
+      try {
+        const downloads = this.downloadManager.list();
+        res.json({ downloads });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    this.app.get('/downloads/active', (_req: Request, res: Response) => {
+      try {
+        const downloads = this.downloadManager.listActive();
+        res.json({ downloads });
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }

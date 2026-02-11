@@ -99,4 +99,14 @@ contextBridge.exposeInMainWorld('tandem', {
   onTabSourceChanged: (callback: (data: { tabId: string; source: string }) => void) => {
     ipcRenderer.on('tab-source-changed', (_event, data) => callback(data));
   },
+
+  // Download complete notification
+  onDownloadComplete: (callback: (data: { id: string; filename: string; savePath: string }) => void) => {
+    ipcRenderer.on('download-complete', (_event, data) => callback(data));
+  },
+
+  // Bookmark toggle
+  bookmarkPage: (url: string, title: string) => ipcRenderer.invoke('bookmark-page', url, title),
+  unbookmarkPage: (url: string) => ipcRenderer.invoke('unbookmark-page', url),
+  isBookmarked: (url: string) => ipcRenderer.invoke('is-bookmarked', url),
 });

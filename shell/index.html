@@ -184,6 +184,98 @@
       cursor: default;
     }
 
+    /* ═══ Bookmark star ═══ */
+    .bookmark-star {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    .bookmark-star:hover { color: var(--warning); }
+    .bookmark-star.bookmarked { color: var(--warning); }
+
+    /* ═══ Bookmarks bar ═══ */
+    .bookmarks-bar {
+      display: none;
+      align-items: center;
+      gap: 2px;
+      padding: 3px 12px;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      height: 28px;
+    }
+    .bookmarks-bar.visible { display: flex; }
+    .bookmarks-bar::-webkit-scrollbar { height: 0; }
+    .bookmarks-bar a {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .bookmarks-bar a:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+    .bookmarks-bar a img { width: 14px; height: 14px; border-radius: 2px; }
+
+    /* ═══ Find in page bar ═══ */
+    .find-bar {
+      display: none;
+      position: absolute;
+      top: 0; right: 20px;
+      z-index: 150;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      padding: 8px 12px;
+      gap: 6px;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .find-bar.visible { display: flex; }
+    .find-bar input {
+      background: var(--input-bg);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 5px 10px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+    }
+    .find-bar input:focus { border-color: var(--accent); }
+    .find-bar .find-count {
+      font-size: 11px;
+      color: var(--text-dim);
+      min-width: 50px;
+      text-align: center;
+    }
+    .find-bar button {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .find-bar button:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+
     /* ═══ Main layout (browser + panel) ═══ */
     .main-layout {
       flex: 1;
@@ -532,15 +624,27 @@
     <button id="btn-forward" title="Vooruit">→</button>
     <button id="btn-reload" title="Herladen">⟳</button>
     <input class="url-bar" id="url-bar" type="text" placeholder="Voer URL in of zoek..." value="">
+    <button class="bookmark-star" id="btn-bookmark" title="Bookmark (⌘D)">☆</button>
     <button id="btn-screenshot" title="Screenshot (⌘⇧S)">📸</button>
     <div class="status-dot" id="status-dot" title="Verbonden met Kees API"></div>
     <span class="kees-badge">🧀 Kees</span>
   </div>
 
+  <!-- Bookmarks bar -->
+  <div class="bookmarks-bar" id="bookmarks-bar"></div>
+
   <!-- Main layout: browser + panel -->
   <div class="main-layout">
     <!-- Webview container -->
     <div class="browser-content" id="webview-container">
+      <!-- Find in page bar -->
+      <div class="find-bar" id="find-bar">
+        <input type="text" id="find-input" placeholder="Zoek op pagina...">
+        <span class="find-count" id="find-count"></span>
+        <button id="find-prev" title="Vorige">▲</button>
+        <button id="find-next" title="Volgende">▼</button>
+        <button id="find-close" title="Sluiten (Esc)">✕</button>
+      </div>
       <!-- Draw overlay canvas (SHELL layer, NOT in webview — anti-detect!) -->
       <canvas class="draw-overlay" id="draw-canvas"></canvas>
       <!-- Draw toolbar -->
@@ -900,6 +1004,12 @@
           window.tandem.quickScreenshot();
         } else if (action === 'open-settings') {
           openSettings();
+        } else if (action === 'bookmark-page') {
+          toggleBookmarkCurrentPage();
+        } else if (action === 'find-in-page') {
+          toggleFindBar(true);
+        } else if (action === 'open-history') {
+          openHistoryPage();
         } else if (action.startsWith('focus-tab-')) {
           const index = parseInt(action.replace('focus-tab-', ''), 10);
           window.tandem.focusTabByIndex(index);
@@ -1554,6 +1664,197 @@
         if (entry) entry.webview.loadURL(e.data.url);
       }
     });
+
+    // ═══════════════════════════════════════════════
+    // Bookmarks bar + star
+    // ═══════════════════════════════════════════════
+
+    const bookmarkStar = document.getElementById('btn-bookmark');
+    const bookmarksBar = document.getElementById('bookmarks-bar');
+    let bookmarksBarVisible = true;
+
+    async function updateBookmarkStar() {
+      const entry = tabs.get(activeTabId);
+      if (!entry) return;
+      try {
+        const url = entry.webview.getURL();
+        if (!url || url.startsWith('file://') || url === 'about:blank') {
+          bookmarkStar.textContent = '☆';
+          bookmarkStar.classList.remove('bookmarked');
+          return;
+        }
+        const resp = await fetch(`http://localhost:8765/bookmarks/check?url=${encodeURIComponent(url)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.bookmarked) {
+            bookmarkStar.textContent = '★';
+            bookmarkStar.classList.add('bookmarked');
+          } else {
+            bookmarkStar.textContent = '☆';
+            bookmarkStar.classList.remove('bookmarked');
+          }
+        }
+      } catch { /* API not ready */ }
+    }
+
+    async function toggleBookmarkCurrentPage() {
+      const entry = tabs.get(activeTabId);
+      if (!entry) return;
+      try {
+        const url = entry.webview.getURL();
+        const title = entry.webview.getTitle() || url;
+        if (!url || url.startsWith('file://') || url === 'about:blank') return;
+        
+        if (bookmarkStar.classList.contains('bookmarked')) {
+          // Remove bookmark
+          const checkResp = await fetch(`http://localhost:8765/bookmarks/check?url=${encodeURIComponent(url)}`);
+          if (checkResp.ok) {
+            const checkData = await checkResp.json();
+            if (checkData.bookmark) {
+              await fetch('http://localhost:8765/bookmarks/remove', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: checkData.bookmark.id }),
+              });
+            }
+          }
+        } else {
+          // Add bookmark
+          await fetch('http://localhost:8765/bookmarks/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: title, url }),
+          });
+        }
+        updateBookmarkStar();
+        loadBookmarksBar();
+      } catch { /* ignore */ }
+    }
+
+    bookmarkStar.addEventListener('click', toggleBookmarkCurrentPage);
+
+    async function loadBookmarksBar() {
+      try {
+        const resp = await fetch('http://localhost:8765/bookmarks');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const items = data.bar || [];
+        bookmarksBar.innerHTML = '';
+        if (items.length === 0) {
+          bookmarksBar.classList.remove('visible');
+          return;
+        }
+        bookmarksBar.classList.add('visible');
+        for (const item of items.slice(0, 30)) {
+          if (item.type !== 'url' || !item.url) continue;
+          const a = document.createElement('a');
+          let hostname = '';
+          try { hostname = new URL(item.url).hostname; } catch {}
+          a.innerHTML = `<img src="https://www.google.com/s2/favicons?domain=${hostname}&sz=32" onerror="this.style.display='none'"> ${item.name || hostname}`;
+          a.title = item.url;
+          a.addEventListener('click', () => {
+            const entry = tabs.get(activeTabId);
+            if (entry) entry.webview.loadURL(item.url);
+          });
+          bookmarksBar.appendChild(a);
+        }
+      } catch { /* API not ready */ }
+    }
+
+    // Load bookmarks bar on startup
+    setTimeout(loadBookmarksBar, 1500);
+
+    // Update star when URL changes
+    const _prevUpdateTabMeta2 = updateTabMeta;
+    updateTabMeta = function(tabId, data) {
+      _prevUpdateTabMeta2(tabId, data);
+      if (data.url && tabId === activeTabId) {
+        setTimeout(updateBookmarkStar, 200);
+      }
+    };
+
+    // ═══════════════════════════════════════════════
+    // Find in page
+    // ═══════════════════════════════════════════════
+
+    const findBar = document.getElementById('find-bar');
+    const findInput = document.getElementById('find-input');
+    const findCount = document.getElementById('find-count');
+    let findActive = false;
+
+    function toggleFindBar(show) {
+      if (show === undefined) show = !findActive;
+      findActive = show;
+      if (show) {
+        findBar.classList.add('visible');
+        findInput.focus();
+        findInput.select();
+      } else {
+        findBar.classList.remove('visible');
+        findInput.value = '';
+        findCount.textContent = '';
+        // Stop finding
+        const entry = tabs.get(activeTabId);
+        if (entry) entry.webview.stopFindInPage('clearSelection');
+      }
+    }
+
+    function doFind(forward) {
+      const text = findInput.value;
+      if (!text) {
+        findCount.textContent = '';
+        return;
+      }
+      const entry = tabs.get(activeTabId);
+      if (!entry) return;
+      entry.webview.findInPage(text, { forward: forward !== false });
+    }
+
+    findInput.addEventListener('input', () => doFind(true));
+    findInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        doFind(!e.shiftKey);
+      } else if (e.key === 'Escape') {
+        toggleFindBar(false);
+      }
+    });
+    document.getElementById('find-next').addEventListener('click', () => doFind(true));
+    document.getElementById('find-prev').addEventListener('click', () => doFind(false));
+    document.getElementById('find-close').addEventListener('click', () => toggleFindBar(false));
+
+    // Listen for find results from webview
+    function wireFindEvents(wv) {
+      wv.addEventListener('found-in-page', (e) => {
+        if (e.result) {
+          findCount.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
+        }
+      });
+    }
+
+    // Wire find events for existing and new tabs
+    const _origCreateTab2 = window.__tandemTabs.createTab;
+    window.__tandemTabs.createTab = function(tabId, url) {
+      const result = _origCreateTab2.call(window.__tandemTabs, tabId, url);
+      const entry = tabs.get(tabId);
+      if (entry && entry.webview) wireFindEvents(entry.webview);
+      return result;
+    };
+    // Wire for initial tab
+    (() => {
+      const entry = tabs.get(activeTabId);
+      if (entry && entry.webview) wireFindEvents(entry.webview);
+    })();
+
+    // ═══════════════════════════════════════════════
+    // History page
+    // ═══════════════════════════════════════════════
+
+    function openHistoryPage() {
+      const shellPath = window.location.href.replace(/\/[^/]*$/, '');
+      const historyUrl = shellPath + '/history.html';
+      const entry = tabs.get(activeTabId);
+      if (entry) entry.webview.loadURL(historyUrl);
+    }
 
     // Clear URL bar when on newtab page
     function isNewtabUrl(url) {

@@ -18,6 +18,10 @@ import { FormMemoryManager } from './memory/form-memory';
 import { ContextBridge } from './bridge/context-bridge';
 import { PiPManager } from './pip/manager';
 import { NetworkInspector } from './network/inspector';
+import { ChromeImporter } from './import/chrome-importer';
+import { BookmarkManager } from './bookmarks/manager';
+import { HistoryManager } from './history/manager';
+import { DownloadManager } from './downloads/manager';
 
 const IS_DEV = process.argv.includes('--dev');
 const API_PORT = 8765;
@@ -38,6 +42,10 @@ let formMemory: FormMemoryManager | null = null;
 let contextBridge: ContextBridge | null = null;
 let pipManager: PiPManager | null = null;
 let networkInspector: NetworkInspector | null = null;
+let chromeImporter: ChromeImporter | null = null;
+let bookmarkManager: BookmarkManager | null = null;
+let historyManager: HistoryManager | null = null;
+let downloadManager: DownloadManager | null = null;
 
 async function createWindow(): Promise<BrowserWindow> {
   const partition = 'persist:tandem';
@@ -89,7 +97,17 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   contextBridge = new ContextBridge();
   pipManager = new PiPManager();
   networkInspector = new NetworkInspector();
-  api = new TandemAPI(win, API_PORT, tabManager, panelManager, drawManager, activityTracker, voiceManager, behaviorObserver, configManager, siteMemory, watchManager, headlessManager, formMemory, contextBridge, pipManager, networkInspector);
+  chromeImporter = new ChromeImporter();
+  bookmarkManager = new BookmarkManager();
+  historyManager = new HistoryManager();
+  downloadManager = new DownloadManager();
+
+  // Hook download manager into session
+  const partition = 'persist:tandem';
+  const ses = session.fromPartition(partition);
+  downloadManager.hookSession(ses, win);
+
+  api = new TandemAPI(win, API_PORT, tabManager, panelManager, drawManager, activityTracker, voiceManager, behaviorObserver, configManager, siteMemory, watchManager, headlessManager, formMemory, contextBridge, pipManager, networkInspector, chromeImporter, bookmarkManager, historyManager, downloadManager);
   await api.start();
   console.log(`🧠 Tandem API running on http://localhost:${API_PORT}`);
 
@@ -162,6 +180,18 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     if (behaviorObserver && data.type === 'did-navigate' && data.url) {
       behaviorObserver.recordNavigation(data.url, data.tabId);
     }
+    // Record history on navigation
+    if (historyManager && data.type === 'did-navigate' && data.url) {
+      // We'll get the title later on did-finish-load, for now record URL
+      historyManager.recordVisit(data.url, '');
+    }
+    // Update history title on page finish
+    if (historyManager && data.type === 'did-finish-load' && data.url) {
+      const activeTab2 = tabManager?.getActiveTab();
+      if (activeTab2?.title) {
+        historyManager.recordVisit(data.url, activeTab2.title);
+      }
+    }
     // Record site memory on page load completion
     if (siteMemory && data.type === 'did-finish-load' && data.url) {
       const activeTab = tabManager?.getActiveTab();
@@ -218,6 +248,32 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   });
 
   // Tab management IPC for renderer shortcuts
+  // Bookmark IPC handlers
+  ipcMain.handle('bookmark-page', async (_event, url: string, title: string) => {
+    if (bookmarkManager) {
+      const existing = bookmarkManager.findByUrl(url);
+      if (existing) return { ok: true, bookmark: existing, alreadyBookmarked: true };
+      const bookmark = bookmarkManager.add(title || url, url);
+      return { ok: true, bookmark, alreadyBookmarked: false };
+    }
+    return { ok: false };
+  });
+
+  ipcMain.handle('unbookmark-page', async (_event, url: string) => {
+    if (bookmarkManager) {
+      const existing = bookmarkManager.findByUrl(url);
+      if (existing) {
+        bookmarkManager.remove(existing.id);
+        return { ok: true };
+      }
+    }
+    return { ok: false };
+  });
+
+  ipcMain.handle('is-bookmarked', async (_event, url: string) => {
+    return bookmarkManager ? bookmarkManager.isBookmarked(url) : false;
+  });
+
   ipcMain.handle('tab-new', async () => {
     const newtabPath = `file://${path.join(__dirname, '..', 'shell', 'newtab.html')}`;
     return tabManager?.openTab(newtabPath);
@@ -257,9 +313,24 @@ function registerShortcuts(): void {
     panelManager?.togglePanel();
   });
 
-  // Cmd+D — toggle draw mode
-  globalShortcut.register('CommandOrControl+D', () => {
+  // Cmd+Shift+D — toggle draw mode (was Cmd+D, moved for bookmarks)
+  globalShortcut.register('CommandOrControl+Shift+D', () => {
     drawManager?.toggleDrawMode();
+  });
+
+  // Cmd+D — bookmark current page
+  globalShortcut.register('CommandOrControl+D', () => {
+    mainWindow?.webContents.send('shortcut', 'bookmark-page');
+  });
+
+  // Cmd+F — find in page
+  globalShortcut.register('CommandOrControl+F', () => {
+    mainWindow?.webContents.send('shortcut', 'find-in-page');
+  });
+
+  // Cmd+Y — open history page
+  globalShortcut.register('CommandOrControl+Y', () => {
+    mainWindow?.webContents.send('shortcut', 'open-history');
   });
 
   // Cmd+M — toggle voice input
