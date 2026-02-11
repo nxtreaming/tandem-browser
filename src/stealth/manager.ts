@@ -324,8 +324,9 @@ export class StealthManager {
       // Ensure process is truly gone
       Object.defineProperty(window, 'process', { get: () => undefined, configurable: true });
 
-      // navigator.userAgentData — match real Chrome
-      if (!navigator.userAgentData) {
+      // navigator.userAgentData — ALWAYS override to match real Chrome
+      // Electron exposes its own brands (Chromium/130, Not?A_Brand/99) which Google detects
+      {
         Object.defineProperty(navigator, 'userAgentData', {
           get: () => ({
             brands: [
