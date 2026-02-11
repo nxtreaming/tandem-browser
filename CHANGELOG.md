@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.4.0] — 2026-02-11 — Bugfixes + Phase 2.4 & 2.5: Voice Input + Live Co-Pilot Feed
+
+### Fixed
+- **📸 Screenshot Snap** — `snap-for-kees` IPC handler was missing → added compositing pipeline:
+  - webview `capturePage()` + canvas overlay → composite PNG
+  - Copy to clipboard via `clipboard.writeImage()`
+  - Save to `~/Pictures/Tandem/tandem-{url-slug}-{timestamp}.png`
+  - Save to app screenshots dir
+  - Base64 preview in Kees panel Screenshots tab
+- **💬 Chat** — `chat-send` IPC handler was missing → Robin's messages now route through main process to PanelManager and appear in chat
+- **Duplicate `/activity-log` route** — removed old panelManager route, use activityTracker
+
+### Added
+- **Voice Input 🎙️** (`src/voice/recognition.ts`) — Web Speech API in the SHELL
+  - Language: nl-BE, continuous recognition with interim results
+  - Hotkey: Cmd+M → start/stop listening
+  - Pulsing red dot indicator in Kees panel chat
+  - Live transcription display during speech
+  - Final transcript sent as Robin's chat message (prefixed with 🎙️)
+  - API: `POST /voice/start`, `POST /voice/stop`, `GET /voice/status`
+- **Live Co-Pilot Feed 👁️** (`src/activity/tracker.ts`) — event tracking
+  - Webview events: `did-navigate`, `did-navigate-in-page`, `loading-start`, `loading-stop`
+  - All events forwarded via IPC to ActivityTracker → PanelManager → Kees panel
+  - API: `GET /activity-log` with `limit` and `since` query params
+  - Auto-snapshot on navigation (disabled by default, configurable)
+- **New IPC channels**: `voice-toggle`, `voice-transcript`, `voice-transcript-display`, `voice-status-update`, `activity-webview-event`, `auto-snapshot-request`
+
+### Security
+- Voice recognition runs in Electron shell, NOT in webview — websites cannot detect it
+- Activity tracking uses Electron webview events, NOT injected DOM observers
+
 ## [0.3.0] — 2026-02-11 — Phase 2.2 & 2.3: Kees Panel + Draw Tool
 
 ### Added

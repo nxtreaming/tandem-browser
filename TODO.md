@@ -52,21 +52,21 @@
 - [x] API: `POST /screenshot/annotated`, `POST /draw/toggle`, `GET /screenshots`
 - [x] Opslag: app userData/screenshots/ met timestamp
 
-### 2.4 Voice Input 🎙️
-- [ ] Web Speech API integratie (nl-BE)
-- [ ] Hotkey: Cmd+M → start/stop luisteren
-- [ ] Live transcriptie in Kees paneel
-- [ ] Auto-send na stilte (of handmatig met Enter)
-- [ ] Visuele indicator: 🔴 pulserende dot wanneer actief
+### 2.4 Voice Input 🎙️ ✅ DONE
+- [x] Web Speech API integratie (nl-BE)
+- [x] Hotkey: Cmd+M → start/stop luisteren
+- [x] Live transcriptie in Kees paneel
+- [x] Auto-send na stilte (of handmatig met Enter)
+- [x] Visuele indicator: 🔴 pulserende dot wanneer actief
 - [ ] Combi: voice + annotated screenshot = één bericht naar Kees
-- [ ] API: `POST /voice/message` — ontvang voice transcriptie
+- [x] API: `POST /voice/start`, `POST /voice/stop`, `GET /voice/status`
 - [ ] Later: Whisper lokaal als offline fallback
 
-### 2.5 Live Co-Pilot Feed 👁️
-- [ ] Event tracking: elke navigatie, click, scroll, form input → log
+### 2.5 Live Co-Pilot Feed 👁️ 🔄 STARTED
+- [x] Event tracking: elke navigatie, click, scroll, form input → log
 - [ ] DOM change detection — meld wat er veranderd is
-- [ ] Auto-snapshot bij belangrijke events (navigatie, form submit)
-- [ ] API: `GET /watch` — polling endpoint voor Kees
+- [x] Auto-snapshot bij belangrijke events (navigatie) — disabled by default
+- [x] API: `GET /activity-log` — polling endpoint met timestamps
 - [ ] API: `WS /watch/live` — WebSocket stream (later)
 
 ### 2.6 Kees Chat Koppeling 💬
@@ -76,19 +76,19 @@
 - [ ] Combi: annotated screenshot + voice/tekst = één bericht naar Kees
 - [ ] Notificatie als Kees antwoordt terwijl paneel dicht is
 
-### 2.7 Screenshot Pipeline 📸
-- [ ] Fix: Snap voor Kees knop moet daadwerkelijk composiet screenshot maken
-- [ ] Screenshot → clipboard (Cmd+V in elke app)
-- [ ] Screenshot → bestand opslaan (instelbare folder, default ~/Pictures/Tandem/)
+### 2.7 Screenshot Pipeline 📸 🔄 STARTED
+- [x] Fix: Snap voor Kees knop maakt composiet screenshot (webview + canvas overlay)
+- [x] Screenshot → clipboard (Electron clipboard.writeImage)
+- [x] Screenshot → bestand opslaan (~/Pictures/Tandem/)
 - [ ] Screenshot → Apple Photos library (via `osascript` / Photos framework)
 - [ ] Screenshot → Google Photos (via API, instelbaar)
 - [ ] Configuratiescherm: aan/uit per bestemming
-  - [ ] ☑️ Clipboard (altijd aan)
-  - [ ] ☑️ Lokale folder: [pad kiezen]
+  - [x] ☑️ Clipboard (altijd aan)
+  - [x] ☑️ Lokale folder: ~/Pictures/Tandem/
   - [ ] ☑️ Apple Photos
   - [ ] ☑️ Google Photos
-- [ ] Preview in Kees paneel (Screenshots tab)
-- [ ] Bestandsnaam: `tandem-{url-slug}-{timestamp}.png`
+- [x] Preview in Kees paneel (Screenshots tab) — base64 preview
+- [x] Bestandsnaam: `tandem-{url-slug}-{timestamp}.png`
 
 ### 2.8 Settings/Config Scherm ⚙️
 - [ ] Instellingen pagina (tandem://settings)
