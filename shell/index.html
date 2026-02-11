@@ -387,6 +387,32 @@
     }
     .chat-send-btn:hover { opacity: 0.85; }
 
+    /* Voice indicator */
+    .voice-indicator {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(233, 69, 96, 0.2);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .voice-indicator.active { display: flex; }
+    .voice-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1s infinite;
+    }
+    .voice-transcript-live {
+      flex: 1;
+      font-style: italic;
+      opacity: 0.8;
+    }
+
     /* Screenshots section */
     .screenshot-preview {
       display: flex;
@@ -495,6 +521,11 @@
         </div>
         <!-- Chat tab -->
         <div class="panel-content" id="panel-chat" style="display:none;flex-direction:column;flex:1;">
+          <div class="voice-indicator" id="voice-indicator">
+            <span class="voice-dot"></span>
+            <span>🎙️ Luistert...</span>
+            <span class="voice-transcript-live" id="voice-live-text"></span>
+          </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-wrap">
             <textarea class="chat-input" id="chat-input" placeholder="Bericht aan Kees..." rows="1"></textarea>
@@ -1200,8 +1231,160 @@
     };
 
     function wireActivityEvents(wv, tabId) {
+      // Track navigation events → main process activity tracker
       wv.addEventListener('did-navigate', (e) => {
-        if (window.tandem) window.tandem.sendChatMessage && null; // noop, activity tracked via main
+        if (window.tandem) window.tandem.sendWebviewEvent({ type: 'did-navigate', url: e.url, tabId });
+      });
+      wv.addEventListener('did-navigate-in-page', (e) => {
+        if (e.isMainFrame && window.tandem) {
+          window.tandem.sendWebviewEvent({ type: 'did-navigate-in-page', url: e.url, tabId });
+        }
+      });
+      wv.addEventListener('did-start-loading', () => {
+        if (window.tandem) window.tandem.sendWebviewEvent({ type: 'loading-start', tabId });
+      });
+      wv.addEventListener('did-stop-loading', () => {
+        if (window.tandem) window.tandem.sendWebviewEvent({ type: 'loading-stop', tabId });
+      });
+    }
+
+    // Also wire activity events for the initial tab
+    (() => {
+      const initialEntry = tabs.get(activeTabId);
+      if (initialEntry && initialEntry.webview) {
+        wireActivityEvents(initialEntry.webview, activeTabId);
+      }
+    })();
+
+    // ═══════════════════════════════════════════════
+    // Voice Input (Web Speech API — runs in SHELL, NOT webview!)
+    // ═══════════════════════════════════════════════
+
+    let speechRecognition = null;
+    let voiceActive = false;
+
+    function startVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        console.warn('Web Speech API not available');
+        return;
+      }
+
+      speechRecognition = new SpeechRecognition();
+      speechRecognition.lang = 'nl-BE';
+      speechRecognition.continuous = true;
+      speechRecognition.interimResults = true;
+
+      speechRecognition.onresult = (event) => {
+        let interimText = '';
+        let finalText = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += transcript;
+          } else {
+            interimText += transcript;
+          }
+        }
+
+        // Show live transcript
+        const liveEl = document.getElementById('voice-live-text');
+        if (liveEl) liveEl.textContent = interimText || finalText;
+
+        // Send to main process
+        if (window.tandem) {
+          if (finalText) {
+            window.tandem.sendVoiceTranscript(finalText, true);
+            if (liveEl) liveEl.textContent = '';
+          } else if (interimText) {
+            window.tandem.sendVoiceTranscript(interimText, false);
+          }
+        }
+      };
+
+      speechRecognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error !== 'no-speech') {
+          stopVoiceRecognition();
+        }
+      };
+
+      speechRecognition.onend = () => {
+        // Auto-restart if still supposed to be listening
+        if (voiceActive && speechRecognition) {
+          try { speechRecognition.start(); } catch(e) {}
+        }
+      };
+
+      try {
+        speechRecognition.start();
+        voiceActive = true;
+        document.getElementById('voice-indicator').classList.add('active');
+        // Switch to chat tab
+        document.querySelectorAll('.panel-tab').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-panel-tab="chat"]').classList.add('active');
+        document.getElementById('panel-activity').style.display = 'none';
+        document.getElementById('panel-chat').style.display = 'flex';
+        document.getElementById('panel-screenshots').style.display = 'none';
+      } catch(e) {
+        console.error('Failed to start speech recognition:', e);
+      }
+    }
+
+    function stopVoiceRecognition() {
+      voiceActive = false;
+      if (speechRecognition) {
+        try { speechRecognition.stop(); } catch(e) {}
+        speechRecognition = null;
+      }
+      document.getElementById('voice-indicator').classList.remove('active');
+      document.getElementById('voice-live-text').textContent = '';
+      if (window.tandem) window.tandem.sendVoiceStatus(false);
+    }
+
+    if (window.tandem) {
+      window.tandem.onVoiceToggle((data) => {
+        if (data.listening) {
+          startVoiceRecognition();
+        } else {
+          stopVoiceRecognition();
+        }
+      });
+
+      // Voice transcript display (from main process, for final messages)
+      window.tandem.onVoiceTranscript((data) => {
+        // Already handled via onChatMessage for final messages
+      });
+
+      // Auto-snapshot request from activity tracker
+      window.tandem.onAutoSnapshotRequest((data) => {
+        // Trigger snap silently
+        window.tandem.snapForKees();
+      });
+    }
+
+    // ═══════════════════════════════════════════════
+    // Screenshot preview with actual images in panel
+    // ═══════════════════════════════════════════════
+
+    // Override screenshot-taken handler to show base64 preview
+    if (window.tandem) {
+      // Remove old handler and add enhanced one
+      window.tandem.onScreenshotTaken((data) => {
+        const listEl = document.getElementById('screenshot-list');
+        const placeholder = listEl.querySelector('p');
+        if (placeholder) placeholder.remove();
+
+        const div = document.createElement('div');
+        if (data.base64) {
+          div.innerHTML = `
+            <img src="data:image/png;base64,${data.base64}" alt="${data.filename}" style="width:100%;border-radius:6px;border:1px solid rgba(255,255,255,0.08);cursor:pointer;margin-bottom:4px;">
+            <div class="ss-label">${data.filename}</div>
+          `;
+        } else {
+          div.innerHTML = `<div class="ss-label">${data.filename}</div>`;
+        }
+        listEl.prepend(div);
       });
     }
   </script>

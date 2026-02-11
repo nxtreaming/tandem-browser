@@ -1,6 +1,7 @@
-import { BrowserWindow, app, webContents } from 'electron';
+import { BrowserWindow, app, webContents, clipboard, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 /**
  * DrawOverlayManager — Manages the transparent annotation canvas overlay.
@@ -14,13 +15,18 @@ export class DrawOverlayManager {
   private win: BrowserWindow;
   private drawMode = false;
   private screenshotDir: string;
+  private picturesDir: string;
   private lastScreenshotPath: string | null = null;
 
   constructor(win: BrowserWindow) {
     this.win = win;
     this.screenshotDir = path.join(app.getPath('userData'), 'screenshots');
+    this.picturesDir = path.join(os.homedir(), 'Pictures', 'Tandem');
     if (!fs.existsSync(this.screenshotDir)) {
       fs.mkdirSync(this.screenshotDir, { recursive: true });
+    }
+    if (!fs.existsSync(this.picturesDir)) {
+      fs.mkdirSync(this.picturesDir, { recursive: true });
     }
   }
 
@@ -79,6 +85,78 @@ export class DrawOverlayManager {
       this.win.webContents.send('screenshot-taken', { path: filePath, filename });
 
       return { ok: true, path: filePath };
+    } catch (e: any) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  /**
+   * URL to slug for filenames.
+   */
+  private urlToSlug(url: string): string {
+    try {
+      const u = new URL(url);
+      return (u.hostname + u.pathname)
+        .replace(/[^a-zA-Z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 60);
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Full screenshot pipeline: capture + composite + clipboard + file save + panel notify.
+   * Called from IPC 'snap-for-kees'.
+   */
+  async captureAnnotatedFull(activeWebContentsId: number, currentUrl: string): Promise<{ ok: boolean; path?: string; error?: string }> {
+    try {
+      const wc = webContents.fromId(activeWebContentsId);
+      if (!wc) {
+        return { ok: false, error: 'WebContents not found' };
+      }
+
+      // Step 1: Capture webview
+      const nativeImg = await wc.capturePage();
+      const webviewBase64 = nativeImg.toPNG().toString('base64');
+
+      // Step 2: Composite with canvas overlay in renderer
+      const compositeBase64: string = await this.win.webContents.executeJavaScript(`
+        window.__tandemDraw.compositeScreenshot(${JSON.stringify(webviewBase64)})
+      `);
+
+      // Step 3: Create buffer and nativeImage
+      const buffer = Buffer.from(compositeBase64, 'base64');
+      const image = nativeImage.createFromBuffer(buffer);
+
+      // Step 4: Copy to clipboard
+      clipboard.writeImage(image);
+
+      // Step 5: Save to ~/Pictures/Tandem/
+      const slug = this.urlToSlug(currentUrl);
+      const timestamp = Date.now();
+      const filename = `tandem-${slug}-${timestamp}.png`;
+      const picturesPath = path.join(this.picturesDir, filename);
+      fs.writeFileSync(picturesPath, buffer);
+
+      // Step 6: Also save to app screenshots dir
+      const appPath = path.join(this.screenshotDir, filename);
+      fs.writeFileSync(appPath, buffer);
+      this.lastScreenshotPath = appPath;
+
+      // Step 7: Clear annotations
+      this.win.webContents.send('draw-clear', {});
+
+      // Step 8: Notify renderer of new screenshot (for panel preview)
+      this.win.webContents.send('screenshot-taken', {
+        path: picturesPath,
+        appPath,
+        filename,
+        base64: compositeBase64,
+      });
+
+      return { ok: true, path: picturesPath };
     } catch (e: any) {
       return { ok: false, error: e.message };
     }

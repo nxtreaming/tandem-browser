@@ -125,7 +125,70 @@
 
 ---
 
-## Phase 3: Echte Browser Features 📦
+## Phase 3: Kees' Brein 🧠
+> Dit maakt Kees slim. Niet alleen meekijken maar onthouden, begrijpen, en zelfstandig handelen.
+
+### 3.1 Site Memory — Geheugen per website
+- [ ] `~/.tandem/site-memory/{domain}.json` — structured data per site
+- [ ] Auto-extract bij bezoek: titel, meta, key content, forms, accounts
+- [ ] Diff detectie: wat is veranderd sinds vorige keer?
+- [ ] API: `GET /memory/{domain}`, `GET /memory/diff/{domain}`
+- [ ] Doorzoekbaar: `GET /memory/search?q=...`
+
+### 3.2 Scheduled Watches — Ogen die altijd aan staan
+- [ ] Watch list: URLs + check interval + change detection
+- [ ] Background tabs (headless, Robin ziet ze niet)
+- [ ] Notificatie als er iets veranderd is
+- [ ] Cron integratie: "check LinkedIn elke ochtend om 9:00"
+- [ ] API: `POST /watch/add`, `GET /watch/list`, `DELETE /watch/remove`
+- [ ] Configureerbaar: wat telt als "veranderd"? (text diff, element, screenshot diff)
+
+### 3.3 Headless Mode — Kees browst solo
+- [ ] Tweede webview (verborgen) voor background browsing
+- [ ] Kees kan zelfstandig pagina's openen, lezen, navigeren
+- [ ] Resultaten verschijnen in Kees paneel
+- [ ] Robin kan headless tab "zichtbaar" maken als hij wil meekijken
+- [ ] API: `POST /headless/open`, `GET /headless/content`
+
+### 3.4 Form Memory — Alle formulieren onthouden
+- [ ] Track elke form submit: welke velden, welke waarden
+- [ ] `~/.tandem/forms/{domain}.json`
+- [ ] Auto-suggest bij volgende bezoek
+- [ ] "Kees, vul dit in" → formulier invullen met opgeslagen data
+- [ ] Gaat verder dan passwords: adressen, telefoonnummers, voorkeuren
+- [ ] API: `GET /forms/memory/{domain}`, `POST /forms/fill`
+
+### 3.5 Context Bridge — Tandem ↔ OpenClaw
+- [ ] Alles wat Kees leest in Tandem → beschikbaar in OpenClaw chats
+- [ ] Web geheugen persistent: niet opnieuw fetchen wat we al gezien hebben
+- [ ] Tandem als OpenClaw skill: `tandem.read("linkedin.com/in/robinwaslander")`
+- [ ] Bi-directioneel: OpenClaw chat → Tandem actie, Tandem observatie → OpenClaw kennis
+- [ ] Shared context store: `~/.tandem/context/`
+
+### 3.6 Bidirectioneel Stuur — Kees navigeert, Robin ziet
+- [ ] Kees opent een pagina → verschijnt live in Robin's browser
+- [ ] "Kijk, dit vond ik" → tab opent met highlight
+- [ ] Robin kan overnemen, Kees kan terugnemen
+- [ ] Visuele indicator: 🧀 icoontje als Kees een tab bestuurt, 👤 als Robin bestuurt
+- [ ] Smooth handoff: geen flicker, geen reload
+
+### 3.7 PiP Mode — Always-on-top mini-venster
+- [ ] Klein floating venster (Electron BrowserWindow, alwaysOnTop)
+- [ ] Laatste activiteit + quick command + status
+- [ ] Drag anywhere op scherm
+- [ ] Toggle: Cmd+P of via menu
+- [ ] Minimaal: 300x200px
+
+### 3.8 Network Inspector — Kees begrijpt het verkeer
+- [ ] Request logging via Electron webRequest API (NIET in webview)
+- [ ] Per pagina: welke APIs, welke endpoints, welke responses
+- [ ] Automatische API discovery: "deze site gebruikt api.example.com/v2/"
+- [ ] Export: HAR format of JSON
+- [ ] API: `GET /network/log`, `GET /network/apis`
+
+---
+
+## Phase 4: Echte Browser Features 📦
 > Van "tool" naar "dagelijkse browser".
 
 ### 3.1 Data Import

@@ -6,6 +6,8 @@ import { copilotAlert } from '../main';
 import { TabManager } from '../tabs/manager';
 import { PanelManager } from '../panel/manager';
 import { DrawOverlayManager } from '../draw/overlay';
+import { ActivityTracker } from '../activity/tracker';
+import { VoiceManager } from '../voice/recognition';
 import { humanizedClick, humanizedType } from '../input/humanized';
 
 export class TandemAPI {
@@ -16,13 +18,17 @@ export class TandemAPI {
   private tabManager: TabManager;
   private panelManager: PanelManager;
   private drawManager: DrawOverlayManager;
+  private activityTracker: ActivityTracker;
+  private voiceManager: VoiceManager;
 
-  constructor(win: BrowserWindow, port: number = 8765, tabManager: TabManager, panelManager: PanelManager, drawManager: DrawOverlayManager) {
+  constructor(win: BrowserWindow, port: number = 8765, tabManager: TabManager, panelManager: PanelManager, drawManager: DrawOverlayManager, activityTracker: ActivityTracker, voiceManager: VoiceManager) {
     this.win = win;
     this.port = port;
     this.tabManager = tabManager;
     this.panelManager = panelManager;
     this.drawManager = drawManager;
+    this.activityTracker = activityTracker;
+    this.voiceManager = voiceManager;
     this.app = express();
     this.app.use(cors());
     this.app.use(express.json());
@@ -489,6 +495,56 @@ export class TandemAPI {
         const limit = parseInt(req.query.limit as string) || 10;
         const screenshots = this.drawManager.listScreenshots(limit);
         res.json({ screenshots });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // VOICE — Speech recognition control
+    // ═══════════════════════════════════════════════
+
+    /** Start voice input */
+    this.app.post('/voice/start', (_req: Request, res: Response) => {
+      try {
+        this.voiceManager.start();
+        res.json({ ok: true, listening: true });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    /** Stop voice input */
+    this.app.post('/voice/stop', (_req: Request, res: Response) => {
+      try {
+        this.voiceManager.stop();
+        res.json({ ok: true, listening: false });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    /** Get voice status */
+    this.app.get('/voice/status', (_req: Request, res: Response) => {
+      try {
+        const status = this.voiceManager.getStatus();
+        res.json(status);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // ═══════════════════════════════════════════════
+    // ACTIVITY LOG — Live co-pilot feed
+    // ═══════════════════════════════════════════════
+
+    /** Get detailed activity log with timestamps */
+    this.app.get('/activity-log', (req: Request, res: Response) => {
+      try {
+        const limit = parseInt(req.query.limit as string) || 100;
+        const since = req.query.since ? parseInt(req.query.since as string) : undefined;
+        const entries = this.activityTracker.getLog(limit, since);
+        res.json({ entries, count: entries.length });
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }

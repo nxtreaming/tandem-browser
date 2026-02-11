@@ -66,4 +66,26 @@ contextBridge.exposeInMainWorld('tandem', {
     ipcRenderer.on('screenshot-taken', (_event, data) => callback(data));
   },
   snapForKees: () => ipcRenderer.invoke('snap-for-kees'),
+
+  // Voice
+  onVoiceToggle: (callback: (data: { listening: boolean }) => void) => {
+    ipcRenderer.on('voice-toggle', (_event, data) => callback(data));
+  },
+  onVoiceTranscript: (callback: (data: { text: string; isFinal: boolean }) => void) => {
+    ipcRenderer.on('voice-transcript-display', (_event, data) => callback(data));
+  },
+  sendVoiceTranscript: (text: string, isFinal: boolean) => {
+    ipcRenderer.send('voice-transcript', { text, isFinal });
+  },
+  sendVoiceStatus: (listening: boolean) => {
+    ipcRenderer.send('voice-status-update', { listening });
+  },
+
+  // Activity tracking
+  sendWebviewEvent: (data: { type: string; url?: string; tabId?: string }) => {
+    ipcRenderer.send('activity-webview-event', data);
+  },
+  onAutoSnapshotRequest: (callback: (data: { url: string }) => void) => {
+    ipcRenderer.on('auto-snapshot-request', (_event, data) => callback(data));
+  },
 });
