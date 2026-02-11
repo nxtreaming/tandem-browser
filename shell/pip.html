@@ -107,6 +107,7 @@
       <span id="status-api" title="API status">🟢</span>
       <span id="status-voice" title="Voice status">🎙️</span>
       <span id="status-learning" title="Learning status">🧬</span>
+      <span id="pip-close" title="Close PiP" style="cursor:pointer;margin-left:4px;opacity:0.6;-webkit-app-region:no-drag;" onclick="fetch('http://localhost:8765/pip/toggle',{method:'POST'}).catch(()=>{});window.close();">✕</span>
     </div>
   </div>
 
