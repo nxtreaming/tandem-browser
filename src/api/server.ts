@@ -506,12 +506,13 @@ export class TandemAPI {
       }
     });
 
-    /** Send chat message as Kees */
+    /** Send chat message (default: kees, but 'from' param allows robin for internal UI) */
     this.app.post('/chat', (req: Request, res: Response) => {
-      const { text } = req.body;
+      const { text, from } = req.body;
       if (!text) { res.status(400).json({ error: 'text required' }); return; }
+      const sender = (from === 'robin') ? 'robin' : 'kees';
       try {
-        const msg = this.panelManager.addChatMessage('kees', text);
+        const msg = this.panelManager.addChatMessage(sender, text);
         res.json({ ok: true, message: msg });
       } catch (e: any) {
         res.status(500).json({ error: e.message });
