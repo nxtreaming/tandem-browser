@@ -159,7 +159,7 @@ export class WorkflowEngine {
       }
 
       return workflows;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load workflows:', error);
       return [];
     }
@@ -296,7 +296,7 @@ export class WorkflowEngine {
           }
 
           stepIndex++;
-        } catch (stepError) {
+        } catch (stepError: any) {
           console.error(`Step ${step.id} failed:`, stepError);
           
           execution.stepResults.push({
@@ -323,7 +323,7 @@ export class WorkflowEngine {
       }
       execution.completedAt = new Date().toISOString();
 
-    } catch (error) {
+    } catch (error: any) {
       execution.status = 'failed';
       execution.error = error.message;
       execution.completedAt = new Date().toISOString();
@@ -373,7 +373,7 @@ export class WorkflowEngine {
 
         clearTimeout(timer);
         resolve(result);
-      } catch (error) {
+      } catch (error: any) {
         clearTimeout(timer);
         reject(error);
       }
@@ -446,7 +446,7 @@ export class WorkflowEngine {
       throw new Error(`Element not visible: ${step.params.selector}`);
     }
 
-    await humanizedClick(webview, elementInfo.x, elementInfo.y);
+    await humanizedClick(webview.webContents, step.params.selector);
     
     if (step.params.waitAfter) {
       await new Promise(resolve => setTimeout(resolve, step.params.waitAfter));
@@ -472,7 +472,7 @@ export class WorkflowEngine {
       `);
     }
 
-    await humanizedType(webview, step.params.text);
+    await humanizedType(webview.webContents, step.params.selector, step.params.text, !!step.params.clear);
 
     if (step.params.submit) {
       // Try to submit the form
