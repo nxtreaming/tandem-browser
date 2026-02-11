@@ -68,7 +68,7 @@ async function createWindow(): Promise<BrowserWindow> {
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() === 'webview') {
       contents.on('dom-ready', () => {
-        contents.executeJavaScript(stealthScript).catch(() => {});
+        contents.executeJavaScript(stealthScript).catch((e) => console.warn('Stealth script injection failed:', e.message));
       });
     }
   });
@@ -224,8 +224,8 @@ async function startAPI(win: BrowserWindow): Promise<void> {
       const activeTab = tabManager?.getActiveTab();
       if (activeTab) {
         tabManager?.getActiveWebContents().then(wc => {
-          if (wc) siteMemory!.recordVisit(wc, data.url!).catch(() => {});
-        }).catch(() => {});
+          if (wc) siteMemory!.recordVisit(wc, data.url!).catch((e) => console.warn('Site memory recordVisit failed:', e.message));
+        }).catch((e) => console.warn('Get active webcontents for site memory failed:', e.message));
       }
     }
     // Flush network data when navigating away
@@ -260,9 +260,9 @@ async function startAPI(win: BrowserWindow): Promise<void> {
               })()
             `).then((pageData: { title: string; headings: string[]; linksCount: number; body: string }) => {
               contextBridge!.recordSnapshot(data.url!, pageData.title, pageData.body, pageData.headings, pageData.linksCount);
-            }).catch(() => {});
+            }).catch((e) => console.warn('Context bridge snapshot failed:', e.message));
           }
-        }).catch(() => {});
+        }).catch((e) => console.warn('Get active webcontents for context bridge failed:', e.message));
       }
     }
   });
@@ -391,7 +391,7 @@ function registerShortcuts(): void {
         if (activeTab) {
           audioCaptureManager.startRecording(activeTab.webContentsId).then(() => {
             mainWindow?.webContents.send('audio-recording-status', { recording: true });
-          }).catch(() => {});
+          }).catch((e) => console.warn('Audio capture start failed:', e.message));
         }
       }
     }

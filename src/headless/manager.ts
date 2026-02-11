@@ -151,7 +151,7 @@ export class HeadlessManager {
 
     // Apply stealth script on every page load
     this.window.webContents.on('did-finish-load', () => {
-      this.window?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch(() => {});
+      this.window?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch((e) => console.warn('Headless stealth injection failed:', e.message));
     });
 
     // Detect unexpected redirects (e.g. login walls)
@@ -184,7 +184,7 @@ export class HeadlessManager {
   private startCaptchaCheck(): void {
     this.stopCaptchaCheck();
     this.captchaCheckInterval = setInterval(() => {
-      this.detectCaptcha().catch(() => {});
+      this.detectCaptcha().catch((e) => console.warn('Captcha detection failed:', e.message));
     }, 3000);
   }
 

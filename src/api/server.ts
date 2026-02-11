@@ -93,7 +93,18 @@ export class TandemAPI {
     this.loginManager = new LoginManager();
     
     this.app = express();
-    this.app.use(cors());
+    this.app.use(cors({
+      origin: (origin, callback) => {
+        // Allow requests with no origin (curl, Electron, server-to-server)
+        if (!origin) return callback(null, true);
+        // Allow file:// protocol (Electron shell pages)
+        if (origin.startsWith('file://')) return callback(null, true);
+        // Allow localhost origins (dev tools, other local apps)
+        if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) return callback(null, true);
+        // Block everything else
+        callback(new Error('CORS not allowed'));
+      }
+    }));
     this.app.use(express.json({ limit: '50mb' }));
     this.setupRoutes();
   }
@@ -335,12 +346,12 @@ export class TandemAPI {
         const code = selector ? `
           new Promise((res, rej) => {
             const check = () => {
-              const el = document.querySelector('${selector}');
+              const el = document.querySelector(${JSON.stringify(selector)});
               if (el) return res({ ok: true, found: true });
               setTimeout(check, 200);
             };
             check();
-            setTimeout(() => res({ ok: true, found: false, timeout: true }), ${timeout});
+            setTimeout(() => res({ ok: true, found: false, timeout: true }), ${JSON.stringify(timeout)});
           })
         ` : `
           new Promise(res => {

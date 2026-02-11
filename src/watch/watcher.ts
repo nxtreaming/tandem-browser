@@ -86,7 +86,7 @@ export class WatchManager {
 
     // Apply stealth script after page loads
     this.hiddenWindow.webContents.on('did-finish-load', () => {
-      this.hiddenWindow?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch(() => {});
+      this.hiddenWindow?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch((e) => console.warn('Watch stealth injection failed:', e.message));
     });
 
     return this.hiddenWindow;
@@ -167,7 +167,7 @@ export class WatchManager {
   private startTimer(watch: WatchEntry): void {
     this.stopTimer(watch.id);
     const timer = setInterval(() => {
-      this.checkUrl(watch.id).catch(() => {});
+      this.checkUrl(watch.id).catch((e) => console.warn('Watch check failed for ' + watch.id + ':', e.message));
     }, watch.intervalMs);
     this.timers.set(watch.id, timer);
   }
@@ -216,7 +216,7 @@ export class WatchManager {
     this.startTimer(watch);
 
     // Do an initial check
-    this.checkUrl(watch.id).catch(() => {});
+    this.checkUrl(watch.id).catch((e) => console.warn('Watch check failed for ' + watch.id + ':', e.message));
 
     return watch;
   }

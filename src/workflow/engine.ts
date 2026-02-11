@@ -424,28 +424,31 @@ export class WorkflowEngine {
   private async executeClick(step: ClickStep, webview: BrowserWindow): Promise<void> {
     if (step.params.scrollIntoView) {
       await webview.webContents.executeJavaScript(`
-        const element = document.querySelector('${step.params.selector}');
+        const element = document.querySelector(${JSON.stringify(step.params.selector)});
         if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       `);
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
+    // Verify element exists and is visible before clicking
     const elementInfo = await webview.webContents.executeJavaScript(`
-      const element = document.querySelector('${step.params.selector}');
-      if (!element) throw new Error('Element not found: ${step.params.selector}');
-      
-      const rect = element.getBoundingClientRect();
-      ({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-        visible: rect.width > 0 && rect.height > 0
-      });
+      (() => {
+        const element = document.querySelector(${JSON.stringify(step.params.selector)});
+        if (!element) throw new Error('Element not found: ' + ${JSON.stringify(step.params.selector)});
+        const rect = element.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+          visible: rect.width > 0 && rect.height > 0
+        };
+      })()
     `);
 
     if (!elementInfo.visible) {
       throw new Error(`Element not visible: ${step.params.selector}`);
     }
 
+    // Use humanizedClick for isTrusted: true events via sendInputEvent
     await humanizedClick(webview.webContents, step.params.selector);
     
     if (step.params.waitAfter) {
@@ -454,47 +457,21 @@ export class WorkflowEngine {
   }
 
   private async executeType(step: TypeStep, webview: BrowserWindow): Promise<void> {
-    // Focus the element first
-    await webview.webContents.executeJavaScript(`
-      const element = document.querySelector('${step.params.selector}');
-      if (!element) throw new Error('Element not found: ${step.params.selector}');
-      element.focus();
-    `);
-
-    if (step.params.clear) {
-      // Clear existing content
-      await webview.webContents.executeJavaScript(`
-        const element = document.querySelector('${step.params.selector}');
-        if (element) {
-          element.value = '';
-          element.textContent = '';
-        }
-      `);
-    }
-
+    // Use humanizedType which handles focus, clear, and typing via sendInputEvent (isTrusted: true)
     await humanizedType(webview.webContents, step.params.selector, step.params.text, !!step.params.clear);
 
     if (step.params.submit) {
-      // Try to submit the form
-      await webview.webContents.executeJavaScript(`
-        const element = document.querySelector('${step.params.selector}');
-        const form = element?.closest('form');
-        if (form) {
-          form.submit();
-        } else {
-          // Try pressing Enter
-          const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13 });
-          element.dispatchEvent(event);
-        }
-      `);
+      // Submit via sendInputEvent Enter key (isTrusted: true)
+      webview.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+      webview.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
     }
   }
 
   private async executeExtract(step: ExtractStep, execution: WorkflowExecution, webview: BrowserWindow): Promise<any> {
     const result = await webview.webContents.executeJavaScript(`
       (() => {
-        const selector = '${step.params.selector || 'body'}';
-        const attribute = '${step.params.attribute || ''}';
+        const selector = ${JSON.stringify(step.params.selector || 'body')};
+        const attribute = ${JSON.stringify(step.params.attribute || '')};
         
         const element = document.querySelector(selector);
         if (!element) return null;
@@ -535,8 +512,8 @@ export class WorkflowEngine {
 
   private async executeScroll(step: ScrollStep, webview: BrowserWindow): Promise<void> {
     await webview.webContents.executeJavaScript(`
-      const direction = '${step.params.direction}';
-      const amount = ${step.params.amount || 300};
+      const direction = ${JSON.stringify(step.params.direction)};
+      const amount = ${JSON.stringify(step.params.amount || 300)};
       
       switch (direction) {
         case 'up':
@@ -561,12 +538,12 @@ export class WorkflowEngine {
     switch (step.params.condition) {
       case 'elementExists':
         conditionResult = await webview.webContents.executeJavaScript(`
-          !!document.querySelector('${step.params.selector}');
+          !!document.querySelector(${JSON.stringify(step.params.selector)});
         `);
         break;
       case 'textContains':
         conditionResult = await webview.webContents.executeJavaScript(`
-          document.body.textContent.includes('${step.params.text}');
+          document.body.textContent.includes(${JSON.stringify(step.params.text)});
         `);
         break;
       case 'urlMatches':
@@ -591,11 +568,11 @@ export class WorkflowEngine {
     switch (params.condition) {
       case 'element':
         return await webview.webContents.executeJavaScript(`
-          !!document.querySelector('${params.selector}');
+          !!document.querySelector(${JSON.stringify(params.selector)});
         `);
       case 'text':
         return await webview.webContents.executeJavaScript(`
-          document.body.textContent.includes('${params.text}');
+          document.body.textContent.includes(${JSON.stringify(params.text)});
         `);
       case 'url':
         return new RegExp(params.urlPattern).test(webview.webContents.getURL());
