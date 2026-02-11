@@ -69,7 +69,22 @@
 - [ ] API: `GET /watch` — polling endpoint voor Kees
 - [ ] API: `WS /watch/live` — WebSocket stream (later)
 
-### 2.6 Behavioral Learning 🧬
+### 2.6 Kees Chat Koppeling 💬
+- [ ] Chat paneel berichten doorsturen naar OpenClaw (via webhook of polling)
+- [ ] Kees kan antwoorden terugsturen via `POST /chat` → verschijnt in paneel
+- [ ] Chat history persistent (overleven restart)
+- [ ] Combi: annotated screenshot + voice/tekst = één bericht naar Kees
+- [ ] Notificatie als Kees antwoordt terwijl paneel dicht is
+
+### 2.7 Custom New Tab — Kees.ai 🧀
+- [ ] Custom new-tab page in plaats van DuckDuckGo
+- [ ] Kees chat direct in new-tab (geen externe AI nodig)
+- [ ] Snelle acties: "zoek...", "open...", "wat staat er op mijn agenda?"
+- [ ] Recente tabs / bookmarks overzicht
+- [ ] Weerwidget (Herent)
+- [ ] Tandem branding + Robin's voorkeuren
+
+### 2.8 Behavioral Learning 🧬
 - [ ] Observation layer: track mouse, clicks, scroll, keypress via Electron events
 - [ ] Raw data opslag: `~/.tandem/behavior/raw/`
 - [ ] Profiel compiler: statistische analyse na ~1 week data
