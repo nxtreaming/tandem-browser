@@ -93,6 +93,24 @@ De website mag ALLEEN zien: "een mens in Chrome op een Mac in België". Kees sta
 - `performance.now()` timing — te snel = bot → random delays 80-300ms
 - Injected DOM elements — alles wat niet van de site is → NOOIT in webview
 - WebSocket naar localhost — onze API mag NIET vanuit de webview aangeroepen worden
+- `window.process` / `window.require` — Electron giveaways → MOETEN undefined zijn
+- `navigator.userAgentData` — moet matchen met echte Chrome
+- `localhost:8765` port scan — sites kunnen proberen onze API te detecteren → CORS strict, geen response op cross-origin
+
+### ⚠️ FUNDAMENTELE REGEL: GEEN UNIEKE FINGERPRINT
+Tandem mag NOOIT een herkenbare fingerprint hebben. Als platforms (Meta, Google, LinkedIn) 
+Tandem als "AI browser" kunnen identificeren, is het game over voor ALLE gebruikers.
+
+Tandem moet ononderscheidbaar zijn van echte Chrome op macOS.
+- Elke Electron-specifieke API moet verborgen of gepatcht zijn
+- Geen custom headers, geen custom properties, geen detecteerbare patterns
+- Overweeg migratie naar Chrome Extension model als Electron niet veilig genoeg is
+
+### Headless mode = "minimized met noodrem"
+Background browsing is NOOIT volledig autonoom:
+- Bij detectie/captcha → tab wordt ZICHTBAAR voor Robin
+- Robin lost het op → tab gaat terug naar achtergrond
+- Robin is altijd de noodrem en bodyguard
 
 ### Timing humanisatie — Behavioral Learning
 Tandem leert Robin's gedragspatronen en repliceert die bij automated acties.
