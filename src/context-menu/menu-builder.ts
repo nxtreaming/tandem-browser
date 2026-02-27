@@ -1,6 +1,10 @@
-import { Menu, MenuItem, clipboard, dialog, WebContents, webContents } from 'electron';
-import { ContextMenuParams, ContextMenuDeps } from './types';
-import { passwordManager } from '../passwords/manager';
+import type { WebContents} from 'electron';
+import { Menu, MenuItem, clipboard, dialog, webContents } from 'electron';
+import type { ContextMenuParams, ContextMenuDeps } from './types';
+import { getPasswordManager } from '../passwords/manager';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ContextMenu');
 
 /** Protocols that should never be opened/downloaded */
 const BLOCKED_PROTOCOLS = ['javascript:', 'data:', 'file:', 'vbscript:'];
@@ -162,7 +166,7 @@ export class ContextMenuBuilder {
       label: `Search ${SEARCH_ENGINE.name} for "${truncated}"`,
       click: () => {
         const query = encodeURIComponent(params.selectionText);
-        this.deps.tabManager.openTab(`${SEARCH_ENGINE.url}${query}`);
+        void this.deps.tabManager.openTab(`${SEARCH_ENGINE.url}${query}`);
       },
     }));
   }
@@ -228,12 +232,12 @@ export class ContextMenuBuilder {
     }));
 
     // Password Manager Autofill
-    if (passwordManager.isVaultUnlocked) {
+    if (getPasswordManager().isVaultUnlocked) {
       this.addSeparator(menu);
       const url = new URL(params.pageURL || wc.getURL());
       const domain = url.hostname;
 
-      const identities = passwordManager.getIdentitiesForDomain(domain);
+      const identities = getPasswordManager().getIdentitiesForDomain(domain);
 
       if (identities.length > 0) {
         const vaultMenu = new Menu();
@@ -245,7 +249,7 @@ export class ContextMenuBuilder {
               // For a simple editable context menu, we can just insert the password text where the cursor is,
               // or send an IPC message to fill the whole form if we detect username/password fields.
               // For now, we paste the password.
-              if (id.payload && id.payload.password) {
+              if (id.payload && typeof id.payload.password === 'string') {
                 clipboard.writeText(id.payload.password);
                 wc.paste();
               }
@@ -283,7 +287,7 @@ export class ContextMenuBuilder {
       label: `Search ${SEARCH_ENGINE.name} for "${truncated}"`,
       click: () => {
         const query = encodeURIComponent(params.selectionText);
-        this.deps.tabManager.openTab(`${SEARCH_ENGINE.url}${query}`);
+        void this.deps.tabManager.openTab(`${SEARCH_ENGINE.url}${query}`);
       },
     }));
   }
@@ -318,7 +322,7 @@ export class ContextMenuBuilder {
     menu.append(new MenuItem({
       label: 'Save As...',
       accelerator: 'CmdOrCtrl+S',
-      click: () => { this.handleSaveAs(wc).catch(e => console.warn('Save As failed:', e.message)); },
+      click: () => { this.handleSaveAs(wc).catch(e => log.warn('Save As failed:', e.message)); },
     }));
     menu.append(new MenuItem({
       label: 'Print...',
@@ -334,7 +338,7 @@ export class ContextMenuBuilder {
       click: () => {
         if (wc.isDestroyed()) return;
         const url = wc.getURL();
-        this.deps.tabManager.openTab(`view-source:${url}`);
+        void this.deps.tabManager.openTab(`view-source:${url}`);
       },
     }));
     menu.append(new MenuItem({
@@ -362,7 +366,7 @@ export class ContextMenuBuilder {
       if (wc.isDestroyed()) return;
       const saveType = result.filePath.endsWith('.htm') ? 'HTMLOnly' : 'HTMLComplete';
       await wc.savePage(result.filePath, saveType as 'HTMLComplete' | 'HTMLOnly').catch((err) => {
-        console.warn('Save page failed:', err.message);
+        log.warn('Save page failed:', err.message);
       });
     }
   }
@@ -375,6 +379,7 @@ export class ContextMenuBuilder {
 
     // Copilot AI items
     if (params.selectionText) {
+      // eslint-disable-next-line no-control-regex
       const safeText = params.selectionText.replace(/[\u0000-\u001f]/g, ' ').trim();
       const truncatedForPrompt = safeText.length > 500 ? safeText.substring(0, 500) + '...' : safeText;
       menu.append(new MenuItem({
@@ -389,6 +394,7 @@ export class ContextMenuBuilder {
     }
 
     if (params.mediaType === 'image' && params.srcURL) {
+      // eslint-disable-next-line no-control-regex
       const safeSrc = params.srcURL.replace(/[\u0000-\u001f]/g, '').trim();
       menu.append(new MenuItem({
         label: 'Ask Copilot about this Image',
@@ -417,7 +423,7 @@ export class ContextMenuBuilder {
               return title + '\\n\\n' + trimmed;
             })()
           `);
-        } catch { }
+        } catch { /* page may have navigated away */ }
 
         const prompt = excerpt
           ? 'Please summarize this page:\\n\\n' + excerpt
@@ -553,7 +559,7 @@ export class ContextMenuBuilder {
       click: () => {
         const wc = webContents.fromId(tab.webContentsId);
         const currentUrl = (wc && !wc.isDestroyed()) ? wc.getURL() : tab.url;
-        this.deps.tabManager.openTab(currentUrl);
+        void this.deps.tabManager.openTab(currentUrl);
       },
     }));
     menu.append(new MenuItem({
@@ -598,7 +604,7 @@ export class ContextMenuBuilder {
       enabled: allTabs.length > 1,
       click: async () => {
         for (const t of allTabs.filter(t => t.id !== tabId)) {
-          try { await this.deps.tabManager.closeTab(t.id); } catch { }
+          try { await this.deps.tabManager.closeTab(t.id); } catch { /* tab may already be closed */ }
         }
       },
     }));
@@ -607,7 +613,7 @@ export class ContextMenuBuilder {
       enabled: tabIndex < allTabs.length - 1,
       click: async () => {
         for (const t of allTabs.slice(tabIndex + 1)) {
-          try { await this.deps.tabManager.closeTab(t.id); } catch { }
+          try { await this.deps.tabManager.closeTab(t.id); } catch { /* tab may already be closed */ }
         }
       },
     }));

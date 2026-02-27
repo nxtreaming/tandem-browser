@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
-import { EventStreamManager, BrowserEvent, BrowserEventType } from '../events/stream';
+import type { EventStreamManager, BrowserEvent, BrowserEventType } from '../events/stream';
+import { tandemDir } from '../utils/paths';
 
 export interface ContextSnapshot {
   url: string;
@@ -34,7 +34,7 @@ export class ContextBridge {
   private indexPath: string;
   private index: Map<string, ContextSnapshot> = new Map();
 
-  // Live context state (Fase 2.2)
+  // Live context state (Phase 2.2)
   private activeTab: { url: string; title: string; tabId: string } | null = null;
   private openTabs: Array<{ id: string; title: string; url: string }> = [];
   private voiceActive = false;
@@ -43,7 +43,7 @@ export class ContextBridge {
   private contextChangeListeners = new Set<() => void>();
 
   constructor() {
-    this.contextDir = path.join(os.homedir(), '.tandem', 'context');
+    this.contextDir = tandemDir('context');
     this.indexPath = path.join(this.contextDir, '_index.json');
 
     if (!fs.existsSync(this.contextDir)) {
@@ -179,7 +179,7 @@ export class ContextBridge {
   }
 
   // ═══════════════════════════════════════════════
-  // Live Context (Fase 2.2)
+  // Live Context (Phase 2.2)
   // ═══════════════════════════════════════════════
 
   /** Connect to EventStreamManager and start tracking live context */

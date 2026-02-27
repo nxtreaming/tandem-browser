@@ -1,25 +1,29 @@
-import { Server as HttpServer } from 'http';
+import type { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
+import type { IncomingMessage } from 'http';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import crypto from 'crypto';
-import { Guardian } from './guardian';
-import { SecurityDB } from './security-db';
-import {
+import { tandemDir } from '../utils/paths';
+import type { Guardian } from './guardian';
+import type { SecurityDB } from './security-db';
+import type {
   PendingDecision,
   GatekeeperDecision,
   GatekeeperStatus,
   GatekeeperHistoryEntry,
   GatekeeperAction,
   SecurityEvent,
-  GuardianMode,
+  GuardianMode} from './types';
+import {
   AnalysisConfidence,
 } from './types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('Gatekeeper');
 
 const MAX_QUEUE = 1000;
-const DEFAULT_TIMEOUT = 30_000;
+const _DEFAULT_TIMEOUT = 30_000;
 const HEARTBEAT_INTERVAL = 30_000;
 const MAX_HISTORY = 500;
 
@@ -51,7 +55,7 @@ export class GatekeeperWebSocket {
         if (token === this.authSecret) {
           callback(true);
         } else {
-          console.log('[Gatekeeper] Auth rejected — invalid token');
+          log.info('Auth rejected — invalid token');
           callback(false, 401, 'Invalid token');
         }
       },
@@ -61,7 +65,7 @@ export class GatekeeperWebSocket {
       this.handleConnection(ws);
     });
 
-    console.log('[Gatekeeper] WebSocket server ready on /security/gatekeeper');
+    log.info('WebSocket server ready on /security/gatekeeper');
   }
 
   // === Connection handling ===
@@ -74,7 +78,7 @@ export class GatekeeperWebSocket {
     this.client = ws;
     this.lastAgentSeen = Date.now();
 
-    console.log('[Gatekeeper] Agent connected');
+    log.info('Agent connected');
 
     // Start heartbeat
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
@@ -100,12 +104,12 @@ export class GatekeeperWebSocket {
         this.handleAgentMessage(msg);
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
-        console.error('[Gatekeeper] Invalid message:', errMsg);
+        log.error('Invalid message:', errMsg);
       }
     });
 
     ws.on('close', () => {
-      console.log('[Gatekeeper] Agent disconnected');
+      log.info('Agent disconnected');
       this.client = null;
       if (this.heartbeatInterval) {
         clearInterval(this.heartbeatInterval);
@@ -114,7 +118,7 @@ export class GatekeeperWebSocket {
     });
 
     ws.on('error', (err: Error) => {
-      console.error('[Gatekeeper] WebSocket error:', err.message);
+      log.error('WebSocket error:', err.message);
     });
   }
 
@@ -212,7 +216,7 @@ export class GatekeeperWebSocket {
             actionTaken: 'logged',
             confidence: AnalysisConfidence.BEHAVIORAL,
           });
-          console.log(`[Gatekeeper] Trust update: ${msg.domain} → ${msg.trust}`);
+          log.info(`Trust update: ${msg.domain} → ${msg.trust}`);
         }
         break;
 
@@ -221,7 +225,7 @@ export class GatekeeperWebSocket {
           const validModes = ['strict', 'balanced', 'permissive'];
           if (validModes.includes(msg.mode)) {
             this.guardian.setMode(msg.domain, msg.mode as GuardianMode);
-            console.log(`[Gatekeeper] Mode change: ${msg.domain} → ${msg.mode}`);
+            log.info(`Mode change: ${msg.domain} → ${msg.mode}`);
           }
         }
         break;
@@ -238,11 +242,11 @@ export class GatekeeperWebSocket {
           actionTaken: 'flagged',
           confidence: AnalysisConfidence.BEHAVIORAL,
         });
-        console.warn(`[Gatekeeper] ESCALATION: ${msg.message || 'Critical alert from agent'}`);
+        log.warn(`ESCALATION: ${msg.message || 'Critical alert from agent'}`);
         break;
 
       default:
-        console.warn(`[Gatekeeper] Unknown message type: ${msg.type}`);
+        log.warn(`Unknown message type: ${msg.type}`);
     }
   }
 
@@ -342,7 +346,7 @@ export class GatekeeperWebSocket {
   }
 
   private getOrCreateSecret(): string {
-    const secretDir = path.join(os.homedir(), '.tandem', 'security');
+    const secretDir = tandemDir('security');
     const secretPath = path.join(secretDir, 'gatekeeper.secret');
 
     try {
@@ -361,10 +365,10 @@ export class GatekeeperWebSocket {
     try {
       fs.mkdirSync(secretDir, { recursive: true });
       fs.writeFileSync(secretPath, secret, { mode: 0o600 });
-      console.log(`[Gatekeeper] Secret created at ${secretPath}`);
+      log.info(`Secret created at ${secretPath}`);
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
-      console.error(`[Gatekeeper] Failed to write secret: ${errMsg}`);
+      log.error(`Failed to write secret: ${errMsg}`);
     }
     return secret;
   }
@@ -389,6 +393,6 @@ export class GatekeeperWebSocket {
     }
 
     this.wss.close();
-    console.log('[Gatekeeper] WebSocket server closed');
+    log.info('WebSocket server closed');
   }
 }

@@ -1,10 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import crypto from 'crypto';
+import { tandemDir } from '../utils/paths';
 import { BrowserWindow, session } from 'electron';
 import { StealthManager } from '../stealth/manager';
-import { copilotAlert } from '../main';
+import { copilotAlert } from '../notifications/alert';
+import { DEFAULT_TIMEOUT_MS } from '../utils/constants';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('Watcher');
 
 export interface WatchEntry {
   id: string;
@@ -39,10 +43,10 @@ export class WatchManager {
   private readonly MAX_WATCHES = 20;
 
   constructor() {
-    const tandemDir = path.join(os.homedir(), '.tandem');
-    if (!fs.existsSync(tandemDir)) fs.mkdirSync(tandemDir, { recursive: true });
+    const baseDir = tandemDir();
+    if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
 
-    this.watchFile = path.join(tandemDir, 'watches.json');
+    this.watchFile = path.join(baseDir, 'watches.json');
     this.state = this.load();
     this.startAllTimers();
   }
@@ -52,7 +56,7 @@ export class WatchManager {
       if (fs.existsSync(this.watchFile)) {
         return JSON.parse(fs.readFileSync(this.watchFile, 'utf-8'));
       }
-    } catch (e: any) { console.warn('Watch state load failed, starting fresh:', e.message); }
+    } catch (e) { log.warn('Watch state load failed, starting fresh:', e instanceof Error ? e.message : String(e)); }
     return { watches: [] };
   }
 
@@ -71,7 +75,7 @@ export class WatchManager {
     }
 
     const partition = 'persist:tandem';
-    const ses = session.fromPartition(partition);
+    const _ses = session.fromPartition(partition);
 
     this.hiddenWindow = new BrowserWindow({
       show: false,
@@ -86,7 +90,7 @@ export class WatchManager {
 
     // Apply stealth script after page loads
     this.hiddenWindow.webContents.on('did-finish-load', () => {
-      this.hiddenWindow?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch((e) => console.warn('Watch stealth injection failed:', e.message));
+      this.hiddenWindow?.webContents.executeJavaScript(StealthManager.getStealthScript()).catch((e) => log.warn('Watch stealth injection failed:', e.message));
     });
 
     return this.hiddenWindow;
@@ -112,7 +116,7 @@ export class WatchManager {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Page load timeout'));
-        }, 30000);
+        }, DEFAULT_TIMEOUT_MS);
 
         win.webContents.once('did-finish-load', () => {
           clearTimeout(timeout);
@@ -153,11 +157,12 @@ export class WatchManager {
       this.save();
 
       return { changed };
-    } catch (e: any) {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       watch.lastCheck = Date.now();
-      watch.lastError = e.message;
+      watch.lastError = message;
       this.save();
-      return { changed: false, error: e.message };
+      return { changed: false, error: message };
     } finally {
       this.checking = false;
     }
@@ -167,7 +172,7 @@ export class WatchManager {
   private startTimer(watch: WatchEntry): void {
     this.stopTimer(watch.id);
     const timer = setInterval(() => {
-      this.checkUrl(watch.id).catch((e) => console.warn('Watch check failed for ' + watch.id + ':', e.message));
+      this.checkUrl(watch.id).catch((e) => log.warn('Watch check failed for ' + watch.id + ':', e.message));
     }, watch.intervalMs);
     this.timers.set(watch.id, timer);
   }
@@ -216,7 +221,7 @@ export class WatchManager {
     this.startTimer(watch);
 
     // Do an initial check
-    this.checkUrl(watch.id).catch((e) => console.warn('Watch check failed for ' + watch.id + ':', e.message));
+    this.checkUrl(watch.id).catch((e) => log.warn('Watch check failed for ' + watch.id + ':', e.message));
 
     return watch;
   }

@@ -1,0 +1,85 @@
+/**
+ * ManagerRegistry — single source of truth for all shared manager instances.
+ *
+ * Replaces the 35+ param TandemAPIOptions object and the duplicate RouteContext interface.
+ * Built once in main.ts, passed to TandemAPI, and used as RouteContext for route handlers.
+ */
+import type { TabManager } from './tabs/manager';
+import type { PanelManager } from './panel/manager';
+import type { DrawOverlayManager } from './draw/overlay';
+import type { ActivityTracker } from './activity/tracker';
+import type { VoiceManager } from './voice/recognition';
+import type { BehaviorObserver } from './behavior/observer';
+import type { ConfigManager } from './config/manager';
+import type { SiteMemoryManager } from './memory/site-memory';
+import type { WatchManager } from './watch/watcher';
+import type { HeadlessManager } from './headless/manager';
+import type { FormMemoryManager } from './memory/form-memory';
+import type { ContextBridge } from './bridge/context-bridge';
+import type { PiPManager } from './pip/manager';
+import type { NetworkInspector } from './network/inspector';
+import type { ChromeImporter } from './import/chrome-importer';
+import type { BookmarkManager } from './bookmarks/manager';
+import type { HistoryManager } from './history/manager';
+import type { DownloadManager } from './downloads/manager';
+import type { AudioCaptureManager } from './audio/capture';
+import type { ExtensionLoader } from './extensions/loader';
+import type { ExtensionManager } from './extensions/manager';
+import type { ClaroNoteManager } from './claronote/manager';
+import type { ContentExtractor } from './content/extractor';
+import type { WorkflowEngine } from './workflow/engine';
+import type { LoginManager } from './auth/login-manager';
+import type { EventStreamManager } from './events/stream';
+import type { TaskManager } from './agents/task-manager';
+import type { TabLockManager } from './agents/tab-lock-manager';
+import type { DevToolsManager } from './devtools/manager';
+import type { CopilotStream } from './activity/copilot-stream';
+import type { SecurityManager } from './security/security-manager';
+import type { SnapshotManager } from './snapshot/manager';
+import type { NetworkMocker } from './network/mocker';
+import type { SessionManager } from './sessions/manager';
+import type { StateManager } from './sessions/state';
+import type { ScriptInjector } from './scripts/injector';
+import type { LocatorFinder } from './locators/finder';
+import type { DeviceEmulator } from './device/emulator';
+
+export interface ManagerRegistry {
+  tabManager: TabManager;
+  panelManager: PanelManager;
+  drawManager: DrawOverlayManager;
+  activityTracker: ActivityTracker;
+  voiceManager: VoiceManager;
+  behaviorObserver: BehaviorObserver;
+  configManager: ConfigManager;
+  siteMemory: SiteMemoryManager;
+  watchManager: WatchManager;
+  headlessManager: HeadlessManager;
+  formMemory: FormMemoryManager;
+  contextBridge: ContextBridge;
+  pipManager: PiPManager;
+  networkInspector: NetworkInspector;
+  chromeImporter: ChromeImporter;
+  bookmarkManager: BookmarkManager;
+  historyManager: HistoryManager;
+  downloadManager: DownloadManager;
+  audioCaptureManager: AudioCaptureManager;
+  extensionLoader: ExtensionLoader;
+  extensionManager: ExtensionManager;
+  claroNoteManager: ClaroNoteManager;
+  contentExtractor: ContentExtractor;
+  workflowEngine: WorkflowEngine;
+  loginManager: LoginManager;
+  eventStream: EventStreamManager;
+  taskManager: TaskManager;
+  tabLockManager: TabLockManager;
+  devToolsManager: DevToolsManager;
+  copilotStream: CopilotStream;
+  securityManager: SecurityManager | null;
+  snapshotManager: SnapshotManager;
+  networkMocker: NetworkMocker;
+  sessionManager: SessionManager;
+  stateManager: StateManager;
+  scriptInjector: ScriptInjector;
+  locatorFinder: LocatorFinder;
+  deviceEmulator: DeviceEmulator;
+}

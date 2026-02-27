@@ -4,6 +4,103 @@ All notable changes to Tandem Browser are documented here.
 
 ---
 
+## [0.14.0] — 2026-02-27
+
+### Code Quality — Item 19
+
+- **Split devtools/manager.ts**: split 867-line `DevToolsManager` into 3 modules — `network-capture.ts` (165 lines: network request/response ring buffer + filtering), `page-inspector.ts` (250 lines: DOM/storage/performance/screenshot queries). `manager.ts` remains as CDP lifecycle coordinator (525 lines) with composition + delegation. Zero changes to 10 consumer files
+
+---
+
+## [0.13.0] — 2026-02-27
+
+### Code Quality — Item 18
+
+- **Split security-db.ts**: split 958-line monolithic `SecurityDB` class by table group into 3 new modules — `db-events.ts` (169 lines: events + analytics), `db-baselines.ts` (122 lines: baselines + zero-day candidates), `db-blocklist.ts` (83 lines: blocklist + metadata). `SecurityDB` remains as facade (672 lines) with composition + delegation pattern. Zero changes to 11 consumer files
+
+---
+
+## [0.12.0] — 2026-02-27
+
+### Code Quality — Item 17
+
+- **API route integration tests**: added supertest-based integration tests for all 13 route files (12 standard + security routes). 739 new tests covering ~200 endpoints with happy path, error handling, and validation cases. Shared test helper (`helpers.ts`) with `createMockContext()` factory stubbing all 34 managers. Total project tests: 941 (from 202)
+
+---
+
+## [0.11.4] — 2026-02-27
+
+### Code Quality — Item 12
+
+- **ESLint setup**: added `eslint.config.mjs` (flat config) with `@typescript-eslint/recommended`, `no-floating-promises`, `no-console: warn`, `consistent-type-imports`, `no-unused-vars`. Added `npm run lint` script. Auto-fixed 222 type imports, manually fixed 92 errors across 40+ files (unused vars, floating promises, empty blocks, case declarations). 0 errors, 98 warnings remaining (intentional `any` + `no-console`)
+
+---
+
+## [0.11.3] — 2026-02-27
+
+### Code Quality — Item 11
+
+- **Logger utility**: new `src/utils/logger.ts` with `createLogger(namespace)` factory, levels debug/info/warn/error/silent, `TANDEM_LOG_LEVEL` env var. Replaced all 355 `console.log/warn/error` calls across 51 source files. 9 new tests (202 total)
+
+---
+
+## [0.11.2] — 2026-02-27
+
+### Code Quality — Medium Items (Items 13–16)
+
+- **Split security-manager routes**: extracted 34 Express route handlers from `SecurityManager` (978→414 lines) into new `security/routes.ts` (605 lines). SecurityManager no longer depends on Express
+- **Lazy passwordManager**: replaced eager singleton with `getPasswordManager()` — SQLite vault DB only opens on first access
+- **41 new tests**: `constants.test.ts` (14 tests), `config.test.ts` (27 tests with fs mocking and migration coverage). Total: 193 tests
+- **Execution timeout**: `/execute-js` and `/devtools/evaluate` now have 30s timeout + 1MB code limit (prevents infinite loop DoS)
+
+---
+
+## [0.11.1] — 2026-02-27
+
+### Code Quality — Quick Wins (Items 1–10)
+
+- **Constants file**: `API_PORT`, `WEBHOOK_PORT`, `DEFAULT_PARTITION`, `AUTH_POPUP_PATTERNS`, timeout constants extracted to `src/utils/constants.ts`, replacing 15+ hardcoded values across 11 files
+- **Dead code cleanup**: deleted unused `src/chat/interfaces.ts`, renamed duplicate `ActivityEntry` → `TaskActivityEntry`
+- **Race condition fix**: removed duplicate `tab-register` IPC listener in main.ts
+- **Silent catches**: replaced 16 `.catch(() => {})` with contextual `console.warn` across 8 files
+- **Token security**: `crypto.timingSafeEqual` for API auth, deprecated query string token
+- **Dutch → English**: translated all Dutch strings and comments across 12 files
+- **Script utilities**: extracted 4 pure functions from `script-guard.ts` → `script-utils.ts` (independently testable, no Electron deps)
+- **Named timeouts**: `COOKIE_FLUSH_INTERVAL_MS`, `CDP_ATTACH_DELAY_MS`, `DEFAULT_TIMEOUT_MS` replace magic numbers
+- **Import fix**: moved `require('fs')` to top-level import in `routes/browser.ts`
+- **Async safety**: wrapped `setInterval(async)` callbacks in try/catch in `update-checker.ts`
+
+---
+
+## [0.11.0] — 2026-02-27
+
+### Code Quality & Architecture Refactoring
+
+Major internal restructuring — 12 refactoring commits, 60+ files changed, zero feature regressions. All 152 tests passing.
+
+#### Architecture
+- **Split api/server.ts** into 12 route modules + context.ts (3032→349 lines)
+- **Split main.ts** into ipc/handlers.ts, menu/app-menu.ts, notifications/alert.ts (1016→575 lines)
+- **Split shell/index.html** into external CSS/JS files (6572→451 lines, 4 new files)
+- **ManagerRegistry DI pattern**: replaced 35-param TandemAPIOptions with single registry interface
+- **Explicit init order**: SecurityManager.init() consolidates 3 scattered initialization calls
+
+#### Type Safety
+- **CDP types**: 12 typed interfaces for Runtime, Network, DOM protocol domains
+- **Removed all `catch(e: any)`**: 96 fixes across 32 files → `catch(e)` + `instanceof Error` checks
+- **Reduced `: any` annotations**: 48 unsafe `any` replaced with proper types (64→16 remaining, all genuinely polymorphic)
+
+#### Code Organization
+- **Shared utilities**: `tandemDir()` used in 40 files, `handleRouteError()` in 12 route files
+- **Fixed circular dependency**: copilotAlert extracted to `src/notifications/alert.ts`
+- **Naming consistency**: `cleanup()` → `destroy()` across session manager
+
+#### Testing
+- **Unified test runner**: `npm test` auto-discovers `src/**/tests/**/*.test.ts`
+- **152 tests** (was 86): added TabManager (30), TaskManager (26), utility (10) test suites
+
+---
+
 ## [0.10.3] — 2026-02-26
 
 ### Behavioral Learning Models

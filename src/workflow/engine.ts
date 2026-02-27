@@ -1,8 +1,12 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { tandemDir } from '../utils/paths';
+import { DEFAULT_TIMEOUT_MS } from '../utils/constants';
 import { humanizedClick, humanizedType } from '../input/humanized';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('WorkflowEngine');
 
 interface WorkflowStep {
   id: string;
@@ -126,7 +130,7 @@ export class WorkflowEngine {
   private executions: Map<string, WorkflowExecution> = new Map();
 
   constructor() {
-    this.workflowsDir = path.join(os.homedir(), '.tandem', 'workflows');
+    this.workflowsDir = tandemDir('workflows');
     this.ensureDirectories();
     this.loadWorkflows();
   }
@@ -159,8 +163,8 @@ export class WorkflowEngine {
       }
 
       return workflows;
-    } catch (error: any) {
-      console.error('Failed to load workflows:', error);
+    } catch (error) {
+      log.error('Failed to load workflows:', error);
       return [];
     }
   }
@@ -264,7 +268,7 @@ export class WorkflowEngine {
         const step = workflow.steps[stepIndex];
         execution.currentStep = stepIndex;
 
-        console.log(`Executing step ${stepIndex + 1}/${workflow.steps.length}: ${step.type} - ${step.description || step.id}`);
+        log.info(`Executing step ${stepIndex + 1}/${workflow.steps.length}: ${step.type} - ${step.description || step.id}`);
 
         try {
           const result = await this.executeStep(step, execution, webview);
@@ -296,13 +300,13 @@ export class WorkflowEngine {
           }
 
           stepIndex++;
-        } catch (stepError: any) {
-          console.error(`Step ${step.id} failed:`, stepError);
-          
+        } catch (stepError) {
+          log.error(`Step ${step.id} failed:`, stepError);
+
           execution.stepResults.push({
             stepId: step.id,
             status: 'failed',
-            error: stepError.message,
+            error: stepError instanceof Error ? stepError.message : String(stepError),
             executedAt: new Date().toISOString()
           });
 
@@ -323,23 +327,23 @@ export class WorkflowEngine {
       }
       execution.completedAt = new Date().toISOString();
 
-    } catch (error: any) {
+    } catch (error) {
       execution.status = 'failed';
-      execution.error = error.message;
+      execution.error = error instanceof Error ? error.message : String(error);
       execution.completedAt = new Date().toISOString();
       throw error;
     }
   }
 
   private async executeStep(step: WorkflowStep, execution: WorkflowExecution, webview: BrowserWindow): Promise<any> {
-    const timeout = step.timeout || 30000; // 30 seconds default
+    const timeout = step.timeout || DEFAULT_TIMEOUT_MS;
 
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         reject(new Error(`Step ${step.id} timed out after ${timeout}ms`));
       }, timeout);
 
-      try {
+      (async () => {
         let result;
 
         switch (step.type) {
@@ -373,10 +377,10 @@ export class WorkflowEngine {
 
         clearTimeout(timer);
         resolve(result);
-      } catch (error: any) {
+      })().catch((error) => {
         clearTimeout(timer);
         reject(error);
-      }
+      });
     });
   }
 
@@ -385,7 +389,7 @@ export class WorkflowEngine {
     
     if (step.params.waitForLoad !== false) {
       await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Navigation timeout')), 30000);
+        const timeout = setTimeout(() => reject(new Error('Navigation timeout')), DEFAULT_TIMEOUT_MS);
         
         webview.webContents.once('did-finish-load', () => {
           clearTimeout(timeout);
@@ -494,7 +498,7 @@ export class WorkflowEngine {
     const buffer = image.toPNG();
     
     const filename = step.params.filename || `workflow-${Date.now()}.png`;
-    const screenshotsDir = path.join(os.homedir(), '.tandem', 'screenshots');
+    const screenshotsDir = tandemDir('screenshots');
     
     if (!fs.existsSync(screenshotsDir)) {
       fs.mkdirSync(screenshotsDir, { recursive: true });

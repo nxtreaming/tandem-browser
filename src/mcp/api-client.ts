@@ -1,11 +1,11 @@
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { tandemDir } from '../utils/paths';
+import { API_PORT } from '../utils/constants';
 
-const API_BASE = 'http://localhost:8765';
+const API_BASE = `http://localhost:${API_PORT}`;
 
 function getToken(): string {
-  const tokenPath = path.join(os.homedir(), '.tandem', 'api-token');
+  const tokenPath = tandemDir('api-token');
   return fs.readFileSync(tokenPath, 'utf-8').trim();
 }
 
@@ -22,9 +22,10 @@ export async function apiCall(method: string, endpoint: string, body?: any): Pro
       },
       body: body ? JSON.stringify(body) : undefined
     });
-  } catch (err: any) {
-    if (err.code === 'ECONNREFUSED' || err.cause?.code === 'ECONNREFUSED') {
-      throw new Error('Tandem Browser is niet actief. Start Tandem met \'npm start\' en probeer opnieuw.');
+  } catch (err) {
+    const errObj = err as NodeJS.ErrnoException & { cause?: NodeJS.ErrnoException };
+    if (errObj.code === 'ECONNREFUSED' || errObj.cause?.code === 'ECONNREFUSED') {
+      throw new Error('Tandem Browser is not running. Start Tandem with \'npm start\' and try again.', { cause: err });
     }
     throw err;
   }

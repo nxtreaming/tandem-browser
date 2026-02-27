@@ -1,4 +1,7 @@
-import { SecurityAnalyzer, AnalyzerContext, SecurityEvent } from './types';
+import type { SecurityAnalyzer, AnalyzerContext, SecurityEvent } from './types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('AnalyzerManager');
 
 /**
  * AnalyzerManager — Plugin loader and event router for SecurityAnalyzer plugins.
@@ -57,9 +60,9 @@ export class AnalyzerManager {
       this.analyzers.push(analyzer);
       // Sort by priority (lower first)
       this.analyzers.sort((a, b) => a.priority - b.priority);
-      console.log(`[AnalyzerManager] Registered: ${analyzer.name} v${analyzer.version} (priority ${analyzer.priority})`);
-    } catch (error: any) {
-      console.error(`[AnalyzerManager] Failed to initialize ${analyzer.name}:`, error.message);
+      log.info(`Registered: ${analyzer.name} v${analyzer.version} (priority ${analyzer.priority})`);
+    } catch (error) {
+      log.error(`Failed to initialize ${analyzer.name}:`, error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -87,9 +90,9 @@ export class AnalyzerManager {
         try {
           const results = await analyzer.analyze(event);
           newEvents.push(...results);
-        } catch (error: any) {
+        } catch (error) {
           // A crashing analyzer must NEVER break the pipeline
-          console.error(`[AnalyzerManager] ${analyzer.name} crashed:`, error.message);
+          log.error(`${analyzer.name} crashed:`, error instanceof Error ? error.message : String(error));
         }
       }
     } finally {
@@ -109,7 +112,7 @@ export class AnalyzerManager {
       }
     }
     this.analyzers = [];
-    console.log('[AnalyzerManager] All analyzers destroyed');
+    log.info('All analyzers destroyed');
   }
 
   /** Get status of all loaded analyzers */

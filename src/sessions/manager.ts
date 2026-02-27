@@ -1,5 +1,6 @@
 import { session } from 'electron';
-import { Session } from './types';
+import type { Session } from './types';
+import { DEFAULT_PARTITION } from '../utils/constants';
 
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
@@ -9,7 +10,7 @@ export class SessionManager {
     // Register default session (Robin's persist:tandem)
     this.sessions.set('default', {
       name: 'default',
-      partition: 'persist:tandem',
+      partition: DEFAULT_PARTITION,
       createdAt: Date.now(),
       isDefault: true,
     });
@@ -59,8 +60,12 @@ export class SessionManager {
     this.activeSession = name;
   }
 
-  /** Destroy a session (cannot destroy default) */
-  destroy(name: string): void {
+  /** Destroy a single session by name, or all sessions when called with no arguments */
+  destroy(name?: string): void {
+    if (name === undefined) {
+      this.sessions.clear();
+      return;
+    }
     if (name === 'default') {
       throw new Error('Cannot destroy the default session');
     }
@@ -83,8 +88,4 @@ export class SessionManager {
     return sess.partition;
   }
 
-  /** Cleanup — called from will-quit handler */
-  cleanup(): void {
-    this.sessions.clear();
-  }
 }

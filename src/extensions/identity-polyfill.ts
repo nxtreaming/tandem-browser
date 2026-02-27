@@ -1,7 +1,12 @@
-import { session as electronSession, Session, BrowserWindow } from 'electron';
+import type { Session} from 'electron';
+import { session as electronSession, BrowserWindow } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { tandemDir } from '../utils/paths';
+import { API_PORT, DEFAULT_PARTITION } from '../utils/constants';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('IdentityPolyfill');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +105,7 @@ export class IdentityPolyfill {
   private apiPort: number;
   private activeAuthWindows: Map<string, BrowserWindow> = new Map();
 
-  constructor(apiPort: number = 8765) {
+  constructor(apiPort: number = API_PORT) {
     this.apiPort = apiPort;
   }
 
@@ -114,7 +119,7 @@ export class IdentityPolyfill {
    * @returns List of extension IDs that were patched
    */
   injectPolyfills(): string[] {
-    const extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extensionsDir = tandemDir('extensions');
     if (!fs.existsSync(extensionsDir)) return [];
 
     const patched: string[] = [];
@@ -159,10 +164,10 @@ export class IdentityPolyfill {
         // Prepend polyfill to the service worker
         fs.writeFileSync(swPath, polyfillCode + '\n' + existing, 'utf-8');
         patched.push(cwsId);
-        console.log(`🔑 Identity polyfill injected into ${manifest.name || cwsId}`);
+        log.info(`🔑 Identity polyfill injected into ${manifest.name || cwsId}`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`⚠️ Failed to inject identity polyfill for ${dir.name}: ${msg}`);
+        log.warn(`⚠️ Failed to inject identity polyfill for ${dir.name}: ${msg}`);
       }
     }
 
@@ -184,7 +189,7 @@ export class IdentityPolyfill {
    */
   registerChromiumAppHandler(_ses: Session): void {
     // Intentionally a no-op. See comment above.
-    console.log('🔑 chromiumapp.org OAuth redirects handled via popup navigation events (no protocol intercept)');
+    log.info('🔑 chromiumapp.org OAuth redirects handled via popup navigation events (no protocol intercept)');
   }
 
   /**
@@ -214,7 +219,7 @@ export class IdentityPolyfill {
     }
 
     return new Promise<LaunchWebAuthFlowResult>((resolve) => {
-      const ses = electronSession.fromPartition('persist:tandem');
+      const ses = electronSession.fromPartition(DEFAULT_PARTITION);
 
       const popup = new BrowserWindow({
         width: 500,

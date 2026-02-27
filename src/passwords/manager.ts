@@ -1,8 +1,11 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
+import { tandemDir } from '../utils/paths';
 import { PasswordCrypto } from '../security/crypto';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('PasswordManager');
 
 export interface VaultItem {
     id?: number;
@@ -19,7 +22,7 @@ export class PasswordManager {
     private isUnlocked: boolean = false;
 
     constructor() {
-        const dir = path.join(os.homedir(), '.tandem', 'security');
+        const dir = tandemDir('security');
         fs.mkdirSync(dir, { recursive: true });
 
         this.db = new Database(path.join(dir, 'vault.db'));
@@ -75,7 +78,7 @@ export class PasswordManager {
                 return true;
             }
             return false;
-        } catch (e) {
+        } catch {
             return false; // Wrong password
         }
     }
@@ -92,7 +95,7 @@ export class PasswordManager {
     /**
      * Add or update an item in the vault.
      */
-    public saveItem(domain: string, username: string, payload: any): void {
+    public saveItem(domain: string, username: string, payload: Record<string, unknown>): void {
         if (!this.isUnlocked || !this.vaultKey) throw new Error('Vault is locked');
 
         // Always generate a fresh salt+IV per item securely via our crypto layer.
@@ -112,7 +115,7 @@ export class PasswordManager {
     /**
      * Retrieve structured payload for a domain + user.
      */
-    public getItem(domain: string, username: string): any | null {
+    public getItem(domain: string, username: string): Record<string, unknown> | null {
         if (!this.isUnlocked || !this.vaultKey) throw new Error('Vault is locked');
 
         const row = this.db.prepare('SELECT encryptedBlob FROM vault WHERE domain = ? AND username = ?')
@@ -124,7 +127,7 @@ export class PasswordManager {
             const plaintext = PasswordCrypto.decrypt(row.encryptedBlob, this.vaultKey);
             return JSON.parse(plaintext);
         } catch (e) {
-            console.error('Failed to decrypt vault item (corrupt / wrong key)', e);
+            log.error('Failed to decrypt vault item (corrupt / wrong key)', e);
             return null;
         }
     }
@@ -132,7 +135,7 @@ export class PasswordManager {
     /**
      * Get all identities for a specific domain (for autofill dropdowns).
      */
-    public getIdentitiesForDomain(domain: string): Array<{ username: string, payload: any }> {
+    public getIdentitiesForDomain(domain: string): Array<{ username: string, payload: Record<string, unknown> }> {
         if (!this.isUnlocked || !this.vaultKey) throw new Error('Vault is locked');
 
         const rows = this.db.prepare('SELECT username, encryptedBlob FROM vault WHERE domain = ?').all(domain.toLowerCase()) as Array<{ username: string, encryptedBlob: Buffer }>;
@@ -142,7 +145,7 @@ export class PasswordManager {
             try {
                 const plaintext = PasswordCrypto.decrypt(r.encryptedBlob, this.vaultKey);
                 results.push({ username: r.username, payload: JSON.parse(plaintext) });
-            } catch (e) {
+            } catch {
                 // ignore broken items silently during lists
             }
         }
@@ -157,4 +160,11 @@ export class PasswordManager {
         return !meta;
     }
 }
-export const passwordManager = new PasswordManager();
+let _instance: PasswordManager | null = null;
+
+export function getPasswordManager(): PasswordManager {
+  if (!_instance) {
+    _instance = new PasswordManager();
+  }
+  return _instance;
+}

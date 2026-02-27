@@ -1,4 +1,7 @@
-import { WebContents } from 'electron';
+import type { WebContents } from 'electron';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ScriptInjector');
 
 export interface RegisteredScript {
   name: string;
@@ -100,8 +103,8 @@ export class ScriptInjector {
       if (!script.enabled) continue;
       try {
         await wc.executeJavaScript(script.code);
-      } catch (e: any) {
-        console.warn(`[ScriptInjector] Script "${script.name}" failed:`, e.message);
+      } catch (e) {
+        log.warn(`Script "${script.name}" failed:`, e instanceof Error ? e.message : String(e));
       }
     }
 
@@ -111,8 +114,8 @@ export class ScriptInjector {
       if (!style.enabled) continue;
       try {
         await wc.insertCSS(style.css);
-      } catch (e: any) {
-        console.warn(`[ScriptInjector] Style "${style.name}" failed:`, e.message);
+      } catch (e) {
+        log.warn(`Style "${style.name}" failed:`, e instanceof Error ? e.message : String(e));
       }
     }
   }

@@ -1,6 +1,10 @@
-import { SecurityDB } from './security-db';
-import { DevToolsManager } from '../devtools/manager';
-import { KNOWN_TRACKERS, URL_REGEX, DOMAIN_REGEX, IPV4_REGEX, IPV4_OCTAL_REGEX, AnalysisConfidence, SecurityAnalyzer, AnalyzerContext, SecurityEvent } from './types';
+import type { SecurityDB } from './security-db';
+import type { DevToolsManager } from '../devtools/manager';
+import type { SecurityAnalyzer, AnalyzerContext, SecurityEvent } from './types';
+import { KNOWN_TRACKERS, URL_REGEX, DOMAIN_REGEX, IPV4_REGEX, IPV4_OCTAL_REGEX, AnalysisConfidence } from './types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ContentAnalyzer');
 
 /** Result of a page security analysis */
 export interface PageAnalysis {
@@ -143,7 +147,7 @@ export class ContentAnalyzer {
       });
       if (formResult.result?.value) {
         const forms = JSON.parse(formResult.result.value);
-        analysis.forms = forms.map((f: any) => ({
+        analysis.forms = forms.map((f: Omit<FormInfo, 'isExternalAction'>) => ({
           ...f,
           isExternalAction: f.action ? this.isExternalUrl(f.action, domain) : false,
         }));
@@ -175,7 +179,7 @@ export class ContentAnalyzer {
       });
       if (scriptResult.result?.value) {
         const scripts = JSON.parse(scriptResult.result.value);
-        analysis.scripts = scripts.map((s: any) => {
+        analysis.scripts = scripts.map((s: { url: string; size: number }) => {
           const scriptDomain = this.extractDomain(s.url);
           const isExternal = scriptDomain !== domain;
           const isKnown = scriptDomain ? !!this.db.getScriptFingerprint(scriptDomain, s.url) : false;
@@ -287,8 +291,8 @@ export class ContentAnalyzer {
         });
       }
 
-    } catch (e: any) {
-      console.warn('[ContentAnalyzer] Page analysis error:', e.message);
+    } catch (e) {
+      log.warn('Page analysis error:', e instanceof Error ? e.message : String(e));
     }
 
     // 7. Typosquatting check
@@ -317,7 +321,7 @@ export class ContentAnalyzer {
     await this.deepScanPageSource(domain);
     const scanMs = performance.now() - scanStart;
     if (scanMs > 100) {
-      console.warn(`[ContentAnalyzer] Slow deep scan: ${domain} took ${scanMs.toFixed(1)}ms`);
+      log.warn(`Slow deep scan: ${domain} took ${scanMs.toFixed(1)}ms`);
     }
 
     // Calculate risk score
@@ -359,8 +363,8 @@ export class ContentAnalyzer {
           this.scanSourceForThreats(scriptContent, pageDomain, 'inline-script');
         }
       }
-    } catch (e: any) {
-      console.warn('[ContentAnalyzer] Deep scan error:', e.message);
+    } catch (e) {
+      log.warn('Deep scan error:', e instanceof Error ? e.message : String(e));
     }
   }
 

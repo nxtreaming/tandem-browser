@@ -1,6 +1,10 @@
-import { OnBeforeRequestListenerDetails } from 'electron';
-import { SecurityDB } from './security-db';
-import { OutboundDecision, BodyAnalysis, OutboundStats, GuardianMode, KNOWN_TRACKERS, KNOWN_WS_SERVICES } from './types';
+import type { OnBeforeRequestListenerDetails } from 'electron';
+import type { SecurityDB } from './security-db';
+import type { OutboundDecision, BodyAnalysis, OutboundStats, GuardianMode} from './types';
+import { KNOWN_TRACKERS, KNOWN_WS_SERVICES } from './types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('OutboundGuard');
 
 // Credential field patterns in POST bodies
 const CREDENTIAL_PATTERN = /(?:^|&|"|,\s*")(?:password|passwd|pw|pass|secret|token|api[_-]?key|access[_-]?token|credit[_-]?card|card[_-]?number|cvv|cvc|ssn|social[_-]?security)(?:"|]?\s*[:=])/i;
@@ -30,7 +34,7 @@ export class OutboundGuard {
 
   constructor(db: SecurityDB) {
     this.db = db;
-    console.log('[OutboundGuard] Initialized');
+    log.info('Initialized');
   }
 
   /**
@@ -129,7 +133,7 @@ export class OutboundGuard {
       return { action: 'allow', reason: 'invalid-ws-url', severity: 'info' };
     }
 
-    // Skip internal/Tandem WebSocket endpoints (e.g. ws://127.0.0.1:18789/)
+    // Skip internal/Tandem WebSocket endpoints (e.g. ws://127.0.0.1:WEBHOOK_PORT/)
     try {
       const wsUrl = new URL(url);
       if (wsUrl.hostname === 'localhost' || wsUrl.hostname === '127.0.0.1' || wsUrl.hostname === '::1') {

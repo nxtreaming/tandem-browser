@@ -1,7 +1,8 @@
-import { BrowserWindow, webContents } from 'electron';
+import type { BrowserWindow} from 'electron';
 const TurndownService = require('turndown');
-import * as path from 'path';
-import * as fs from 'fs';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ContentExtractor');
 
 interface PageContent {
   url: string;
@@ -100,7 +101,7 @@ export class ContentExtractor {
     const html = await this.getPageHTML(webview);
     const pageType = this.detectPageType(url, html);
     
-    let content: any;
+    let content: ArticleContent | ProfileContent | ProductContent | SearchContent | GenericContent;
     switch (pageType) {
       case 'article':
         content = await this.extractArticle(webview, html);
@@ -130,6 +131,7 @@ export class ContentExtractor {
   /**
    * Extract content from a specific URL using headless browser
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- HeadlessManager API mismatch (legacy dead code)
   async extractFromURL(url: string, headlessManager: any): Promise<PageContent> {
     const headlessWindow = await headlessManager.openHeadless(url);
     
@@ -250,15 +252,15 @@ export class ContentExtractor {
         if (contentHtml) {
           extracted.bodyText = this.turndown.turndown(contentHtml);
         }
-      } catch (error) {
-        console.log('Failed to convert to markdown, using text content');
+      } catch {
+        log.info('Failed to convert to markdown, using text content');
       }
     }
 
     return extracted;
   }
 
-  private async extractProfile(webview: BrowserWindow, html: string): Promise<ProfileContent> {
+  private async extractProfile(webview: BrowserWindow, _html: string): Promise<ProfileContent> {
     return await webview.webContents.executeJavaScript(`
       (() => {
         const name = document.querySelector('h1')?.textContent?.trim() ||
@@ -308,7 +310,7 @@ export class ContentExtractor {
     `);
   }
 
-  private async extractProduct(webview: BrowserWindow, html: string): Promise<ProductContent> {
+  private async extractProduct(webview: BrowserWindow, _html: string): Promise<ProductContent> {
     return await webview.webContents.executeJavaScript(`
       (() => {
         const name = document.querySelector('h1')?.textContent?.trim() ||
@@ -335,7 +337,7 @@ export class ContentExtractor {
                       document.querySelector('.stars')?.textContent?.trim();
         
         const reviewCountEl = document.querySelector('[class*="review-count"], [class*="reviews"]');
-        const reviewCount = reviewCountEl ? parseInt(reviewCountEl.textContent.replace(/\D/g, '')) : undefined;
+        const reviewCount = reviewCountEl ? parseInt(reviewCountEl.textContent.replace(/D/g, '')) : undefined;
 
         const topReviews = Array.from(document.querySelectorAll('[class*="review"] p, .review p'))
           .slice(0, 3)
@@ -357,7 +359,7 @@ export class ContentExtractor {
     `);
   }
 
-  private async extractSearchResults(webview: BrowserWindow, html: string): Promise<SearchContent> {
+  private async extractSearchResults(webview: BrowserWindow, _html: string): Promise<SearchContent> {
     return await webview.webContents.executeJavaScript(`
       (() => {
         // Extract search query
@@ -401,7 +403,7 @@ export class ContentExtractor {
     `);
   }
 
-  private async extractGeneric(webview: BrowserWindow, html: string): Promise<GenericContent> {
+  private async extractGeneric(webview: BrowserWindow, _html: string): Promise<GenericContent> {
     return await webview.webContents.executeJavaScript(`
       (() => {
         const title = document.title;

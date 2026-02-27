@@ -1,5 +1,5 @@
-import { DevToolsManager } from '../devtools/manager';
-import { AccessibilityNode, RefMap, SnapshotOptions, SnapshotResult } from './types';
+import type { DevToolsManager } from '../devtools/manager';
+import type { AccessibilityNode, RefMap, SnapshotOptions, SnapshotResult } from './types';
 
 /** Roles considered interactive (buttons, inputs, links, etc.) */
 const INTERACTIVE_ROLES = new Set([
@@ -37,9 +37,10 @@ export class SnapshotManager {
     this.devtools.subscribe({
       name: 'snapshot-nav-reset',
       events: ['Page.frameNavigated'],
-      handler: (_method: string, params: Record<string, any>) => {
+      handler: (_method: string, params: Record<string, unknown>) => {
         // Only reset on top-level navigation (not iframes)
-        if (!params.frame?.parentId) {
+        const frame = params.frame as Record<string, unknown> | undefined;
+        if (!frame?.parentId) {
           this.refMap = {};
           this.refBackendNodeMap.clear();
           this.refCounter = 0;

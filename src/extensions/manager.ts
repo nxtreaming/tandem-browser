@@ -1,13 +1,21 @@
-import { Session } from 'electron';
+import type { Session } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { ExtensionLoader } from './loader';
-import { CrxDownloader, InstallResult } from './crx-downloader';
-import { NativeMessagingSetup, NativeMessagingStatus } from './native-messaging';
+import type { InstallResult } from './crx-downloader';
+import { CrxDownloader } from './crx-downloader';
+import type { NativeMessagingStatus } from './native-messaging';
+import { NativeMessagingSetup } from './native-messaging';
 import { IdentityPolyfill } from './identity-polyfill';
-import { UpdateChecker, UpdateCheckResult, UpdateResult, UpdateState, InstalledExtension } from './update-checker';
-import { ConflictDetector, ExtensionConflict } from './conflict-detector';
+import type { UpdateCheckResult, UpdateResult, UpdateState, InstalledExtension } from './update-checker';
+import { UpdateChecker } from './update-checker';
+import type { ExtensionConflict } from './conflict-detector';
+import { ConflictDetector } from './conflict-detector';
+import { tandemDir } from '../utils/paths';
+import { API_PORT } from '../utils/constants';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ExtensionManager');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +45,7 @@ export class ExtensionManager {
   private updateChecker: UpdateChecker;
   private conflictDetector: ConflictDetector;
 
-  constructor(apiPort: number = 8765) {
+  constructor(apiPort: number = API_PORT) {
     this.loader = new ExtensionLoader();
     this.downloader = new CrxDownloader();
     this.nativeMessaging = new NativeMessagingSetup();
@@ -54,7 +62,7 @@ export class ExtensionManager {
     // Inject chrome.identity polyfill into extensions that need it (before loading)
     const patchedExtensions = this.identityPolyfill.injectPolyfills();
     if (patchedExtensions.length > 0) {
-      console.log(`🔑 Identity polyfill injected into ${patchedExtensions.length} extension(s)`);
+      log.info(`🔑 Identity polyfill injected into ${patchedExtensions.length} extension(s)`);
     }
 
     // Register chromiumapp.org protocol handler for OAuth redirects
@@ -62,7 +70,7 @@ export class ExtensionManager {
 
     const loaded = await this.loader.loadAllExtensions(session);
     if (loaded.length > 0) {
-      console.log(`🧩 ExtensionManager initialized with ${loaded.length} extension(s)`);
+      log.info(`🧩 ExtensionManager initialized with ${loaded.length} extension(s)`);
     }
 
     // Detect and configure native messaging hosts
@@ -96,9 +104,9 @@ export class ExtensionManager {
       const loaded = await this.loader.loadExtension(session, result.installPath);
       if (loaded) {
         // ID matching: compare assigned Electron ID with expected CWS ID
-        console.log(`🧩 Extension loaded — CWS ID: ${result.extensionId}, Electron ID: ${loaded.id}`);
+        log.info(`🧩 Extension loaded — CWS ID: ${result.extensionId}, Electron ID: ${loaded.id}`);
         if (loaded.id !== result.extensionId) {
-          console.warn(`⚠️ Extension ID mismatch! CWS: ${result.extensionId}, Electron: ${loaded.id}`);
+          log.warn(`⚠️ Extension ID mismatch! CWS: ${result.extensionId}, Electron: ${loaded.id}`);
           result.warning = (result.warning ? result.warning + '; ' : '') +
             `Extension ID mismatch: CWS=${result.extensionId}, Electron=${loaded.id}`;
         }
@@ -117,7 +125,7 @@ export class ExtensionManager {
     const conflicts = this.conflictDetector.analyzeManifest(manifestPath);
     if (conflicts.length > 0) {
       (result as InstallResult & { conflicts: ExtensionConflict[] }).conflicts = conflicts;
-      console.log(`⚠️ ${conflicts.length} conflict(s) detected for ${result.name}: ${conflicts.map(c => c.conflictType).join(', ')}`);
+      log.info(`⚠️ ${conflicts.length} conflict(s) detected for ${result.name}: ${conflicts.map(c => c.conflictType).join(', ')}`);
     }
 
     return result;
@@ -142,23 +150,23 @@ export class ExtensionManager {
     try {
       // Unload from session (no restart needed)
       session.removeExtension(extensionId);
-      console.log(`🧩 Extension ${extensionId} removed from session`);
+      log.info(`🧩 Extension ${extensionId} removed from session`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`⚠️ Failed to remove extension ${extensionId} from session: ${message}`);
+      log.warn(`⚠️ Failed to remove extension ${extensionId} from session: ${message}`);
       // Continue to remove from disk even if session removal fails
     }
 
     // Remove from disk
-    const extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extensionsDir = tandemDir('extensions');
     const extPath = path.join(extensionsDir, extensionId);
     if (fs.existsSync(extPath)) {
       try {
         fs.rmSync(extPath, { recursive: true, force: true });
-        console.log(`🧩 Extension ${extensionId} removed from disk: ${extPath}`);
+        log.info(`🧩 Extension ${extensionId} removed from disk: ${extPath}`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.warn(`⚠️ Failed to remove extension files at ${extPath}: ${message}`);
+        log.warn(`⚠️ Failed to remove extension files at ${extPath}: ${message}`);
         return false;
       }
     }
@@ -171,7 +179,7 @@ export class ExtensionManager {
    * Reads manifest.json and extracts permissions, content scripts, API usage.
    */
   getExtensionMetadata(extensionId: string): ExtensionMetadata | null {
-    const extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extensionsDir = tandemDir('extensions');
     const manifestPath = path.join(extensionsDir, extensionId, 'manifest.json');
 
     if (!fs.existsSync(manifestPath)) {
@@ -295,7 +303,7 @@ export class ExtensionManager {
 
   /** Analyze a single extension's manifest for conflicts */
   getConflictsForExtension(extensionId: string): ExtensionConflict[] {
-    const extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extensionsDir = tandemDir('extensions');
     const manifestPath = path.join(extensionsDir, extensionId, 'manifest.json');
     return this.conflictDetector.analyzeManifest(manifestPath);
   }
@@ -326,7 +334,7 @@ export class ExtensionManager {
    * @returns Array of loaded extension names
    */
   async loadInSession(session: Session): Promise<string[]> {
-    const extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extensionsDir = tandemDir('extensions');
     const loaded: string[] = [];
 
     try {
@@ -344,16 +352,16 @@ export class ExtensionManager {
           loaded.push(ext.name || dir.name);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
-          console.warn(`⚠️ Failed to load extension ${dir.name} into session: ${message}`);
+          log.warn(`⚠️ Failed to load extension ${dir.name} into session: ${message}`);
         }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`⚠️ Could not read extensions directory for session loading: ${message}`);
+      log.warn(`⚠️ Could not read extensions directory for session loading: ${message}`);
     }
 
     if (loaded.length > 0) {
-      console.log(`🧩 Loaded ${loaded.length} extension(s) into session: ${loaded.join(', ')}`);
+      log.info(`🧩 Loaded ${loaded.length} extension(s) into session: ${loaded.join(', ')}`);
     }
 
     return loaded;

@@ -1,6 +1,9 @@
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('HistoryManager');
 
 /**
  * HistoryEntry — A single browsing history entry.
@@ -31,11 +34,11 @@ export class HistoryManager {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    const tandemDir = path.join(os.homedir(), '.tandem');
-    if (!fs.existsSync(tandemDir)) {
-      fs.mkdirSync(tandemDir, { recursive: true });
+    const baseDir = tandemDir();
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
     }
-    this.storePath = path.join(tandemDir, 'history.json');
+    this.storePath = path.join(baseDir, 'history.json');
     this.store = this.load();
   }
 
@@ -44,7 +47,7 @@ export class HistoryManager {
       if (fs.existsSync(this.storePath)) {
         return JSON.parse(fs.readFileSync(this.storePath, 'utf-8'));
       }
-    } catch (e: any) { console.warn('History file corrupted, starting fresh:', e.message); }
+    } catch (e) { log.warn('History file corrupted, starting fresh:', e instanceof Error ? e.message : String(e)); }
     return { entries: [] };
   }
 
@@ -54,8 +57,8 @@ export class HistoryManager {
       this.saveTimer = null;
       try {
         fs.writeFileSync(this.storePath, JSON.stringify(this.store, null, 2));
-      } catch (e: any) {
-        console.warn('[HistoryManager] Failed to save:', e.message);
+      } catch (e) {
+        log.warn('Failed to save:', e instanceof Error ? e.message : String(e));
       }
     }, 2000);
   }
@@ -66,8 +69,8 @@ export class HistoryManager {
       this.saveTimer = null;
       try {
         fs.writeFileSync(this.storePath, JSON.stringify(this.store, null, 2));
-      } catch (e: any) {
-        console.warn('[HistoryManager] Failed to save on destroy:', e.message);
+      } catch (e) {
+        log.warn('Failed to save on destroy:', e instanceof Error ? e.message : String(e));
       }
     }
   }

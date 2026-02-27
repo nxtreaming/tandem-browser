@@ -1,7 +1,11 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { ConfigManager } from '../config/manager';
+import type { ConfigManager } from '../config/manager';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ChromeImport');
 
 /**
  * ChromeImporter — Import and sync bookmarks, history, and cookies from Google Chrome.
@@ -62,7 +66,7 @@ export class ChromeImporter {
     }
     const profile = this.configManager?.getConfig().sync.chromeProfile ?? 'Default';
     this.chromeProfilePath = path.join(this.chromeBasePath, profile);
-    this.tandemDir = path.join(os.homedir(), '.tandem');
+    this.tandemDir = tandemDir();
     if (!fs.existsSync(this.tandemDir)) {
       fs.mkdirSync(this.tandemDir, { recursive: true });
     }
@@ -92,8 +96,8 @@ export class ChromeImporter {
           results.push({ name: displayName, path: entry.name, hasBookmarks });
         }
       }
-    } catch (e: any) {
-      console.warn('Could not list Chrome profiles:', e.message);
+    } catch (e) {
+      log.warn('Could not list Chrome profiles:', e instanceof Error ? e.message : String(e));
     }
 
     return results;
@@ -115,14 +119,14 @@ export class ChromeImporter {
 
     const bookmarksPath = path.join(this.chromeProfilePath, 'Bookmarks');
     if (!fs.existsSync(bookmarksPath)) {
-      console.warn('📚 Chrome Bookmarks not found at:', bookmarksPath);
+      log.warn('📚 Chrome Bookmarks not found at:', bookmarksPath);
       return false;
     }
 
     // Do initial import
     const initial = this.importBookmarks();
     if (initial.ok) {
-      console.log(`📚 Chrome bookmark sync started — ${initial.count} bookmarks imported from ${path.basename(this.chromeProfilePath)}`);
+      log.info(`📚 Chrome bookmark sync started — ${initial.count} bookmarks imported from ${path.basename(this.chromeProfilePath)}`);
       // Store hash to detect real changes
       try {
         this.lastSyncHash = fs.readFileSync(bookmarksPath, 'utf-8').length.toString();
@@ -146,17 +150,17 @@ export class ChromeImporter {
 
             const result = this.importBookmarks();
             if (result.ok) {
-              console.log(`📚 Chrome bookmarks synced — ${result.count} bookmarks`);
+              log.info(`📚 Chrome bookmarks synced — ${result.count} bookmarks`);
             }
-          } catch (e: any) {
-            console.warn('📚 Chrome bookmark sync failed:', e.message);
+          } catch (e) {
+            log.warn('📚 Chrome bookmark sync failed:', e instanceof Error ? e.message : String(e));
           }
         }, 2000); // 2 second debounce
       });
 
       return true;
-    } catch (e: any) {
-      console.warn('📚 Could not start Chrome bookmark sync:', e.message);
+    } catch (e) {
+      log.warn('📚 Could not start Chrome bookmark sync:', e instanceof Error ? e.message : String(e));
       return false;
     }
   }
@@ -171,7 +175,7 @@ export class ChromeImporter {
       clearTimeout(this.syncDebounce);
       this.syncDebounce = null;
     }
-    console.log('📚 Chrome bookmark sync stopped');
+    log.info('📚 Chrome bookmark sync stopped');
   }
 
   /** Is sync currently active? */
@@ -284,7 +288,7 @@ export class ChromeImporter {
       const tmpPath = path.join(this.tandemDir, '.chrome-history-tmp');
       fs.copyFileSync(historyPath, tmpPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Database = require('better-sqlite3');
       const db = new Database(tmpPath, { readonly: true });
 
@@ -380,7 +384,7 @@ export class ChromeImporter {
         }
         // Clean up the import file
         try { fs.unlinkSync(jsonPath); } catch { /* ignore */ }
-        console.log(`🍪 Imported ${count} cookies from pre-exported JSON`);
+        log.info(`🍪 Imported ${count} cookies from pre-exported JSON`);
         return { ok: true, count };
       }
 
@@ -396,7 +400,7 @@ export class ChromeImporter {
   }
 
   /** Try to import cookies via Chrome DevTools Protocol */
-  private async importCookiesViaCDP(electronSession: Electron.Session): Promise<{ ok: boolean; count: number; error?: string }> {
+  private async importCookiesViaCDP(_electronSession: Electron.Session): Promise<{ ok: boolean; count: number; error?: string }> {
     // Try common debugging ports
     const ports = [9222, 9229, 9221];
     for (const port of ports) {
@@ -420,8 +424,8 @@ export class ChromeImporter {
         // We need WebSocket for CDP commands — use a simpler approach:
         // Send CDP command via the /json endpoint isn't possible for Network.getAllCookies
         // Fall back to the JSON export approach
-        console.log(`🍪 Chrome DevTools found on port ${port} but WebSocket needed for cookie export`);
-        console.log('   Tip: Export cookies via Chrome console: copy(await cookieStore.getAll())');
+        log.info(`🍪 Chrome DevTools found on port ${port} but WebSocket needed for cookie export`);
+        log.info('   Tip: Export cookies via Chrome console: copy(await cookieStore.getAll())');
         return { ok: false, count: 0, error: 'CDP found but WebSocket cookie extraction not implemented yet' };
       } catch {
         continue;

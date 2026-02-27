@@ -3,20 +3,17 @@ process.stdout?.on('error', () => {});
 process.stderr?.on('error', () => {});
 
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught exception:', err);
+  // log is not yet initialized at this point — use console directly for fatal bootstrap errors
+  console.error('[Main] Uncaught exception:', err);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled rejection:', reason);
+  console.error('[Main] Unhandled rejection:', reason);
 });
 
-import { app, BrowserWindow, session, ipcMain, Notification, globalShortcut, clipboard, nativeImage, webContents, WebContents, Menu } from 'electron';
+import type { WebContents } from 'electron';
+import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'path';
-import fs from 'fs';
-
-// Keep app name as Tandem — don't pretend to be Chrome (causes Google login mismatch)
-// TotalRecall V2 uses default Electron identity and Google login works fine
-import os from 'os';
 import { TandemAPI } from './api/server';
 import { StealthManager } from './stealth/manager';
 import { TabManager } from './tabs/manager';
@@ -38,7 +35,7 @@ import { BookmarkManager } from './bookmarks/manager';
 import { HistoryManager } from './history/manager';
 import { DownloadManager } from './downloads/manager';
 import { AudioCaptureManager } from './audio/capture';
-import { ExtensionLoader } from './extensions/loader';
+import type { ExtensionLoader } from './extensions/loader';
 import { ExtensionManager } from './extensions/manager';
 import { ExtensionToolbar } from './extensions/toolbar';
 import { ClaroNoteManager } from './claronote/manager';
@@ -48,6 +45,7 @@ import { TabLockManager } from './agents/tab-lock-manager';
 import { ContextMenuManager } from './context-menu/manager';
 import { DevToolsManager } from './devtools/manager';
 import { CopilotStream } from './activity/copilot-stream';
+import { buildAppMenu } from './menu/app-menu';
 import { RequestDispatcher } from './network/dispatcher';
 import { SecurityManager } from './security/security-manager';
 import { SnapshotManager } from './snapshot/manager';
@@ -57,9 +55,18 @@ import { StateManager } from './sessions/state';
 import { ScriptInjector } from './scripts/injector';
 import { LocatorFinder } from './locators/finder';
 import { DeviceEmulator } from './device/emulator';
+import { ContentExtractor } from './content/extractor';
+import { WorkflowEngine } from './workflow/engine';
+import { LoginManager } from './auth/login-manager';
+import type { ManagerRegistry } from './registry';
+import { setMainWindow } from './notifications/alert';
+import { registerIpcHandlers, syncTabsToContext } from './ipc/handlers';
+import { API_PORT, WEBHOOK_PORT, DEFAULT_PARTITION, AUTH_POPUP_PATTERNS, COOKIE_FLUSH_INTERVAL_MS, CDP_ATTACH_DELAY_MS } from './utils/constants';
+import { createLogger } from './utils/logger';
+
+const log = createLogger('Main');
 
 const IS_DEV = process.argv.includes('--dev');
-const API_PORT = 8765;
 
 let mainWindow: BrowserWindow | null = null;
 let api: TandemAPI | null = null;
@@ -107,7 +114,7 @@ const pendingContextMenuWebContents: WebContents[] = [];
 let pendingTabRegister: { webContentsId: number; url: string } | null = null;
 
 async function createWindow(): Promise<BrowserWindow> {
-  const partition = 'persist:tandem';
+  const partition = DEFAULT_PARTITION;
   const ses = session.fromPartition(partition);
 
   const stealth = new StealthManager(ses, partition);
@@ -145,7 +152,7 @@ async function createWindow(): Promise<BrowserWindow> {
     priority: 50,
     handler: (details, headers) => {
       if (details.url.startsWith('ws://127.0.0.1') || details.url.startsWith('ws://localhost')) {
-        headers['Origin'] = 'http://127.0.0.1:18789';
+        headers['Origin'] = `http://127.0.0.1:${WEBHOOK_PORT}`;
       }
       return headers;
     }
@@ -154,8 +161,8 @@ async function createWindow(): Promise<BrowserWindow> {
   // Attach dispatcher — activates all hooks with current consumers
   dispatcher.attach();
 
-  // Flush cookies to disk every 30 seconds for reliability
-  setInterval(() => { ses.cookies.flushStore().catch(() => {}); }, 30000);
+  // Flush cookies to disk periodically for reliability
+  setInterval(() => { ses.cookies.flushStore().catch(e => log.warn('cookie flush failed:', e instanceof Error ? e.message : e)); }, COOKIE_FLUSH_INTERVAL_MS);
 
   // Inject stealth script into all webviews via session preload
   const stealthSeed = stealth.getPartitionSeed();
@@ -168,10 +175,10 @@ async function createWindow(): Promise<BrowserWindow> {
         // Skip stealth injection on Google auth pages — our patches break their login detection
         const url = contents.getURL();
         if (url.includes('accounts.google.com') || url.includes('consent.google.com')) {
-          console.log('🔑 Skipping stealth for Google auth:', url.substring(0, 60));
+          log.info('🔑 Skipping stealth for Google auth:', url.substring(0, 60));
           return;
         }
-        contents.executeJavaScript(stealthScript).catch((e) => console.warn('Stealth script injection failed:', e.message));
+        contents.executeJavaScript(stealthScript).catch((e) => log.warn('Stealth script injection failed:', e.message));
       });
 
       // Register context menu for this webview (queue if manager not yet ready)
@@ -186,8 +193,7 @@ async function createWindow(): Promise<BrowserWindow> {
       // Handle popups from webviews
       contents.setWindowOpenHandler(({ url }) => {
         // OAuth/auth popups need window.opener — allow as real popup with proper config
-        const isAuth = url.includes('accounts.google.com') || url.includes('appleid.apple.com')
-          || url.includes('login.microsoftonline.com') || url.includes('/oauth') || url.includes('/auth');
+        const isAuth = AUTH_POPUP_PATTERNS.some(p => url.includes(p));
         if (isAuth) {
           return {
             action: 'allow',
@@ -256,8 +262,9 @@ async function createWindow(): Promise<BrowserWindow> {
       sandbox: true,
     },
   });
+  setMainWindow(mainWindow);
 
-  mainWindow.loadFile(path.join(__dirname, '..', 'shell', 'index.html'));
+  void mainWindow.loadFile(path.join(__dirname, '..', 'shell', 'index.html'));
 
   // Only open shell DevTools in dev mode (--dev flag)
   if (IS_DEV) {
@@ -265,6 +272,7 @@ async function createWindow(): Promise<BrowserWindow> {
   }
 
   mainWindow.on('closed', () => {
+    setMainWindow(null);
     mainWindow = null;
     tabManager = null;
     if (behaviorObserver) {
@@ -294,7 +302,6 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   networkInspector = new NetworkInspector();
   if (dispatcher) networkInspector.registerWith(dispatcher);
   securityManager = new SecurityManager();
-  if (dispatcher) securityManager.registerWith(dispatcher);
   chromeImporter = new ChromeImporter(configManager);
   bookmarkManager = new BookmarkManager();
   historyManager = new HistoryManager();
@@ -317,10 +324,8 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   devToolsManager.setCopilotStream(copilotStream!);
   devToolsManager.setActivityTracker(activityTracker!);
 
-  // Phase 3: Wire DevToolsManager into SecurityManager for CDP-based security analysis
-  if (securityManager) {
-    securityManager.setDevToolsManager(devToolsManager);
-  }
+  // SecurityManager consolidated init (was 3 scattered calls, now 1)
+  // initGatekeeper() follows after api.start() since it needs the HTTP server
 
   contextMenuManager = new ContextMenuManager({
     win,
@@ -339,28 +344,32 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     }
   }
 
-  // Connect ContextBridge to EventStreamManager for live context (Fase 2.2)
+  // Connect ContextBridge to EventStreamManager for live context (Phase 2.2)
   contextBridge.connectEventStream(eventStream);
 
-  // Wire TaskManager events to renderer (Fase 4)
-  taskManager.on('approval-request', (data: any) => {
+  // Wire TaskManager events to renderer (Phase 4)
+  taskManager.on('approval-request', (data: Record<string, unknown>) => {
     win.webContents.send('approval-request', data);
   });
-  taskManager.on('task-updated', (task: any) => {
+  taskManager.on('task-updated', (task: Record<string, unknown>) => {
     win.webContents.send('task-updated', task);
   });
-  taskManager.on('emergency-stop', (data: any) => {
+  taskManager.on('emergency-stop', (data: Record<string, unknown>) => {
     win.webContents.send('emergency-stop', data);
   });
 
   // Hook download manager into session
-  const partition = 'persist:tandem';
+  const partition = DEFAULT_PARTITION;
   const ses = session.fromPartition(partition);
   downloadManager.hookSession(ses, win);
 
-  // Phase 3: Setup permission handler for BehaviorMonitor
+  // Initialize SecurityManager with all external deps (consolidated from 3 scattered calls)
   if (securityManager) {
-    securityManager.setupPermissionHandler(ses);
+    securityManager.init({
+      dispatcher: dispatcher || undefined,
+      devToolsManager: devToolsManager!,
+      session: ses,
+    });
   }
 
   // Load extensions from ~/.tandem/extensions/
@@ -373,7 +382,7 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     // Send initial toolbar state to renderer
     extensionToolbar!.notifyToolbarUpdate(ses);
   }).catch((err) => {
-    console.warn('⚠️ Failed to load some extensions:', err);
+    log.warn('⚠️ Failed to load some extensions:', err);
     // Still register IPC handlers so toolbar works (just empty)
     extensionToolbar!.registerIpcHandlers(ses);
   });
@@ -383,9 +392,7 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     chromeImporter.startSync();
   }
 
-  api = new TandemAPI({
-    win,
-    port: API_PORT,
+  const registry: ManagerRegistry = {
     tabManager: tabManager!,
     panelManager: panelManager!,
     drawManager: drawManager!,
@@ -408,6 +415,9 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     extensionLoader: extensionLoader!,
     extensionManager: extensionManager!,
     claroNoteManager: claroNoteManager!,
+    contentExtractor: new ContentExtractor(),
+    workflowEngine: new WorkflowEngine(),
+    loginManager: new LoginManager(),
     eventStream: eventStream!,
     taskManager: taskManager!,
     tabLockManager: tabLockManager!,
@@ -421,9 +431,11 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     scriptInjector: scriptInjector!,
     locatorFinder: locatorFinder!,
     deviceEmulator: deviceEmulator!,
-  });
+  };
+
+  api = new TandemAPI({ win, port: API_PORT, registry });
   await api.start();
-  console.log(`🧠 Tandem API running on http://localhost:${API_PORT}`);
+  log.info(`🧠 Tandem API running on http://localhost:${API_PORT}`);
 
   // Phase 4: Wire GatekeeperWebSocket onto the running HTTP server
   if (securityManager) {
@@ -433,28 +445,30 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     }
   }
 
-  // ═══ IPC Handler Cleanup — prevent duplicates on macOS reactivation ═══
-  const ipcChannels = ['tab-update', 'tab-register', 'chat-send', 'voice-transcript', 'voice-status-update', 'activity-webview-event', 'form-submitted'];
-  for (const channel of ipcChannels) {
-    ipcMain.removeAllListeners(channel);
-  }
-  const ipcHandlers = ['snap-for-copilot', 'quick-screenshot', 'bookmark-page', 'unbookmark-page', 'is-bookmarked', 'tab-new', 'tab-close', 'tab-focus', 'tab-focus-index', 'tab-list', 'emergency-stop', 'show-tab-context-menu', 'chat-send-image', 'navigate', 'go-back', 'go-forward', 'reload', 'get-page-content', 'get-page-status', 'execute-js'];
-  for (const handler of ipcHandlers) {
-    try { ipcMain.removeHandler(handler); } catch { /* handler may not exist yet */ }
-  }
-
-  // Helper: sync tab list into ContextBridge for live context summary
-  const syncTabsToContext = () => {
-    if (tabManager && contextBridge) {
-      contextBridge.updateTabs(tabManager.listTabs());
-    }
-  };
-
-  // Listen for tab metadata updates from renderer
-  ipcMain.on('tab-update', (_event, data: { tabId: string; title?: string; url?: string; favicon?: string }) => {
-    tabManager?.updateTab(data.tabId, data);
-    eventStream?.handleTabEvent('tab-updated', { tabId: data.tabId, url: data.url, title: data.title });
-    syncTabsToContext();
+  // Register all IPC handlers from extracted module
+  registerIpcHandlers({
+    win,
+    tabManager: tabManager!,
+    panelManager: panelManager!,
+    drawManager: drawManager!,
+    voiceManager: voiceManager!,
+    behaviorObserver: behaviorObserver!,
+    siteMemory: siteMemory!,
+    formMemory: formMemory!,
+    contextBridge: contextBridge!,
+    networkInspector: networkInspector!,
+    bookmarkManager: bookmarkManager!,
+    historyManager: historyManager!,
+    eventStream: eventStream!,
+    taskManager: taskManager!,
+    contextMenuManager: contextMenuManager!,
+    devToolsManager: devToolsManager!,
+    activityTracker: activityTracker!,
+    securityManager,
+    scriptInjector: scriptInjector!,
+    deviceEmulator: deviceEmulator!,
+    copilotStream: copilotStream!,
+    snapshotManager: snapshotManager!,
   });
 
   // Listen for initial tab registration
@@ -468,348 +482,13 @@ async function startAPI(win: BrowserWindow): Promise<void> {
       // Notify renderer of the tab ID
       win.webContents.send('tab-registered', { tabId: tab.id });
       eventStream?.handleTabEvent('tab-opened', { tabId: tab.id, url: data.url });
-      syncTabsToContext();
+      syncTabsToContext(tabManager!, contextBridge!);
       // Auto-attach CDP for Copilot Vision + Security on startup
-      // Reduced from 2000ms to 500ms to minimize ScriptGuard race window
+      // Reduced from 2000ms to CDP_ATTACH_DELAY_MS to minimize ScriptGuard race window
       setTimeout(async () => {
-        await devToolsManager?.attachToTab(data.webContentsId).catch(() => {});
-        securityManager?.onTabAttached().catch(() => {});
-      }, 500);
-    }
-  });
-
-  // ═══ Chat IPC — Robin sends messages from renderer ═══
-  ipcMain.on('chat-send', (_event, text: string) => {
-    if (text && panelManager) {
-      panelManager.addChatMessage('robin', text);
-    }
-  });
-
-  // ═══ Chat Image IPC — Robin pastes image from clipboard ═══
-  ipcMain.handle('chat-send-image', async (_event, data: { text: string; image: string }) => {
-    if (!panelManager) return { ok: false };
-    const filename = panelManager.saveImage(data.image);
-    const msg = panelManager.addChatMessage('robin', data.text || '', filename);
-    return { ok: true, message: msg };
-  });
-
-  // ═══ Screenshot Snap — composites webview + canvas, saves + clipboard ═══
-  ipcMain.handle('snap-for-copilot', async () => {
-    try {
-      const activeTab = tabManager?.getActiveTab();
-      if (!activeTab) return { ok: false, error: 'No active tab' };
-
-      const result = await drawManager!.captureAnnotatedFull(activeTab.webContentsId, activeTab.url);
-      return result;
-    } catch (e: any) {
-      return { ok: false, error: e.message };
-    }
-  });
-
-  // ═══ Quick Screenshot (no draw mode) ═══
-  ipcMain.handle('quick-screenshot', async () => {
-    try {
-      const activeTab = tabManager?.getActiveTab();
-      if (!activeTab) return { ok: false, error: 'No active tab' };
-
-      const result = await drawManager!.captureQuickScreenshot(activeTab.webContentsId, activeTab.url);
-      return result;
-    } catch (e: any) {
-      return { ok: false, error: e.message };
-    }
-  });
-
-  // ═══ Voice IPC ═══
-  ipcMain.on('voice-transcript', (_event, data: { text: string; isFinal: boolean }) => {
-    if (voiceManager) {
-      voiceManager.handleTranscript(data.text, data.isFinal);
-    }
-    eventStream?.handleVoiceInput(data);
-  });
-
-  ipcMain.on('voice-status-update', (_event, data: { listening: boolean }) => {
-    if (voiceManager) {
-      voiceManager.setListening(data.listening);
-    }
-    eventStream?.handleVoiceStatus(data);
-    contextBridge?.setVoiceActive(data.listening);
-  });
-
-  // ═══ Activity tracking: webview events from renderer ═══
-  ipcMain.on('activity-webview-event', (_event, data: { type: string; url?: string; tabId?: string }) => {
-    // Feed into EventStreamManager for SSE
-    if (eventStream) {
-      const activeTab = tabManager?.getActiveTab();
-      eventStream.handleWebviewEvent({ ...data, title: activeTab?.title });
-    }
-    if (activityTracker) {
-      activityTracker.onWebviewEvent(data);
-    }
-    // Also record in behavioral observer
-    if (behaviorObserver && data.type === 'did-navigate' && data.url) {
-      behaviorObserver.recordNavigation(data.url, data.tabId);
-    }
-    // Record history on navigation
-    if (historyManager && data.type === 'did-navigate' && data.url) {
-      // We'll get the title later on did-finish-load, for now record URL
-      historyManager.recordVisit(data.url, '');
-    }
-    // Update history title on page finish
-    if (historyManager && data.type === 'did-finish-load' && data.url) {
-      const activeTab2 = tabManager?.getActiveTab();
-      if (activeTab2?.title) {
-        historyManager.recordVisit(data.url, activeTab2.title);
-      }
-    }
-    // Record site memory on page load completion
-    if (siteMemory && data.type === 'did-finish-load' && data.url) {
-      const activeTab = tabManager?.getActiveTab();
-      if (activeTab) {
-        tabManager?.getActiveWebContents().then(wc => {
-          if (wc) siteMemory!.recordVisit(wc, data.url!).catch((e) => console.warn('Site memory recordVisit failed:', e.message));
-        }).catch((e) => console.warn('Get active webcontents for site memory failed:', e.message));
-      }
-    }
-    // Security: run baseline learning + anomaly detection on page load completion
-    if (securityManager && data.type === 'did-finish-load' && data.url) {
-      try {
-        const domain = new URL(data.url).hostname.toLowerCase();
-        if (domain) {
-          securityManager.onPageLoaded(domain).catch((e) =>
-            console.warn('[Security] onPageLoaded failed:', e.message)
-          );
-        }
-      } catch { /* invalid URL, skip */ }
-    }
-    // Re-inject persistent scripts, styles, and device emulation after page load
-    if (data.type === 'did-finish-load') {
-      tabManager?.getActiveWebContents().then(wc => {
-        if (wc && !wc.isDestroyed()) {
-          if (scriptInjector) {
-            scriptInjector.reloadIntoTab(wc).catch((e) =>
-              console.warn('[ScriptInjector] reloadIntoTab failed:', e.message)
-            );
-          }
-          if (deviceEmulator) {
-            deviceEmulator.reloadIntoTab(wc).catch((e) =>
-              console.warn('[DeviceEmulator] reloadIntoTab failed:', e.message)
-            );
-          }
-        }
-      }).catch(() => {});
-    }
-    // Flush network data when navigating away
-    if (networkInspector && data.type === 'did-start-navigation' && data.url) {
-      try {
-        const prevTab = tabManager?.getActiveTab();
-        if (prevTab?.url) {
-          const prevDomain = new URL(prevTab.url).hostname;
-          if (prevDomain) networkInspector.flushDomain(prevDomain);
-        }
-      } catch (e: any) { console.warn('Network flush domain parse failed:', e.message); }
-    }
-    // Track visit end when navigating away
-    if (siteMemory && data.type === 'did-start-navigation' && data.url) {
-      // End tracking for previous URL
-      const activeTab = tabManager?.getActiveTab();
-      if (activeTab?.url) siteMemory.trackVisitEnd(activeTab.url);
-    }
-    // Record context snapshot on page load
-    if (contextBridge && data.type === 'did-finish-load' && data.url) {
-      const activeTab = tabManager?.getActiveTab();
-      if (activeTab) {
-        tabManager?.getActiveWebContents().then(wc => {
-          if (wc) {
-            wc.executeJavaScript(`
-              (() => {
-                const title = document.title || '';
-                const headings = Array.from(document.querySelectorAll('h1, h2, h3')).slice(0, 30).map(h => h.textContent?.trim() || '').filter(Boolean);
-                const linksCount = document.querySelectorAll('a[href]').length;
-                const body = document.body ? document.body.innerText || '' : '';
-                return { title, headings, linksCount, body };
-              })()
-            `).then((pageData: { title: string; headings: string[]; linksCount: number; body: string }) => {
-              contextBridge!.recordSnapshot(data.url!, pageData.title, pageData.body, pageData.headings, pageData.linksCount);
-            }).catch((e) => console.warn('Context bridge snapshot failed:', e.message));
-          }
-        }).catch((e) => console.warn('Get active webcontents for context bridge failed:', e.message));
-      }
-    }
-  });
-
-  // ═══ Form submit tracking ═══
-  ipcMain.on('form-submitted', (_event, data: { url: string; fields: Array<{ name: string; type: string; id: string; value: string }> }) => {
-    if (formMemory && data.url && data.fields) {
-      formMemory.recordForm(data.url, data.fields);
-    }
-    eventStream?.handleFormSubmit({ url: data.url, fields: data.fields });
-  });
-
-  // Tab management IPC for renderer shortcuts
-  // Bookmark IPC handlers
-  ipcMain.handle('bookmark-page', async (_event, url: string, title: string) => {
-    if (bookmarkManager) {
-      const existing = bookmarkManager.findByUrl(url);
-      if (existing) return { ok: true, bookmark: existing, alreadyBookmarked: true };
-      const bookmark = bookmarkManager.add(title || url, url);
-      return { ok: true, bookmark, alreadyBookmarked: false };
-    }
-    return { ok: false };
-  });
-
-  ipcMain.handle('unbookmark-page', async (_event, url: string) => {
-    if (bookmarkManager) {
-      const existing = bookmarkManager.findByUrl(url);
-      if (existing) {
-        bookmarkManager.remove(existing.id);
-        return { ok: true };
-      }
-    }
-    return { ok: false };
-  });
-
-  ipcMain.handle('is-bookmarked', async (_event, url: string) => {
-    return bookmarkManager ? bookmarkManager.isBookmarked(url) : false;
-  });
-
-  ipcMain.handle('tab-new', async (_event, url?: string) => {
-    const targetUrl = url || `file://${path.join(__dirname, '..', 'shell', 'newtab.html')}`;
-    const tab = await tabManager?.openTab(targetUrl);
-    if (tab) {
-      eventStream?.handleTabEvent('tab-opened', { tabId: tab.id, url: targetUrl });
-      activityTracker?.onWebviewEvent({ type: 'tab-open', tabId: tab.id, url: targetUrl, source: 'robin' });
-    }
-    syncTabsToContext();
-    return tab;
-  });
-
-  ipcMain.handle('tab-close', async (_event, tabId: string) => {
-    // Capture tab info before closing
-    const closingTab = tabManager?.getTab(tabId);
-    eventStream?.handleTabEvent('tab-closed', { tabId });
-    activityTracker?.onWebviewEvent({ type: 'tab-close', tabId, url: closingTab?.url, title: closingTab?.title });
-    const result = await tabManager?.closeTab(tabId);
-    syncTabsToContext();
-    return result;
-  });
-
-  ipcMain.handle('tab-focus', async (_event, tabId: string) => {
-    if (behaviorObserver) behaviorObserver.recordTabSwitch(tabId);
-    const tabs = tabManager?.listTabs() || [];
-    const tab = tabs.find(t => t.id === tabId);
-    eventStream?.handleTabEvent('tab-focused', { tabId, url: tab?.url, title: tab?.title });
-    activityTracker?.onWebviewEvent({ type: 'tab-switch', tabId, url: tab?.url, title: tab?.title });
-    const result = await tabManager?.focusTab(tabId);
-    syncTabsToContext();
-    // Attach CDP to the focused tab directly (avoids race with TabManager active tab state)
-    if (tab?.webContentsId) {
-      await devToolsManager?.attachToTab(tab.webContentsId).catch(() => {});
-      securityManager?.onTabAttached().catch(() => {});
-    }
-    return result;
-  });
-
-  ipcMain.handle('tab-focus-index', async (_event, index: number) => {
-    return tabManager?.focusByIndex(index);
-  });
-
-  ipcMain.handle('tab-list', async () => {
-    return tabManager?.listTabs();
-  });
-
-  // ═══ Tab Context Menu — right-click on tab bar ═══
-  ipcMain.handle('show-tab-context-menu', async (_event, tabId: string) => {
-    contextMenuManager?.showTabContextMenu(tabId);
-  });
-
-  // ═══ Emergency Stop — Escape key from renderer ═══
-  ipcMain.handle('emergency-stop', async () => {
-    if (taskManager) {
-      const result = taskManager.emergencyStop();
-      if (panelManager) {
-        panelManager.addChatMessage('copilot', `🛑 Emergency stop! ${result.stopped} tasks stopped.`);
-      }
-      return result;
-    }
-    return { stopped: 0 };
-  });
-
-  // Navigation IPC handlers
-  ipcMain.handle('navigate', async (_event, url: string) => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (wc) {
-      wc.loadURL(url);
-      return { success: true };
-    }
-    return { success: false, error: 'No active tab' };
-  });
-
-  ipcMain.handle('go-back', async () => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (wc && wc.canGoBack()) {
-      wc.goBack();
-      return { success: true };
-    }
-    return { success: false };
-  });
-
-  ipcMain.handle('go-forward', async () => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (wc && wc.canGoForward()) {
-      wc.goForward();
-      return { success: true };
-    }
-    return { success: false };
-  });
-
-  ipcMain.handle('reload', async () => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (wc) {
-      wc.reload();
-      return { success: true };
-    }
-    return { success: false };
-  });
-
-  ipcMain.handle('get-page-content', async () => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (!wc) return { success: false, error: 'No active tab' };
-
-    try {
-      const content = await wc.executeJavaScript(`
-        document.documentElement.outerHTML
-      `);
-      return { success: true, content };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.handle('get-page-status', async () => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (!wc) return { success: false, error: 'No active tab' };
-
-    try {
-      const status = await wc.executeJavaScript(`({
-        url: window.location.href,
-        title: document.title,
-        readyState: document.readyState
-      })`);
-      return { success: true, ...status };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.handle('execute-js', async (_event, code: string) => {
-    const wc = await tabManager?.getActiveWebContents();
-    if (!wc) return { success: false, error: 'No active tab' };
-
-    try {
-      const result = await wc.executeJavaScript(code);
-      return { success: true, result };
-    } catch (error) {
-      return { success: false, error: String(error) };
+        await devToolsManager?.attachToTab(data.webContentsId).catch(e => log.warn('devToolsManager.attachToTab failed:', e instanceof Error ? e.message : e));
+        securityManager?.onTabAttached().catch(e => log.warn('securityManager.onTabAttached failed:', e instanceof Error ? e.message : e));
+      }, CDP_ATTACH_DELAY_MS);
     }
   });
 
@@ -820,154 +499,28 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     const tab = tabManager.registerInitialTab(data.webContentsId, data.url);
     win.webContents.send('tab-registered', { tabId: tab.id });
     eventStream?.handleTabEvent('tab-opened', { tabId: tab.id, url: data.url });
-    syncTabsToContext();
+    syncTabsToContext(tabManager!, contextBridge!);
     setTimeout(async () => {
-      await devToolsManager?.attachToTab(data.webContentsId).catch(() => {});
-      securityManager?.onTabAttached().catch(() => {});
-    }, 500);
+      await devToolsManager?.attachToTab(data.webContentsId).catch(e => log.warn('devToolsManager.attachToTab failed:', e instanceof Error ? e.message : e));
+      securityManager?.onTabAttached().catch(e => log.warn('securityManager.onTabAttached failed:', e instanceof Error ? e.message : e));
+    }, CDP_ATTACH_DELAY_MS);
   }
 }
 
-function buildAppMenu(): void {
-  const send = (action: string) => mainWindow?.webContents.send('shortcut', action);
 
-  const template: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: app.name,
-      submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => send('open-settings') },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-    {
-      label: 'File',
-      submenu: [
-        { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => send('new-tab') },
-        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => send('close-tab') },
-        { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: () => {
-          tabManager?.reopenClosedTab();
-        }},
-        { type: 'separator' },
-        { label: 'Bookmark Page', accelerator: 'CmdOrCtrl+D', click: () => send('bookmark-page') },
-        { label: 'Toggle Bookmarks Bar', accelerator: 'CmdOrCtrl+Shift+B', click: () => send('toggle-bookmarks-bar') },
-        { label: 'Bookmark Manager', click: () => send('open-bookmarks') },
-        { label: 'Find in Page', accelerator: 'CmdOrCtrl+F', click: () => send('find-in-page') },
-        { label: 'History', accelerator: 'CmdOrCtrl+Y', click: () => send('open-history') },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: () => send('zoom-in') },
-        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => send('zoom-out') },
-        { label: 'Reset Zoom', accelerator: 'CmdOrCtrl+0', click: () => send('zoom-reset') },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: configManager?.getConfig().general.agentName || 'Copilot',
-      submenu: [
-        { label: 'Toggle Panel', accelerator: 'CmdOrCtrl+K', click: () => {
-          panelManager?.togglePanel();
-        }},
-        { label: 'Voice Input', accelerator: 'CmdOrCtrl+Shift+M', click: () => voiceManager?.toggleVoice() },
-        { label: 'PiP Mode', accelerator: 'CmdOrCtrl+Shift+P', click: () => pipManager?.toggle() },
-        { type: 'separator' },
-        { label: 'Draw Mode', accelerator: 'CmdOrCtrl+Shift+D', click: () => drawManager?.toggleDrawMode() },
-        { label: 'Quick Screenshot', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('quick-screenshot') },
-        { type: 'separator' },
-        { label: 'Record Tab Audio', accelerator: 'CmdOrCtrl+R', click: () => {
-          if (audioCaptureManager) {
-            if (audioCaptureManager.isRecording()) {
-              audioCaptureManager.stopRecording();
-              mainWindow?.webContents.send('audio-recording-status', { recording: false });
-            } else {
-              const activeTab = tabManager?.getActiveTab();
-              if (activeTab) {
-                audioCaptureManager.startRecording(activeTab.webContentsId).then(() => {
-                  mainWindow?.webContents.send('audio-recording-status', { recording: true });
-                }).catch((e) => console.warn('Audio capture start failed:', e.message));
-              }
-            }
-          }
-        }},
-        { label: 'ClaroNote Record', accelerator: 'CmdOrCtrl+Shift+C', click: () => send('claronote-record') },
-      ],
-    },
-    {
-      label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        { type: 'separator' },
-        { role: 'front' },
-      ],
-    },
-    {
-      label: 'Help',
-      submenu: [
-        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+Shift+/', click: () => send('show-shortcuts') },
-        { type: 'separator' },
-        { label: 'Show Onboarding', click: () => send('show-onboarding') },
-      ],
-    },
-  ];
-
-  // Add Cmd+1-9 tab switching (hidden menu items)
-  const tabSwitchItems: Electron.MenuItemConstructorOptions[] = [];
-  for (let i = 1; i <= 9; i++) {
-    tabSwitchItems.push({
-      label: `Tab ${i}`,
-      accelerator: `CmdOrCtrl+${i}`,
-      visible: false,
-      click: () => send(`focus-tab-${i - 1}`),
-    });
-  }
-  (template[1].submenu as Electron.MenuItemConstructorOptions[]).push(
-    { type: 'separator' },
-    ...tabSwitchItems
-  );
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
-
-// Copilot alert — notify the human when the AI copilot needs help
-export function copilotAlert(title: string, body: string): void {
-  if (Notification.isSupported()) {
-    new Notification({ title: `🧀 ${title}`, body }).show();
-  }
-  mainWindow?.webContents.send('copilot-alert', { title, body });
-}
-
-app.whenReady().then(async () => {
-  // Register tab-register early to avoid race with window loading
-  ipcMain.on('tab-register', (_event, data: { webContentsId: number; url: string }) => {
-    pendingTabRegister = data;
-  });
-
+void app.whenReady().then(async () => {
   const win = await createWindow();
   await startAPI(win);
-  buildAppMenu();
+  buildAppMenu({
+    mainWindow: win,
+    tabManager,
+    panelManager,
+    drawManager,
+    voiceManager,
+    pipManager,
+    configManager,
+    audioCaptureManager,
+  });
 
   // Keep shortcuts always registered while app is running
   // (blur/focus approach broke shortcuts when webview had focus)
@@ -976,7 +529,18 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow().then(async (w) => {
         await startAPI(w);
-        buildAppMenu();
+        buildAppMenu({
+          mainWindow: w,
+          tabManager,
+          panelManager,
+          drawManager,
+          voiceManager,
+          pipManager,
+          configManager,
+          audioCaptureManager,
+        });
+      }).catch((err) => {
+        log.error('Failed to recreate window:', err);
       });
     }
   });
@@ -1001,7 +565,7 @@ app.on('will-quit', () => {
   if (securityManager) securityManager.destroy();
   if (snapshotManager) snapshotManager.destroy();
   if (networkMocker) networkMocker.destroy();
-  if (sessionManager) sessionManager.cleanup();
+  if (sessionManager) sessionManager.destroy();
   if (extensionToolbar) extensionToolbar.destroy();
   if (extensionManager) extensionManager.getIdentityPolyfill().destroy();
   if (extensionManager) extensionManager.destroyUpdateChecker();

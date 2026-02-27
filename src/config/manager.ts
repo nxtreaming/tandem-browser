@@ -1,6 +1,11 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { tandemDir } from '../utils/paths';
+import { WEBHOOK_PORT } from '../utils/constants';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ConfigManager');
 
 /**
  * TandemConfig — All configurable settings for Tandem Browser.
@@ -135,7 +140,7 @@ const DEFAULT_CONFIG: TandemConfig = {
   },
   webhook: {
     enabled: true,
-    url: 'http://127.0.0.1:18789',
+    url: `http://127.0.0.1:${WEBHOOK_PORT}`,
     secret: '',
     notifyOnRobinChat: true,
     notifyOnActivity: true,
@@ -156,11 +161,11 @@ export class ConfigManager {
   private changeListeners: Array<(config: TandemConfig, changed: Partial<TandemConfig>) => void> = [];
 
   constructor() {
-    const tandemDir = path.join(os.homedir(), '.tandem');
-    if (!fs.existsSync(tandemDir)) {
-      fs.mkdirSync(tandemDir, { recursive: true });
+    const baseDir = tandemDir();
+    if (!fs.existsSync(baseDir)) {
+      fs.mkdirSync(baseDir, { recursive: true });
     }
-    this.configPath = path.join(tandemDir, 'config.json');
+    this.configPath = path.join(baseDir, 'config.json');
     this.config = this.load();
   }
 
@@ -183,10 +188,10 @@ export class ConfigManager {
           delete raw.general.keesPanelPosition;
           delete raw.general.keesPanelDefaultOpen;
         }
-        return this.deepMerge(DEFAULT_CONFIG, raw);
+        return this.deepMerge(DEFAULT_CONFIG as unknown as Record<string, unknown>, raw) as unknown as TandemConfig;
       }
-    } catch (e: any) {
-      console.warn('Config file corrupted, using defaults:', e.message);
+    } catch (e) {
+      log.warn('Config file corrupted, using defaults:', e instanceof Error ? e.message : String(e));
     }
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
@@ -195,27 +200,28 @@ export class ConfigManager {
   private save(): void {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (e: any) {
-      console.warn('Config save failed:', e.message);
+    } catch (e) {
+      log.warn('Config save failed:', e instanceof Error ? e.message : String(e));
     }
   }
 
   /** Deep merge source into target (returns new object) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private deepMerge(target: any, source: any): any {
+  private deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
     const result = { ...target };
     for (const key of Object.keys(source)) {
+      const sourceVal = source[key];
+      const targetVal = target[key];
       if (
-        source[key] &&
-        typeof source[key] === 'object' &&
-        !Array.isArray(source[key]) &&
-        target[key] &&
-        typeof target[key] === 'object' &&
-        !Array.isArray(target[key])
+        sourceVal &&
+        typeof sourceVal === 'object' &&
+        !Array.isArray(sourceVal) &&
+        targetVal &&
+        typeof targetVal === 'object' &&
+        !Array.isArray(targetVal)
       ) {
-        result[key] = this.deepMerge(target[key], source[key]);
+        result[key] = this.deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
       } else {
-        result[key] = source[key];
+        result[key] = sourceVal;
       }
     }
     return result;
@@ -228,7 +234,7 @@ export class ConfigManager {
 
   /** Partial update — deep merges the patch into config */
   updateConfig(patch: Record<string, unknown>): TandemConfig {
-    const merged = this.deepMerge(this.config, patch) as TandemConfig;
+    const merged = this.deepMerge(this.config as unknown as Record<string, unknown>, patch) as unknown as TandemConfig;
     // Enforce clipboard always true
     merged.screenshots.clipboard = true;
     this.config = merged;
@@ -247,8 +253,8 @@ export class ConfigManager {
     for (const listener of this.changeListeners) {
       try {
         listener(this.config, changed);
-      } catch (e: any) {
-        console.warn('Config change listener error:', e.message);
+      } catch (e) {
+        log.warn('Config change listener error:', e instanceof Error ? e.message : String(e));
       }
     }
   }

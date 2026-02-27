@@ -2,6 +2,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { apiCall, logActivity } from './api-client.js';
+import { API_PORT } from '../utils/constants';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('McpServer');
 
 const server = new McpServer({
   name: 'tandem-browser',
@@ -228,9 +232,16 @@ server.tool(
     openWorldHint: true,
   },
   async ({ code }) => {
-    const result = await apiCall('POST', '/execute-js', { code });
-    await logActivity('execute_js', code.substring(0, 80));
-    return { content: [{ type: 'text', text: JSON.stringify(result.result ?? result, null, 2) }] };
+    try {
+      const result = await apiCall('POST', '/execute-js/confirm', { code });
+      await logActivity('execute_js', code.substring(0, 80));
+      return { content: [{ type: 'text', text: JSON.stringify(result.result ?? result, null, 2) }] };
+    } catch (err) {
+      if (err instanceof Error && err.message?.includes('rejected')) {
+        return { content: [{ type: 'text', text: 'User rejected JavaScript execution.' }], isError: true };
+      }
+      throw err;
+    }
   }
 );
 
@@ -437,7 +448,7 @@ server.tool(
 );
 
 // ═══════════════════════════════════════════════
-// tandem_research — Autonomous research (Fase 4.2)
+// tandem_research — Autonomous research (Phase 4.2)
 // ═══════════════════════════════════════════════
 
 /**
@@ -473,7 +484,7 @@ server.tool(
 
     // Check emergency stop
     try {
-      const stopCheck = await apiCall('GET', '/tasks/check-approval?actionType=navigate');
+      const _stopCheck = await apiCall('GET', '/tasks/check-approval?actionType=navigate');
       // If navigate needs approval, we should not auto-research
     } catch { /* ignore, continue */ }
 
@@ -512,12 +523,12 @@ server.tool(
 
       // Step 3: Read search results page
       const searchPage = await apiCall('GET', '/page-content');
-      const searchText = searchPage.text || '';
+      const _searchText = searchPage.text || '';
 
       // Step 4: Get links from search results
       const linksData = await apiCall('GET', '/links');
       const links: Array<{ href: string; text: string }> = (linksData.links || [])
-        .filter((l: any) => {
+        .filter((l: { href?: string; text?: string }) => {
           const href = l.href || '';
           // Filter out search engine internal links
           return href.startsWith('http') &&
@@ -548,12 +559,12 @@ server.tool(
             url: link.href,
             snippet: pageText,
           });
-        } catch (e: any) {
+        } catch (e) {
           // Page failed to load, skip
           findings.push({
             title: link.text,
             url: link.href,
-            snippet: `(Fout bij laden: ${e.message})`,
+            snippet: `(Fout bij laden: ${e instanceof Error ? e.message : String(e)})`,
           });
         }
       }
@@ -572,18 +583,19 @@ server.tool(
         } catch { /* optional */ }
       }
 
-    } catch (e: any) {
+    } catch (e) {
+      const eMsg = e instanceof Error ? e.message : String(e);
       if (taskId) {
         try {
-          await apiCall('POST', `/tasks/${taskId}/status`, { status: 'failed', result: e.message });
+          await apiCall('POST', `/tasks/${taskId}/status`, { status: 'failed', result: eMsg });
         } catch { /* optional */ }
       }
 
-      await logActivity('research_error', e.message);
+      await logActivity('research_error', eMsg);
       return {
         content: [{
           type: 'text',
-          text: `Research failed: ${e.message}\n\nPartial findings (${findings.length}):\n${findings.map(f => `- ${f.title}: ${f.snippet.substring(0, 100)}`).join('\n')}`,
+          text: `Research failed: ${eMsg}\n\nPartial findings (${findings.length}):\n${findings.map(f => `- ${f.title}: ${f.snippet.substring(0, 100)}`).join('\n')}`,
         }],
       };
     }
@@ -671,7 +683,7 @@ server.resource(
     const url = data.url || '';
     const bodyText = truncateToWords(data.text || '', 2000);
 
-    let text = `# ${title}\n**URL:** ${url}\n\n${bodyText}`;
+    const text = `# ${title}\n**URL:** ${url}\n\n${bodyText}`;
     return { contents: [{ uri: 'tandem://page/current', mimeType: 'text/plain', text }] };
   }
 );
@@ -721,7 +733,7 @@ server.resource(
 );
 
 // ═══════════════════════════════════════════════
-// SSE Event Listener — sends MCP notifications on browser events (Fase 2.2)
+// SSE Event Listener — sends MCP notifications on browser events (Phase 2.2)
 // ═══════════════════════════════════════════════
 
 function startEventListener(): void {
@@ -732,12 +744,12 @@ function startEventListener(): void {
     } catch { return ''; }
   })();
 
-  const url = 'http://localhost:8765/events/stream';
+  const url = `http://localhost:${API_PORT}/events/stream`;
 
   const connect = () => {
     fetch(url, token ? { headers: { 'Authorization': `Bearer ${token}` } } : {}).then(async (response) => {
       if (!response.ok || !response.body) {
-        console.error('SSE connect failed:', response.status);
+        log.error('SSE connect failed:', response.status);
         setTimeout(connect, 5000);
         return;
       }
@@ -765,11 +777,11 @@ function startEventListener(): void {
               const event = JSON.parse(line.slice(6));
               // Send MCP notifications for meaningful events
               if (['navigation', 'page-loaded', 'tab-focused'].includes(event.type)) {
-                server.server.sendResourceUpdated({ uri: 'tandem://page/current' }).catch(() => {});
-                server.server.sendResourceUpdated({ uri: 'tandem://context' }).catch(() => {});
+                server.server.sendResourceUpdated({ uri: 'tandem://page/current' }).catch(e => log.warn('sendResourceUpdated page/current failed:', e instanceof Error ? e.message : e));
+                server.server.sendResourceUpdated({ uri: 'tandem://context' }).catch(e => log.warn('sendResourceUpdated context failed:', e instanceof Error ? e.message : e));
               }
               if (['tab-opened', 'tab-closed', 'tab-focused'].includes(event.type)) {
-                server.server.sendResourceUpdated({ uri: 'tandem://tabs/list' }).catch(() => {});
+                server.server.sendResourceUpdated({ uri: 'tandem://tabs/list' }).catch(e => log.warn('sendResourceUpdated tabs/list failed:', e instanceof Error ? e.message : e));
               }
             } catch {
               // Ignore parse errors (comments, heartbeats)
@@ -783,7 +795,7 @@ function startEventListener(): void {
         }
       };
 
-      read();
+      void read();
     }).catch(() => {
       // Tandem not running yet, retry
       setTimeout(connect, 5000);
@@ -801,13 +813,13 @@ function startEventListener(): void {
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Tandem MCP server started (stdio transport)');
+  log.info('Tandem MCP server started (stdio transport)');
 
   // Start SSE listener for live notifications
   startEventListener();
 }
 
 main().catch((err) => {
-  console.error('Fatal error starting MCP server:', err);
+  log.error('Fatal error starting MCP server:', err);
   process.exit(1);
 });

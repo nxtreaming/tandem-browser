@@ -1,152 +1,31 @@
 import { createHash } from 'crypto';
-import * as acorn from 'acorn';
-import { SecurityDB } from './security-db';
-import { Guardian } from './guardian';
-import { DevToolsManager } from '../devtools/manager';
-import { JS_THREAT_RULES, ThreatRuleMatch, ScriptAnalysisResult, AnalysisConfidence } from './types';
+import type * as acorn from 'acorn';
+import type { SecurityDB } from './security-db';
+import type { Guardian } from './guardian';
+import type { DevToolsManager } from '../devtools/manager';
+import type { ThreatRuleMatch, ScriptAnalysisResult} from './types';
+import { JS_THREAT_RULES, AnalysisConfidence } from './types';
+import {
+  calculateEntropy,
+  normalizeScriptSource,
+  computeASTHash,
+  computeASTFeatureVector,
+  computeSimilarity,
+  parseToAST,
+} from './script-utils';
+import { createLogger } from '../utils/logger';
 
-/** Shannon entropy (bits per character) — detects obfuscated/encrypted content @internal */
-export function calculateEntropy(input: string): number {
-  if (input.length === 0) return 0;
-  const freq = new Map<number, number>();
-  for (let i = 0; i < input.length; i++) {
-    const code = input.charCodeAt(i);
-    freq.set(code, (freq.get(code) || 0) + 1);
-  }
-  let entropy = 0;
-  for (const count of freq.values()) {
-    const p = count / input.length;
-    entropy -= p * Math.log2(p);
-  }
-  return entropy;
-}
+const log = createLogger('ScriptGuard');
 
-/** Strip comments and normalize whitespace for obfuscation-resistant hashing @internal */
-export function normalizeScriptSource(source: string): string {
-  return source
-    .replace(/\/\/[^\n]*/g, '')           // strip single-line comments
-    .replace(/\/\*[\s\S]*?\*\//g, '')     // strip multi-line comments
-    .replace(/\s+/g, ' ')                 // collapse whitespace
-    .trim();
-}
+// Re-export pure functions for backward compatibility
+export { calculateEntropy, normalizeScriptSource, computeASTHash, computeSimilarity } from './script-utils';
 
 // Phase 6-A: AST parsing + hashing (Ghidra BSim-inspired obfuscation-resistant fingerprinting)
 const MAX_AST_PARSE_SIZE = 200 * 1024; // 200KB — larger scripts too expensive to parse
 
-/** Parse JavaScript source to AST using Acorn. Returns null on syntax errors. */
-function parseToAST(source: string): acorn.Node | null {
-  try {
-    return acorn.parse(source, {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      allowImportExportEverywhere: true,
-      allowReturnOutsideFunction: true,
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Build a structural feature string for a single AST node (excludes variable names and literal values) */
-function buildNodeFeature(node: any): string {
-  const parts = [node.type];
-
-  // Operators are structural
-  if (node.operator) parts.push(node.operator);
-
-  // Parameter/argument count (arity)
-  if (node.params) parts.push(`params:${node.params.length}`);
-  if (node.arguments) parts.push(`args:${node.arguments.length}`);
-
-  // Control flow structure
-  if (node.consequent) parts.push('has:consequent');
-  if (node.alternate) parts.push('has:alternate');
-
-  // Function characteristics
-  if (node.async) parts.push('async');
-  if (node.generator) parts.push('generator');
-
-  return parts.join(':');
-}
-
-/** Recursively walk AST and collect structural feature strings */
-function walkAST(node: any, features: string[]): void {
-  if (!node || typeof node !== 'object') return;
-
-  if (node.type) {
-    features.push(buildNodeFeature(node));
-  }
-
-  for (const key of Object.keys(node)) {
-    if (key === 'start' || key === 'end' || key === 'loc' || key === 'raw') continue;
-    const child = node[key];
-    if (Array.isArray(child)) {
-      for (const item of child) {
-        if (item && typeof item === 'object' && item.type) {
-          walkAST(item, features);
-        }
-      }
-    } else if (child && typeof child === 'object' && child.type) {
-      walkAST(child, features);
-    }
-  }
-}
-
-/** Compute obfuscation-resistant AST hash (Ghidra BSim-inspired iterative graph hashing) @internal */
-export function computeASTHash(node: acorn.Node): string {
-  const features: string[] = [];
-  walkAST(node, features);
-  return createHash('sha256').update(features.join('|')).digest('hex').substring(0, 32);
-}
-
 // Phase 6-B: Similarity scoring — cosine similarity between AST feature vectors
 const SIMILARITY_THRESHOLD = 0.85;    // "structurally similar" — flag for review
 const SIMILARITY_IDENTICAL = 0.95;    // "structurally identical" — same as AST hash match
-
-/** Build AST feature vector: count occurrences of each node type/structural feature */
-function computeASTFeatureVector(node: acorn.Node): Map<string, number> {
-  const features = new Map<string, number>();
-  walkForFeatures(node, features);
-  return features;
-}
-
-function walkForFeatures(node: any, features: Map<string, number>): void {
-  if (!node || typeof node !== 'object') return;
-  if (node.type) {
-    const feature = buildNodeFeature(node);
-    features.set(feature, (features.get(feature) || 0) + 1);
-  }
-  for (const key of Object.keys(node)) {
-    if (key === 'start' || key === 'end' || key === 'loc' || key === 'raw') continue;
-    const child = node[key];
-    if (Array.isArray(child)) {
-      for (const item of child) {
-        if (item && typeof item === 'object' && item.type) {
-          walkForFeatures(item, features);
-        }
-      }
-    } else if (child && typeof child === 'object' && child.type) {
-      walkForFeatures(child, features);
-    }
-  }
-}
-
-/** Cosine similarity between two feature vectors (0 = completely different, 1 = identical) @internal */
-export function computeSimilarity(vec1: Map<string, number>, vec2: Map<string, number>): number {
-  const allKeys = new Set([...vec1.keys(), ...vec2.keys()]);
-  let dotProduct = 0;
-  let norm1 = 0;
-  let norm2 = 0;
-  for (const key of allKeys) {
-    const a = vec1.get(key) || 0;
-    const b = vec2.get(key) || 0;
-    dotProduct += a * b;
-    norm1 += a * a;
-    norm2 += b * b;
-  }
-  if (norm1 === 0 || norm2 === 0) return 0;
-  return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-}
 
 // Entropy thresholds (reference: normal JS = 4.5-5.5, minified = 5.0-5.8, obfuscated = 5.8-6.5, encrypted = 7.5-8.0)
 const ENTROPY_THRESHOLD = 6.0;
@@ -246,8 +125,11 @@ export class ScriptGuard {
   }
 
   /** Analyze every loaded script (called via CDP Debugger.scriptParsed) */
-  private analyzeScript(scriptInfo: any): void {
-    const { scriptId, url, length, hash } = scriptInfo;
+  private analyzeScript(scriptInfo: Record<string, unknown>): void {
+    const scriptId = scriptInfo.scriptId as string;
+    const url = scriptInfo.url as string | undefined;
+    const length = scriptInfo.length as number | undefined;
+    const hash = scriptInfo.hash as string | undefined;
 
     // Skip inline scripts (no URL), chrome-extension, devtools, and debugger scripts
     if (!url || url.startsWith('chrome-extension://') || url.startsWith('devtools://') || url.startsWith('debugger://')) return;
@@ -295,7 +177,7 @@ export class ScriptGuard {
     if (scriptLength <= MAX_SCRIPT_SIZE && !this.analyzedUrls.has(url)) {
       const pageDomain = this.getCurrentPageDomain();
       if (pageDomain && domain !== pageDomain) {
-        this.analyzeExternalScript(scriptId, url, domain).catch(() => {});
+        this.analyzeExternalScript(scriptId, url, domain).catch(e => log.warn('analyzeExternalScript failed:', e instanceof Error ? e.message : e));
       }
     }
   }
@@ -655,7 +537,7 @@ export class ScriptGuard {
 
       const perfMs = performance.now() - perfStart;
       if (perfMs > 50) {
-        console.warn(`[ScriptGuard] Slow analysis: ${url} took ${perfMs.toFixed(1)}ms`);
+        log.warn(`Slow analysis: ${url} took ${perfMs.toFixed(1)}ms`);
       }
     } catch {
       // CDP command failed (tab closed, debugger detached) — silently ignore
@@ -663,10 +545,10 @@ export class ScriptGuard {
   }
 
   /** Monitor console for suspicious patterns */
-  private monitorConsole(params: any): void {
+  private monitorConsole(params: Record<string, unknown>): void {
     // Watch for crypto mining indicators in console
     if (params.type === 'error' || params.type === 'warning') {
-      const text = (params.args || []).map((a: any) => a.value || a.description || '').join(' ');
+      const text = ((params.args as Record<string, unknown>[]) || []).map((a: Record<string, unknown>) => (a.value as string) || (a.description as string) || '').join(' ');
       if (/coinhive|cryptonight|monero|minero|coinbase.*miner/i.test(text)) {
         this.db.logEvent({
           timestamp: Date.now(),
@@ -786,7 +668,7 @@ export class ScriptGuard {
         handler: (_method, params) => {
           if (params.name === '__tandemSecurityAlert') {
             try {
-              this.handleSecurityAlert(JSON.parse(params.payload));
+              this.handleSecurityAlert(JSON.parse(params.payload as string));
             } catch { /* invalid JSON */ }
           }
         }
@@ -805,13 +687,13 @@ export class ScriptGuard {
       });
 
       this.monitorInjected = true;
-      console.log('[ScriptGuard] Security monitors injected');
-    } catch (e: any) {
-      console.warn('[ScriptGuard] Monitor injection failed:', e.message);
+      log.info('Security monitors injected');
+    } catch (e) {
+      log.warn('Monitor injection failed:', e instanceof Error ? e.message : String(e));
     }
   }
 
-  private handleSecurityAlert(alert: any): void {
+  private handleSecurityAlert(alert: Record<string, unknown>): void {
     // Get current URL for domain context
     const wc = this.devToolsManager.getAttachedWebContents();
     const currentUrl = wc ? wc.getURL() : '';
@@ -832,7 +714,7 @@ export class ScriptGuard {
         });
         break;
 
-      case 'wasm_instantiate':
+      case 'wasm_instantiate': {
         // Track WASM instantiation timestamps for crypto miner correlation
         this.wasmEvents.push(Date.now());
         // Keep only recent events (last 5 minutes)
@@ -851,6 +733,7 @@ export class ScriptGuard {
           confidence: AnalysisConfidence.BEHAVIORAL,
         });
         break;
+      }
 
       case 'clipboard_read':
         this.db.logEvent({
@@ -868,7 +751,7 @@ export class ScriptGuard {
 
       case 'form_action_change': {
         // Check if new action URL is external
-        const newDomain = this.extractDomain(alert.newAction);
+        const newDomain = this.extractDomain(alert.newAction as string);
         if (newDomain && domain && newDomain !== domain) {
           this.db.logEvent({
             timestamp: Date.now(),

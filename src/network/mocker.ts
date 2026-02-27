@@ -1,6 +1,9 @@
 import crypto from 'crypto';
-import { DevToolsManager } from '../devtools/manager';
-import { MockRule } from './types';
+import type { DevToolsManager } from '../devtools/manager';
+import type { MockRule } from './types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('NetworkMocker');
 
 export class NetworkMocker {
   private rules: MockRule[] = [];
@@ -11,7 +14,7 @@ export class NetworkMocker {
     this.devtools.subscribe({
       name: 'NetworkMocker',
       events: ['Fetch.requestPaused'],
-      handler: (_method: string, params: any) => this.handleRequestPaused(params),
+      handler: (_method: string, params: Record<string, unknown>) => this.handleRequestPaused(params),
     });
   }
 
@@ -83,7 +86,7 @@ export class NetworkMocker {
       patterns: [{ urlPattern: '*', requestStage: 'Request' }],
     });
     this.fetchEnabled = true;
-    console.log('[NetworkMocker] Fetch.enable — interception active');
+    log.info('Fetch.enable — interception active');
   }
 
   /** Disable CDP Fetch domain (performance: stop intercepting) */
@@ -91,11 +94,11 @@ export class NetworkMocker {
     if (!this.fetchEnabled) return;
     try {
       await this.devtools.sendCommand('Fetch.disable', {});
-    } catch (e: any) {
-      console.warn('[NetworkMocker] Fetch.disable failed:', e.message);
+    } catch (e) {
+      log.warn('Fetch.disable failed:', e instanceof Error ? e.message : String(e));
     }
     this.fetchEnabled = false;
-    console.log('[NetworkMocker] Fetch.disable — interception stopped');
+    log.info('Fetch.disable — interception stopped');
   }
 
   /** Find the first matching rule for a URL */
@@ -160,9 +163,10 @@ export class NetworkMocker {
   }
 
   /** Handle CDP Fetch.requestPaused event */
-  private async handleRequestPaused(params: any): Promise<void> {
+  private async handleRequestPaused(params: Record<string, unknown>): Promise<void> {
     const requestId = params.requestId as string;
-    const url = params.request?.url as string;
+    const request = params.request as Record<string, unknown> | undefined;
+    const url = request?.url as string;
 
     if (!requestId || !url) {
       // Safety: continue unmatched requests
@@ -209,8 +213,8 @@ export class NetworkMocker {
           body: responseBody,
         });
       }
-    } catch (e: any) {
-      console.error(`[NetworkMocker] Error handling paused request ${url}:`, e.message);
+    } catch (e) {
+      log.error(`Error handling paused request ${url}:`, e instanceof Error ? e.message : String(e));
       // Try to continue the request so the browser doesn't hang
       try {
         await this.devtools.sendCommand('Fetch.continueRequest', { requestId });
@@ -224,7 +228,7 @@ export class NetworkMocker {
     this.devtools.unsubscribe('NetworkMocker');
     // Don't await disableFetch here — app is quitting
     if (this.fetchEnabled) {
-      this.devtools.sendCommand('Fetch.disable', {}).catch(() => {});
+      this.devtools.sendCommand('Fetch.disable', {}).catch(e => log.warn('Fetch.disable on destroy failed:', e instanceof Error ? e.message : e));
       this.fetchEnabled = false;
     }
   }

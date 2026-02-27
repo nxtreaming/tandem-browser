@@ -1,7 +1,10 @@
-import { Session } from 'electron';
+import type { Session } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { tandemDir, ensureDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ExtensionLoader');
 
 interface LoadedExtension {
   id: string;
@@ -25,10 +28,7 @@ export class ExtensionLoader {
   private loaded: LoadedExtension[] = [];
 
   constructor() {
-    this.extensionsDir = path.join(os.homedir(), '.tandem', 'extensions');
-    if (!fs.existsSync(this.extensionsDir)) {
-      fs.mkdirSync(this.extensionsDir, { recursive: true });
-    }
+    this.extensionsDir = ensureDir(tandemDir('extensions'));
   }
 
   /**
@@ -46,23 +46,23 @@ export class ExtensionLoader {
         const manifestPath = path.join(extPath, 'manifest.json');
 
         if (!fs.existsSync(manifestPath)) {
-          console.warn(`⚠️ Extension ${dir.name}: no manifest.json, skipping`);
+          log.warn(`⚠️ Extension ${dir.name}: no manifest.json, skipping`);
           continue;
         }
 
         try {
           const result = await this.loadExtension(ses, extPath);
           if (result) results.push(result);
-        } catch (err: any) {
-          console.warn(`⚠️ Failed to load extension ${dir.name}: ${err.message}`);
+        } catch (err) {
+          log.warn(`⚠️ Failed to load extension ${dir.name}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-    } catch (err: any) {
-      console.warn(`⚠️ Could not read extensions directory: ${err.message}`);
+    } catch (err) {
+      log.warn(`⚠️ Could not read extensions directory: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     if (results.length > 0) {
-      console.log(`🧩 Loaded ${results.length} extension(s): ${results.map(e => e.name).join(', ')}`);
+      log.info(`🧩 Loaded ${results.length} extension(s): ${results.map(e => e.name).join(', ')}`);
     }
 
     return results;
@@ -127,12 +127,12 @@ export class ExtensionLoader {
           try {
             const manifest = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8'));
             name = manifest.name || dir.name;
-          } catch (e: any) { console.warn('Extension manifest parse failed for', dir.name + ':', e.message); }
+          } catch (e) { log.warn('Extension manifest parse failed for', dir.name + ':', e instanceof Error ? e.message : String(e)); }
         }
 
         results.push({ name, path: extPath, hasManifest, loaded: isLoaded });
       }
-    } catch (e: any) { console.warn('Extensions directory listing failed:', e.message); }
+    } catch (e) { log.warn('Extensions directory listing failed:', e instanceof Error ? e.message : String(e)); }
 
     return results;
   }

@@ -20,8 +20,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { API_PORT } from '../utils/constants';
 
-const API = 'http://localhost:8765';
+const API = `http://localhost:${API_PORT}`;
 const SCOUT_DIR = path.join(process.env.HOME || '', '.tandem', 'x-scout');
 const STATE_FILE = path.join(SCOUT_DIR, 'state.json');
 const FINDINGS_FILE = path.join(SCOUT_DIR, 'findings.json');
@@ -164,10 +165,10 @@ function addFinding(finding: Finding): void {
  * Browse the timeline naturally
  * Read 3-5 tweets, note interesting ones
  */
-async function browseTimeline(state: ScoutState): Promise<Finding[]> {
+async function browseTimeline(_state: ScoutState): Promise<Finding[]> {
   const findings: Finding[] = [];
   
-  await chat('🔍 Even rustig door je timeline scrollen...');
+  await chat('🔍 Casually scrolling through your timeline...');
   await navigate('https://x.com/home');
   
   // Read like a human: scroll a few times, pause, read
@@ -176,7 +177,7 @@ async function browseTimeline(state: ScoutState): Promise<Finding[]> {
     await wait(TIMING.readingTime); // Actually "reading"
     
     // Take screenshot to analyze what's on screen
-    const img = await screenshot();
+    const _img = await screenshot();
     // TODO: Send to vision model for analysis
     // For now we use page content
     const content = await getPageContent();
@@ -207,7 +208,7 @@ async function visitProfile(handle: string, state: ScoutState): Promise<Finding 
   await navigate(`https://x.com/${handle}`);
   await wait(TIMING.readingTime);
   
-  const img = await screenshot();
+  const _img = await screenshot();
   const content = await getPageContent();
   
   // Scroll down to see recent tweets
@@ -230,7 +231,7 @@ async function visitProfile(handle: string, state: ScoutState): Promise<Finding 
 /**
  * Search for relevant content (slowly!)
  */
-async function searchTopics(query: string, state: ScoutState): Promise<Finding[]> {
+async function searchTopics(query: string, _state: ScoutState): Promise<Finding[]> {
   const findings: Finding[] = [];
   
   await wait(TIMING.betweenPages);
@@ -252,7 +253,7 @@ async function runSession(state: ScoutState): Promise<void> {
   state.lastSession = Date.now();
   saveState(state);
   
-  await chat(`🚲 X Scout sessie #${state.sessionCount} gestart. Ik ga rustig rondkijken...`);
+  await chat(`🚲 X Scout session #${state.sessionCount} started. Taking a casual look around...`);
   
   try {
     // 1. Check timeline (2-3 min)
@@ -284,17 +285,17 @@ async function runSession(state: ScoutState): Promise<void> {
     const allFindings = [...timelineFindings, ...searchFindings];
     if (allFindings.length > 0 || state.pendingApprovals.length > 0) {
       await chat(
-        `📊 Sessie klaar! Gevonden:\n` +
-        `- ${allFindings.length} interessante items\n` +
-        `- ${state.pendingApprovals.filter(a => a.status === 'pending').length} wachten op goedkeuring\n` +
-        `Ik stuur een samenvatting naar OpenClaw.`
+        `📊 Session complete! Found:\n` +
+        `- ${allFindings.length} interesting items\n` +
+        `- ${state.pendingApprovals.filter(a => a.status === 'pending').length} awaiting approval\n` +
+        `Sending a summary to OpenClaw.`
       );
     } else {
-      await chat('📊 Sessie klaar, niks bijzonders gevonden. Ik check later weer.');
+      await chat('📊 Session complete, nothing notable found. Will check again later.');
     }
     
-  } catch (err: any) {
-    await chat(`⚠️ Scout error: ${err.message}. Ik stop even.`);
+  } catch (err) {
+    await chat(`⚠️ Scout error: ${err instanceof Error ? err.message : String(err)}. Pausing for now.`);
   }
   
   state.running = false;
@@ -343,7 +344,7 @@ export function createXScout(): XScoutAPI {
       if (sessionTimer) clearTimeout(sessionTimer);
       state.running = false;
       saveState(state);
-      await chat('🛑 X Scout gestopt.');
+      await chat('🛑 X Scout stopped.');
     },
     
     status() {
@@ -356,8 +357,7 @@ export function createXScout(): XScoutAPI {
       if (approval) {
         approval.status = 'approved';
         saveState(state);
-        // TODO: Execute the approved action
-        await chat(`✅ Goedgekeurd: ${approval.type} — ${approval.target || approval.content?.substring(0, 50)}`);
+        await chat(`⚠️ Approved but not executed: ${approval.type} — ${approval.target || approval.content?.substring(0, 50)} (action execution not yet implemented)`);
       }
     },
     
@@ -367,7 +367,7 @@ export function createXScout(): XScoutAPI {
       if (approval) {
         approval.status = 'rejected';
         saveState(state);
-        await chat(`❌ Afgekeurd: ${approval.type}`);
+        await chat(`❌ Rejected: ${approval.type}`);
       }
     },
     

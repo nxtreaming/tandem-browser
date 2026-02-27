@@ -1,8 +1,12 @@
-import { Session, BrowserWindow, ipcMain, Menu, MenuItem } from 'electron';
+import type { Session} from 'electron';
+import { BrowserWindow, ipcMain, Menu, MenuItem } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
-import { ExtensionManager } from './manager';
+import type { ExtensionManager } from './manager';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('ExtensionToolbar');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,7 +47,7 @@ export class ExtensionToolbar {
 
   constructor(extensionManager: ExtensionManager) {
     this.extensionManager = extensionManager;
-    this.stateFilePath = path.join(os.homedir(), '.tandem', 'extensions', 'toolbar-state.json');
+    this.stateFilePath = tandemDir('extensions', 'toolbar-state.json');
     this.loadState();
   }
 
@@ -257,7 +261,7 @@ export class ExtensionToolbar {
       },
     });
 
-    this.popupWindow.loadURL(ext.popupUrl);
+    void this.popupWindow.loadURL(ext.popupUrl);
 
     this.popupWindow.webContents.once('did-finish-load', () => {
       if (!this.popupWindow) return;
@@ -505,7 +509,7 @@ export class ExtensionToolbar {
       fs.writeFileSync(this.stateFilePath, JSON.stringify(this.toolbarState, null, 2));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`⚠️ Failed to save toolbar state: ${msg}`);
+      log.warn(`⚠️ Failed to save toolbar state: ${msg}`);
     }
   }
 }

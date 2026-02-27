@@ -1,7 +1,10 @@
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
-import { RequestDispatcher } from './dispatcher';
+import type { RequestDispatcher } from './dispatcher';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('NetworkInspector');
 
 export interface NetworkRequest {
   id: number;
@@ -37,7 +40,7 @@ export class NetworkInspector {
   private domainStats: Map<string, DomainData> = new Map();
 
   constructor() {
-    this.networkDir = path.join(os.homedir(), '.tandem', 'network');
+    this.networkDir = tandemDir('network');
     if (!fs.existsSync(this.networkDir)) {
       fs.mkdirSync(this.networkDir, { recursive: true });
     }
@@ -184,7 +187,7 @@ export class NetworkInspector {
       if (fs.existsSync(filePath)) {
         try {
           existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        } catch (e: any) { console.warn('Network domain file parse failed, starting fresh:', e.message); }
+        } catch (e) { log.warn('Network domain file parse failed, starting fresh:', e instanceof Error ? e.message : String(e)); }
       }
 
       // Merge
@@ -197,8 +200,8 @@ export class NetworkInspector {
       }
 
       fs.writeFileSync(filePath, JSON.stringify(existing, null, 2));
-    } catch (e: any) {
-      console.warn('Network domain flush failed for', domain + ':', e.message);
+    } catch (e) {
+      log.warn('Network domain flush failed for', domain + ':', e instanceof Error ? e.message : String(e));
     }
   }
 

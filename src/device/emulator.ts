@@ -1,4 +1,7 @@
-import { WebContents } from 'electron';
+import type { WebContents } from 'electron';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('DeviceEmulator');
 
 export interface DeviceProfile {
   name: string;
@@ -10,7 +13,7 @@ export interface DeviceProfile {
   userAgent: string;
 }
 
-// Ingebouwde device profielen
+// Built-in device profiles
 export const DEVICE_PROFILES: Record<string, DeviceProfile> = {
   'iPhone 15': {
     name: 'iPhone 15',
@@ -83,7 +86,7 @@ export interface EmulationState {
 export class DeviceEmulator {
   private state: EmulationState = { active: false };
 
-  // ─── Emulatie activeren ───────────────────────
+  // ─── Enable emulation ─────────────────────────
 
   async emulateDevice(wc: WebContents, deviceName: string): Promise<DeviceProfile> {
     const profile = DEVICE_PROFILES[deviceName];
@@ -118,16 +121,16 @@ export class DeviceEmulator {
 
   async reset(wc: WebContents): Promise<void> {
     wc.disableDeviceEmulation();
-    // Reset user agent naar Electron default
+    // Reset user agent to Electron default
     wc.setUserAgent(wc.session.getUserAgent());
     this.state = { active: false };
   }
 
-  // ─── Persistentie: re-apply na navigatie ─────
+  // ─── Persistence: re-apply after navigation ──
 
   /**
-   * Geroepen vanuit main.ts na did-finish-load.
-   * Re-applyt de huidige emulatie als die actief is.
+   * Called from main.ts after did-finish-load.
+   * Re-applies the current emulation if active.
    */
   async reloadIntoTab(wc: WebContents): Promise<void> {
     if (!this.state.active) return;
@@ -149,7 +152,7 @@ export class DeviceEmulator {
     return Object.values(DEVICE_PROFILES);
   }
 
-  // ─── Intern ───────────────────────────────────
+  // ─── Internal ────────────────────────────────
 
   private async applyProfile(wc: WebContents, profile: DeviceProfile): Promise<void> {
     // Electron native device emulation API
@@ -162,17 +165,17 @@ export class DeviceEmulator {
       scale: 1,
     });
 
-    // User agent instellen
+    // Set user agent
     wc.setUserAgent(profile.userAgent);
 
-    // Touch events activeren via JS (Electron enableDeviceEmulation doet dit niet altijd zelf)
+    // Enable touch events via JS (Electron enableDeviceEmulation doesn't always do this itself)
     if (profile.touch) {
       await wc.executeJavaScript(`
-        // Simuleer touch support voor sites die erop controleren
+        // Simulate touch support for sites that check for it
         Object.defineProperty(navigator, 'maxTouchPoints', {
           get: () => 5, configurable: true
         });
-      `).catch(() => {}); // Silently fail als page nog niet klaar is
+      `).catch(e => log.warn('touch event injection failed (page may not be ready):', e instanceof Error ? e.message : e));
     }
   }
 }

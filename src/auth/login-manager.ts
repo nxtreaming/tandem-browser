@@ -1,7 +1,10 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('LoginManager');
 
 interface LoginState {
   domain: string;
@@ -35,13 +38,13 @@ export class LoginManager {
   private domainConfigs: Map<string, DomainConfig> = new Map();
 
   constructor() {
-    const tandemDir = path.join(os.homedir(), '.tandem', 'auth');
-    if (!fs.existsSync(tandemDir)) {
-      fs.mkdirSync(tandemDir, { recursive: true });
+    const authDir = tandemDir('auth');
+    if (!fs.existsSync(authDir)) {
+      fs.mkdirSync(authDir, { recursive: true });
     }
 
-    this.statesFile = path.join(tandemDir, 'login-states.json');
-    this.configFile = path.join(tandemDir, 'domain-configs.json');
+    this.statesFile = path.join(authDir, 'login-states.json');
+    this.configFile = path.join(authDir, 'domain-configs.json');
     
     this.loadStates();
     this.loadDomainConfigs();
@@ -195,11 +198,11 @@ export class LoginManager {
 
   private async detectLoginState(webview: BrowserWindow, domain: string): Promise<LoginState> {
     const config = this.domainConfigs.get(domain);
-    const url = webview.webContents.getURL();
-    
+    const _url = webview.webContents.getURL();
+
     let loggedInScore = 0;
     let loggedOutScore = 0;
-    let detectionMethods: string[] = [];
+    const detectionMethods: string[] = [];
 
     try {
       // Check domain-specific rules if available
@@ -315,7 +318,7 @@ export class LoginManager {
       };
 
     } catch (error) {
-      console.error('Error detecting login state:', error);
+      log.error('Error detecting login state:', error);
       
       return {
         domain,
@@ -350,13 +353,14 @@ export class LoginManager {
             })()
           `);
 
-        case 'url-pattern':
+        case 'url-pattern': {
           const url = webview.webContents.getURL();
           const matches = new RegExp(rule.pattern, 'i').test(url);
-          
+
           if (rule.condition === 'exists' || rule.condition === 'contains') return matches;
           if (rule.condition === 'not-exists' || rule.condition === 'not-contains') return !matches;
           return false;
+        }
 
         case 'text-content':
           return await webview.webContents.executeJavaScript(`
@@ -371,28 +375,29 @@ export class LoginManager {
             })()
           `);
 
-        case 'cookie':
+        case 'cookie': {
           const cookies = await webview.webContents.session.cookies.get({ domain: this.extractDomain(webview.webContents.getURL()) });
           const cookieExists = cookies.some(cookie => cookie.name === rule.pattern);
-          
+
           if (rule.condition === 'exists') return cookieExists;
           if (rule.condition === 'not-exists') return !cookieExists;
-          
+
           if (rule.value && cookieExists) {
             const cookie = cookies.find(c => c.name === rule.pattern);
             const contains = cookie?.value.includes(rule.value) || false;
-            
+
             if (rule.condition === 'contains') return contains;
             if (rule.condition === 'not-contains') return !contains;
           }
-          
+
           return false;
+        }
 
         default:
           return false;
       }
     } catch (error) {
-      console.error('Error checking rule:', error);
+      log.error('Error checking rule:', error);
       return false;
     }
   }
@@ -418,7 +423,7 @@ export class LoginManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load login states:', error);
+      log.error('Failed to load login states:', error);
     }
   }
 
@@ -427,7 +432,7 @@ export class LoginManager {
       const states = Array.from(this.states.values());
       fs.writeFileSync(this.statesFile, JSON.stringify(states, null, 2));
     } catch (error) {
-      console.error('Failed to save login states:', error);
+      log.error('Failed to save login states:', error);
     }
   }
 
@@ -443,7 +448,7 @@ export class LoginManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load domain configs:', error);
+      log.error('Failed to load domain configs:', error);
     }
   }
 
@@ -452,7 +457,7 @@ export class LoginManager {
       const configs = Array.from(this.domainConfigs.values());
       fs.writeFileSync(this.configFile, JSON.stringify(configs, null, 2));
     } catch (error) {
-      console.error('Failed to save domain configs:', error);
+      log.error('Failed to save domain configs:', error);
     }
   }
 

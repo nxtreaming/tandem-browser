@@ -1,7 +1,10 @@
-import { BrowserWindow, app } from 'electron';
+import type { BrowserWindow} from 'electron';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { tandemDir } from '../utils/paths';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('BehaviorObserver');
 
 /**
  * BehaviorObserver — Passive observation layer for behavioral learning.
@@ -32,10 +35,9 @@ export class BehaviorObserver {
 
   constructor(win: BrowserWindow) {
     this.win = win;
-    const tandemDir = path.join(os.homedir(), '.tandem', 'behavior', 'raw');
-    this.rawDir = tandemDir;
-    if (!fs.existsSync(tandemDir)) {
-      fs.mkdirSync(tandemDir, { recursive: true });
+    this.rawDir = tandemDir('behavior', 'raw');
+    if (!fs.existsSync(this.rawDir)) {
+      fs.mkdirSync(this.rawDir, { recursive: true });
     }
     this.setupTracking();
   }
@@ -60,8 +62,8 @@ export class BehaviorObserver {
       const stream = this.getStream();
       stream.write(JSON.stringify(event) + '\n');
       this.eventCount++;
-    } catch (e: any) {
-      console.warn('Behavior event write failed:', e.message);
+    } catch (e) {
+      log.warn('Behavior event write failed:', e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -99,7 +101,7 @@ export class BehaviorObserver {
       }
     });
 
-    console.log('🧬 Behavior observer active (passive mode)');
+    log.info('🧬 Behavior observer active (passive mode)');
   }
 
   /** Record a click event (called from activity tracker) */
@@ -152,14 +154,14 @@ export class BehaviorObserver {
       try {
         const content = fs.readFileSync(todayFile, 'utf-8');
         todayEvents = content.split('\n').filter(l => l.trim()).length;
-      } catch (e: any) { console.warn('Behavior stats read failed:', e.message); }
+      } catch (e) { log.warn('Behavior stats read failed:', e instanceof Error ? e.message : String(e)); }
     }
 
     // List all raw files
     let totalFiles = 0;
     try {
       totalFiles = fs.readdirSync(this.rawDir).filter(f => f.endsWith('.jsonl')).length;
-    } catch (e: any) { console.warn('Behavior rawDir read failed:', e.message); }
+    } catch (e) { log.warn('Behavior rawDir read failed:', e instanceof Error ? e.message : String(e)); }
 
     return {
       totalEventsSession: this.eventCount,

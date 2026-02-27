@@ -1,7 +1,10 @@
-import { Session } from 'electron';
+import type { Session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('NativeMessaging');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,13 +76,14 @@ export class NativeMessagingSetup {
         dirs.push(path.join(os.homedir(), '.config', 'chromium', 'NativeMessagingHosts'));
         break;
 
-      case 'win32':
+      case 'win32': {
         // Windows: native messaging hosts are registered in the Windows Registry.
         // We cannot read registry values from Node.js without native modules,
         // so we check common filesystem paths where hosts may also be installed.
         const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
         dirs.push(path.join(localAppData, 'Google', 'Chrome', 'User Data', 'NativeMessagingHosts'));
         break;
+      }
     }
 
     return dirs.map(d => ({ path: d, exists: fs.existsSync(d) }));
@@ -181,16 +185,16 @@ export class NativeMessagingSetup {
           ses.setNativeMessagingHostDirectory(dir.path);
           configured.push(dir.path);
           this.apiSupported = true;
-          console.log(`🔌 Native messaging: configured directory ${dir.path}`);
+          log.info(`🔌 Native messaging: configured directory ${dir.path}`);
         } else if (!apiChecked) {
           // API not available — log once
           apiChecked = true;
-          console.log('🔌 Native messaging: session.setNativeMessagingHostDirectory() not available in this Electron version');
-          console.log('   Chromium may still read native messaging hosts from standard Chrome directories automatically');
+          log.info('🔌 Native messaging: session.setNativeMessagingHostDirectory() not available in this Electron version');
+          log.info('   Chromium may still read native messaging hosts from standard Chrome directories automatically');
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.warn(`⚠️ Native messaging: failed to configure directory ${dir.path}: ${message}`);
+        log.warn(`⚠️ Native messaging: failed to configure directory ${dir.path}: ${message}`);
       }
     }
 
@@ -199,20 +203,20 @@ export class NativeMessagingSetup {
       const host = this.hosts.find(h => h.name === hostName);
       if (!host) {
         missing.push(hostName);
-        console.log(`🔌 Native messaging: ${info.extensionName} requires "${hostName}" — desktop app not installed`);
+        log.info(`🔌 Native messaging: ${info.extensionName} requires "${hostName}" — desktop app not installed`);
       } else if (!host.binaryExists) {
         missing.push(hostName);
-        console.warn(`⚠️ Native messaging: ${info.extensionName} host "${hostName}" found but binary missing at ${host.binaryPath}`);
+        log.warn(`⚠️ Native messaging: ${info.extensionName} host "${hostName}" found but binary missing at ${host.binaryPath}`);
       } else {
-        console.log(`🔌 Native messaging: ${info.extensionName} host "${hostName}" — ready (binary at ${host.binaryPath})`);
+        log.info(`🔌 Native messaging: ${info.extensionName} host "${hostName}" — ready (binary at ${host.binaryPath})`);
       }
     }
 
     // Log summary of all detected hosts
     if (this.hosts.length > 0) {
-      console.log(`🔌 Native messaging: ${this.hosts.length} host(s) detected, ${this.hosts.filter(h => h.binaryExists).length} with valid binaries`);
+      log.info(`🔌 Native messaging: ${this.hosts.length} host(s) detected, ${this.hosts.filter(h => h.binaryExists).length} with valid binaries`);
     } else {
-      console.log('🔌 Native messaging: no hosts detected on this system');
+      log.info('🔌 Native messaging: no hosts detected on this system');
     }
 
     this.configuredDirs = configured;

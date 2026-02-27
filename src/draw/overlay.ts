@@ -1,9 +1,13 @@
-import { BrowserWindow, app, webContents, clipboard, nativeImage } from 'electron';
+import type { BrowserWindow} from 'electron';
+import { app, webContents, clipboard, nativeImage } from 'electron';
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { ConfigManager } from '../config/manager';
+import type { ConfigManager } from '../config/manager';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('DrawOverlay');
 
 /**
  * DrawOverlayManager — Manages the transparent annotation canvas overlay.
@@ -82,12 +86,12 @@ export class DrawOverlayManager {
 
       this.lastScreenshotPath = filePath;
 
-      // Step 4: Notify renderer of new screenshot (annotations blijven staan voor verdere bewerking)
+      // Step 4: Notify renderer of new screenshot (annotations remain for further editing)
       this.win.webContents.send('screenshot-taken', { path: filePath, filename });
 
       return { ok: true, path: filePath };
-    } catch (e: any) {
-      return { ok: false, error: e.message };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -149,7 +153,7 @@ export class DrawOverlayManager {
       // Step 7: Import to Apple Photos (async, non-blocking)
       this.importToApplePhotos(picturesPath);
 
-      // Step 8: Notify renderer of new screenshot (annotations blijven staan)
+      // Step 8: Notify renderer of new screenshot (annotations remain)
       this.win.webContents.send('screenshot-taken', {
         path: picturesPath,
         appPath,
@@ -158,8 +162,8 @@ export class DrawOverlayManager {
       });
 
       return { ok: true, path: picturesPath };
-    } catch (e: any) {
-      return { ok: false, error: e.message };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -207,8 +211,8 @@ export class DrawOverlayManager {
       });
 
       return { ok: true, path: picturesPath };
-    } catch (e: any) {
-      return { ok: false, error: e.message };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -234,9 +238,9 @@ export class DrawOverlayManager {
 
     execFile('osascript', ['-e', script], (error) => {
       if (error) {
-        console.warn('📸 Apple Photos import failed:', error.message);
+        log.warn('📸 Apple Photos import failed:', error.message);
       } else {
-        console.log('📸 Screenshot imported to Apple Photos:', path.basename(filePath));
+        log.info('📸 Screenshot imported to Apple Photos:', path.basename(filePath));
       }
     });
   }
