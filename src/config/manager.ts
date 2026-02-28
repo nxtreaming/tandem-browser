@@ -5,6 +5,7 @@ import { tandemDir } from '../utils/paths';
 import { WEBHOOK_PORT } from '../utils/constants';
 import { createLogger } from '../utils/logger';
 
+import { detectOpenClaw } from '../utils/openclaw-detect';
 const log = createLogger('ConfigManager');
 
 /**
@@ -167,7 +168,33 @@ export class ConfigManager {
     }
     this.configPath = path.join(baseDir, 'config.json');
     this.config = this.load();
+    
+    // Auto-sync webhook.secret with OpenClaw hooks.token if empty
+    void this.autoSyncWebhookSecret();
   }
+
+  /**
+   * Auto-sync webhook.secret with OpenClaw hooks.token (if webhook.secret is empty).
+   * Runs async during startup, does not block config load.
+   */
+  private async autoSyncWebhookSecret(): Promise<void> {
+    if (this.config.webhook.secret && this.config.webhook.secret.trim().length > 0) {
+      // Secret already set — nothing to do
+      return;
+    }
+
+    log.info('🔍 webhook.secret empty — checking for OpenClaw...');
+    const status = await detectOpenClaw();
+
+    if (status.ok && status.hooksToken) {
+      log.info('✅ Auto-synced webhook.secret with OpenClaw hooks.token');
+      this.config.webhook.secret = status.hooksToken;
+      this.save();
+    } else {
+      log.debug('OpenClaw not detected — webhook.secret remains empty');
+    }
+  }
+
 
   /** Load config from disk, merging with defaults */
   private load(): TandemConfig {
