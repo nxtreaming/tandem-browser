@@ -2,6 +2,24 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.15.3] - 2026-02-28
+
+- fix: sidebar config gebruikt individuele messenger items + commit standaard
+
+Nieuwe bestanden: geen
+Aangepaste bestanden:
+- src/sidebar/manager.ts: DEFAULT_CONFIG bijgewerkt van 7 items (met 1 'messengers' groep)
+  naar 12 items (6 utility + 6 individuele messengers: whatsapp/telegram/discord/slack/instagram/x)
+- git-hooks/post-commit: emoji-stripping toegevoegd zodat emoji-prefixed commits
+  (bijv '🗂️ feat:') correct als 'feat:' herkend worden door auto-versioning
+- CHANGELOG.md: v0.15.2 entry uitgebreid met volledige details (bestanden, endpoints, architectuur)
+- AGENTS.md: commit message standaard toegevoegd met format, types, versie-regels en CHANGELOG format
+- package.json: versie gecorrigeerd naar 0.15.2 (was blijven staan op 0.15.1 door emoji-bug in hook)
+
+Getest:
+- npx tsc: zero errors
+- Manager geeft nu 12 items terug via GET /sidebar/config
+
 ## [v0.15.2] - 2026-02-28
 
 ### Toegevoegd
