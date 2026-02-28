@@ -141,3 +141,14 @@ git status
 # Tests slagen?
 npx vitest run
 ```
+
+---
+
+## 📊 Fase Status — BIJWERKEN NA ELKE FASE
+
+| Fase | Titel | Status | Commit |
+|------|-------|--------|--------|
+| 1 | Electron BrowserView splitting + API | ⏳ niet gestart | — |
+| 2 | Shell UI (drag-to-split + resize divider) | ⏳ niet gestart | — |
+
+> Claude Code: markeer fase als ✅ + voeg commit hash toe na afronden.

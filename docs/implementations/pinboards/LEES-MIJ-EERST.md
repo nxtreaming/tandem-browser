@@ -214,3 +214,15 @@ git status
 # Tests slagen?
 npx vitest run
 ```
+
+---
+
+## 📊 Fase Status — BIJWERKEN NA ELKE FASE
+
+| Fase | Titel | Status | Commit |
+|------|-------|--------|--------|
+| 1 | PinboardManager + REST API | ⏳ niet gestart | — |
+| 2 | Sidebar panel + context menu | ⏳ niet gestart | — |
+| 3 | Visuele card grid view | ⏳ niet gestart | — |
+
+> Claude Code: markeer fase als ✅ + voeg commit hash toe na afronden.

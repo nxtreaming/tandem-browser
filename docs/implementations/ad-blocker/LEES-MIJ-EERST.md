@@ -146,3 +146,14 @@ git status
 # Tests slagen?
 npx vitest run
 ```
+
+---
+
+## 📊 Fase Status — BIJWERKEN NA ELKE FASE
+
+| Fase | Titel | Status | Commit |
+|------|-------|--------|--------|
+| 1 | EasyList filter engine + request blocking | ⏳ niet gestart | — |
+| 2 | UI badge + per-site whitelist | ⏳ niet gestart | — |
+
+> Claude Code: markeer fase als ✅ + voeg commit hash toe na afronden.

@@ -123,3 +123,13 @@ git status
 # Tests slagen?
 npx vitest run
 ```
+
+---
+
+## 📊 Fase Status — BIJWERKEN NA ELKE FASE
+
+| Fase | Titel | Status | Commit |
+|------|-------|--------|--------|
+| 1 | Private window (in-memory partition + API + UI) | ⏳ niet gestart | — |
+
+> Claude Code: markeer fase als ✅ + voeg commit hash toe na afronden.
