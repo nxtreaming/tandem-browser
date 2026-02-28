@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.21.0] - 2026-02-28
+
+- feat: resizable sidebar panel with per-module width persistence
+
 ## [v0.20.1] - 2026-02-28
 
 - fix: sidebar webviews navigate freely — prevent Telegram from opening in new tab
