@@ -510,6 +510,65 @@
       render();
     }
 
+    // === SIDEBAR SETUP PANEL ===
+    const SETUP_SECTIONS = [
+      { title: 'Workspaces',        ids: ['workspaces'] },
+      { title: 'Communicatie',      ids: ['calendar','gmail','whatsapp','telegram','discord','slack','instagram','x'] },
+      { title: 'Browser Utilities', ids: ['pinboards','bookmarks','history','downloads','news'] },
+    ];
+
+    function renderSetupPanel(items) {
+      const panel = document.getElementById('sidebar-panel');
+      const titleEl = document.getElementById('sidebar-panel-title');
+      const content = document.getElementById('sidebar-panel-content');
+
+      titleEl.textContent = 'Sidebar Setup';
+      panel.classList.add('open');
+
+      const rows = SETUP_SECTIONS.map((section, si) => {
+        const itemRows = section.ids.map(id => {
+          const item = items.find(i => i.id === id);
+          if (!item) return '';
+          const icon = ICONS[id];
+          const iconBg = icon && icon.brand
+            ? icon.brand
+            : 'rgba(255,255,255,0.08)';
+          const iconColor = icon && icon.brand ? '' : 'color:#aaa;';
+          const iconHtml = `<div class="setup-item-icon" style="background:${iconBg};${iconColor}">${icon ? icon.svg : ''}</div>`;
+          return `
+            <div class="setup-item">
+              ${iconHtml}
+              <span class="setup-item-label">${item.label}</span>
+              <label class="toggle-switch">
+                <input type="checkbox" data-item-id="${id}" ${item.enabled ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>`;
+        }).join('');
+        const sep = si < SETUP_SECTIONS.length - 1 ? '<div class="setup-separator"></div>' : '';
+        return `<p class="setup-section-title">${section.title}</p>${itemRows}${sep}`;
+      }).join('');
+
+      content.innerHTML = rows;
+
+      // Toggle handlers
+      content.querySelectorAll('input[data-item-id]').forEach(input => {
+        input.addEventListener('change', async (e) => {
+          const id = e.target.dataset.itemId;
+          await fetch(`http://localhost:8765/sidebar/items/${id}/toggle`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${TOKEN}` }
+          });
+          const r = await fetch('http://localhost:8765/sidebar/config', {
+            headers: { Authorization: `Bearer ${TOKEN}` }
+          });
+          const data = await r.json();
+          config = data.config;
+          render();
+        });
+      });
+    }
+
     function init() {
       loadConfig();
 
@@ -518,7 +577,24 @@
         if (btn) activateItem(btn.dataset.id);
       });
       document.getElementById('sidebar-toggle-width').addEventListener('click', toggleState);
-      document.getElementById('sidebar-panel-close').addEventListener('click', () => activateItem(config.activeItemId));
+
+      document.getElementById('sidebar-panel-close').addEventListener('click', () => {
+        const panel = document.getElementById('sidebar-panel');
+        panel.classList.remove('open');
+        document.getElementById('sidebar-panel-content').innerHTML = '';
+        document.getElementById('sidebar-panel-title').textContent = '';
+        config.activeItemId = null;
+        render();
+      });
+
+      document.getElementById('sidebar-customize').addEventListener('click', () => {
+        renderSetupPanel(config.items);
+      });
+
+      document.getElementById('sidebar-tips').addEventListener('click', () => {
+        const webview = document.querySelector('webview.active');
+        if (webview) webview.loadURL('https://tandem.browser/help');
+      });
 
       // Shortcut: Cmd+Shift+B (Mac) / Ctrl+Shift+B (Windows/Linux)
       document.addEventListener('keydown', e => {
