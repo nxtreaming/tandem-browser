@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.22.2] - 2026-03-01
+
+- fix: allow Google auth popups from sidebar webviews (Gmail/Calendar login)
+
 ## [v0.22.1] - 2026-02-28
 
 - fix: stronger frosted glass — more transparent panel, header shows blur clearly
