@@ -12,15 +12,21 @@
 - [x] Tandem feature inventory gemaakt (380+ features, 195+ endpoints)
 - [x] Gap analyse uitgevoerd (opera vs tandem)
 - [x] Project management structuur opgezet (ROADMAP.md, STATUS.md, templates)
+- [x] Design docs geschreven voor alle 10 HIGH priority features
+- [x] Implementation docs (LEES-MIJ-EERST + fase-docs) voor alle 10 features
+- [x] Alles gepushed: commits 488029e + cfa0e1b
+- [x] 40 nieuwe bestanden, 10.195 regels documentatie
 
 ### Actief bezig
-- Niets — wachten op Robin's go voor eerste feature
+- Niets — alles klaar, wachten op Robin
 
 ### Geblokkeerd
 - Niets
 
 ### Volgende stap
-- Robin kiest welke feature als eerste → Kees schrijft design doc
+- Robin keurt design docs goed (of past aan)
+- Robin kiest welke feature als eerste gebouwd wordt
+- Kees start Claude Code sessie voor fase 1 van gekozen feature
 
 ---
 
