@@ -243,13 +243,13 @@ Dit moet na elke `npm install` of als Electron opnieuw gedownload wordt. Bouw di
 2. Lees LEES-MIJ-EERST.md in dezelfde map
 3. Lees ALLEEN de bestanden die in het fase-bestand staan — niet meer
 4. Schrijf de code
-5. `npx tsc` → fix alle type errors
-6. `npx vitest run` → alle tests moeten slagen
-7. `npm start` → test handmatig (niet npm run dev!)
-8. `curl` test elke nieuwe endpoint (zie acceptatiecriteria in fase-bestand)
-9. Update CHANGELOG.md
-10. Git commit (emoji + feat/fix/docs: beschrijving)
-11. Git push
+5. npx tsc → fix alle type errors
+6. npx vitest run → alle tests moeten slagen
+7. npm start → test handmatig (niet npm run dev!)
+8. curl test elke nieuwe endpoint (zie acceptatiecriteria in fase-bestand)
+9. Update CHANGELOG.md (zie format hieronder)
+10. git commit (zie commit format hieronder)
+11. git push
 12. Rapport: gebouwd / getest / problemen / volgende stap
 ```
 
@@ -257,6 +257,70 @@ Dit moet na elke `npm install` of als Electron opnieuw gedownload wordt. Bouw di
 - Lees ALLEEN wat het fase-bestand zegt — niet wandelen door de codebase
 - Verwijs naar **functienamen**, nooit naar regelnummers
 - Gebruik `grep` om functies te vinden als je de locatie niet weet
+
+---
+
+## Commit Message Format — VERPLICHT
+
+### Format
+```
+<type>: <korte beschrijving> (<scope>)
+
+Wat is er gebouwd/veranderd:
+- Nieuwe bestanden: src/sidebar/manager.ts, src/sidebar/types.ts
+- Aangepaste bestanden: src/registry.ts, src/main.ts, src/api/server.ts
+- Nieuwe API endpoints: GET /sidebar/config, POST /sidebar/state, etc.
+- Verwijderde bestanden: (indien van toepassing)
+
+Waarom deze aanpak:
+- Korte uitleg van architectuur-keuzes
+
+Getest:
+- npx tsc: zero errors
+- npx vitest run: alle tests slagen
+- Handmatig: [wat getest]
+```
+
+### Types (bepalen versie bump!)
+| Type | Versie bump | Gebruik |
+|------|-------------|---------|
+| `feat:` | minor (0.15.0 → 0.16.0) | nieuwe feature |
+| `feat!:` | major (0.15.0 → 1.0.0) | breaking change |
+| `fix:` | patch (0.15.0 → 0.15.1) | bugfix |
+| `chore:` | geen | dependencies, build, tooling |
+| `docs:` | geen | documentatie |
+| `refactor:` | geen | code herstructurering |
+| `test:` | geen | tests toevoegen |
+
+### ⚠️ BELANGRIJK: Geen emoji VOOR het type prefix
+```
+✅ feat: sidebar manager + config API
+✅ fix: version bump hook matches emoji commits
+❌ 🗂️ feat: sidebar manager  ← emoji breekt auto-versioning hook!
+```
+Emoji MOGEN na de beschrijving: `feat: sidebar manager 🗂️`
+
+### CHANGELOG.md format
+Bij elke `feat:` of `fix:` commit: voeg bovenaan toe:
+```markdown
+## [v0.16.0] - 2026-02-28
+
+### Toegevoegd
+- **Sidebar Infrastructuur** (`src/sidebar/`) — SidebarManager met JSON config opslag
+  - 12 sidebar items: 6 utility panels + 6 messenger webviews
+  - 6 REST API endpoints (GET/POST /sidebar/config, /state, /reorder, etc.)
+  - 3 sidebar standen: hidden / narrow / wide
+  - Config persistent in `~/.tandem/sidebar-config.json`
+
+### Gewijzigd
+- `src/registry.ts` — `sidebarManager` toegevoegd aan ManagerRegistry
+- `src/main.ts` — SidebarManager instantiatie in startAPI() + will-quit cleanup
+- `src/api/server.ts` — registerSidebarRoutes toegevoegd
+
+### Technische details
+- Manager patroon: load/save via tandemDir() + ensureDir()
+- 12 default items: workspaces, news, pinboards, bookmarks, history, downloads + 6 messengers
+```
 
 ## Hoe je rapporteert
 

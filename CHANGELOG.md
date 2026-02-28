@@ -4,14 +4,31 @@ All notable changes to Tandem Browser will be documented in this file.
 
 ## [v0.15.2] - 2026-02-28
 
-- feat: sidebar infrastructure — SidebarManager + config API
+### Toegevoegd
+- **Sidebar Infrastructuur** (`src/sidebar/`) — fundament voor alle sidebar features
+  - `src/sidebar/types.ts` — SidebarState ('hidden'|'narrow'|'wide'), SidebarItem, SidebarConfig types
+  - `src/sidebar/manager.ts` — SidebarManager class met load/save/getConfig/updateConfig/toggleItem/reorderItems/setState/setActiveItem
+  - `src/api/routes/sidebar.ts` — 6 REST endpoints:
+    - `GET  /sidebar/config` — volledige config ophalen
+    - `POST /sidebar/config` — config bijwerken (state, activeItemId)
+    - `POST /sidebar/items/:id/toggle` — item enable/disable
+    - `POST /sidebar/items/:id/activate` — panel openen of sluiten
+    - `POST /sidebar/reorder` — drag-to-reorder (orderedIds array)
+    - `POST /sidebar/state` — sidebar state wijzigen (hidden/narrow/wide)
+  - 12 default sidebar items: workspaces, personal news, pinboards, bookmarks, history, downloads + whatsapp, telegram, discord, slack, instagram, x
+  - Config persistent in `~/.tandem/sidebar-config.json`
 
-- New `SidebarManager` with JSON config storage (`~/.tandem/sidebar-config.json`)
-- 7 default sidebar items: Workspaces, Messengers, Personal News, Pinboards, Bookmarks, History, Downloads
-- 6 REST API endpoints: GET/POST config, toggle item, activate item, reorder, set state
-- Sidebar state: hidden / narrow / wide (persisted across restarts)
-- Wired into ManagerRegistry + will-quit cleanup
-- Foundation for Fase 2 (Shell UI) and Fase 3 (Bookmarks panel)
+### Gewijzigd
+- `src/registry.ts` — `sidebarManager: SidebarManager` toegevoegd aan ManagerRegistry interface
+- `src/main.ts` — SidebarManager instantiatie in `startAPI()` + cleanup in `app.on('will-quit')`
+- `src/api/server.ts` — `registerSidebarRoutes(router, ctx)` toegevoegd
+- `src/api/tests/helpers.ts` — test helper bijgewerkt voor nieuwe manager
+- `git-hooks/post-commit` — emoji-prefix stripping zodat `🗂️ feat:` correct als `feat:` herkend wordt
+
+### Architectuur
+- Elke messenger (WhatsApp/Telegram/Discord/Slack/Instagram/X) krijgt eigen slot in sidebar — niet gegroepeerd
+- Twee visuele stijlen in UI (fase 2): outline Heroicons voor utility, brand colored SVGs voor messengers
+- Active indicator: gekleurde rounded square achter actief icoon (Opera-stijl)
 
 ## [v0.15.1] - 2026-02-28
 

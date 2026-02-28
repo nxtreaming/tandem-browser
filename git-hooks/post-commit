@@ -5,18 +5,21 @@
 COMMIT_MSG=$(git log -1 --pretty=%B)
 COMMIT_HASH=$(git log -1 --pretty=%h)
 
+# Strip leading emoji + whitespace so "🗂️ feat: ..." still matches "feat: ..."
+STRIPPED_MSG=$(echo "$COMMIT_MSG" | sed 's/^[^a-zA-Z]*//')
+
 # Skip if this is already a version bump commit
-if [[ "$COMMIT_MSG" =~ ^chore:\ bump\ to\ v[0-9] ]]; then
+if [[ "$STRIPPED_MSG" =~ ^chore:\ bump\ to\ v[0-9] ]]; then
   exit 0
 fi
 
 # Determine bump type from conventional commit prefix
 BUMP_TYPE=""
-if [[ "$COMMIT_MSG" =~ ^feat!: ]] || [[ "$COMMIT_MSG" =~ BREAKING\ CHANGE ]]; then
+if [[ "$STRIPPED_MSG" =~ ^feat!: ]] || [[ "$COMMIT_MSG" =~ BREAKING\ CHANGE ]]; then
   BUMP_TYPE="major"
-elif [[ "$COMMIT_MSG" =~ ^feat: ]]; then
+elif [[ "$STRIPPED_MSG" =~ ^feat: ]]; then
   BUMP_TYPE="minor"
-elif [[ "$COMMIT_MSG" =~ ^fix: ]]; then
+elif [[ "$STRIPPED_MSG" =~ ^fix: ]]; then
   BUMP_TYPE="patch"
 else
   # No version bump for other commit types (chore, docs, refactor, test, etc.)
