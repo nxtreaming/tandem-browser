@@ -47,7 +47,7 @@ export function buildAppMenu(deps: MenuDeps): void {
               },
             });
             aboutWindow.setMenu(null);
-            void aboutWindow.loadFile(path.join(__dirname, '..', 'shell', 'about.html'));
+            void aboutWindow.loadFile(path.join(__dirname, '..', '..', 'shell', 'about.html'));
           },
         },
         { type: 'separator' },
