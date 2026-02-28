@@ -642,7 +642,7 @@
     // === PANEL RESIZE ===
     const DEFAULT_PANEL_WIDTH = 340;
     const MIN_PANEL_WIDTH = 180;
-    const MAX_PANEL_WIDTH = 900;
+    const MAX_PANEL_WIDTH = () => window.innerWidth - 100; // always fits any screen
 
     function getPanelWidth(id) {
       return (config.panelWidths && config.panelWidths[id]) || DEFAULT_PANEL_WIDTH;
@@ -692,7 +692,7 @@
     document.addEventListener('mousemove', (e) => {
       if (!resizeDragging) return;
       const delta = e.clientX - resizeStartX;
-      const newWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, resizeStartWidth + delta));
+      const newWidth = Math.min(MAX_PANEL_WIDTH(), Math.max(MIN_PANEL_WIDTH, resizeStartWidth + delta));
       setPanelWidth(newWidth);
     });
 
