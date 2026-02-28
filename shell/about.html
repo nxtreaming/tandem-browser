@@ -94,7 +94,7 @@
   <div class="title"><span class="t">T</span><span class="rest">andem</span></div>
   <div class="subtitle">Co-Pilot Browser</div>
   <div class="quote">"Jij bent mij en ik ben jou, samen zijn we 1"</div>
-  <div class="version">v0.1.0</div>
+  <div class="version" id="version">v0.0.0</div>
   <div class="info">
     AI-Human symbiotic browser<br>
     Built for browsing together — human eyes, AI mind
@@ -105,5 +105,13 @@
   </div>
   <div class="copyright">© 2026 Mblock BV — Robin Waslander</div>
   <div class="team">Built by Robin & the GenX Team (Kees 🧀 + Max ⚡)</div>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const versionEl = document.getElementById('version');
+      if (versionEl && window.tandem?.version) {
+        versionEl.textContent = 'v' + window.tandem.version;
+      }
+    });
+  </script>
 </body>
 </html>

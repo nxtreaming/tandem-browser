@@ -35,13 +35,14 @@ export function buildAppMenu(deps: MenuDeps): void {
           click: () => {
             const aboutWindow = new BW({
               width: 600,
-              height: 500,
+              height: 650,
               modal: true,
               parent: deps.mainWindow || undefined,
               resizable: false,
               maximizable: false,
               minimizable: false,
               webPreferences: {
+                preload: path.join(__dirname, '..', 'preload-about.js'),
                 nodeIntegration: false,
                 contextIsolation: true,
               },
