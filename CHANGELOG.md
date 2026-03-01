@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.29.0] - 2026-03-01
+
+- feat: full Opera-style tab context menu with workspace icons, mute, duplicate, close actions
+
 ## [v0.28.0] - 2026-03-01
 
 - feat: move tab to workspace via drag-and-drop and right-click context menu
