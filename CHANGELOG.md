@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.32.1] - 2026-03-01
+
+- fix: pinboards use showPrompt() instead of prompt(), add auth headers to all fetches
+
 ## [v0.32.0] - 2026-03-01
 
 - feat: Pinboards — PinboardManager, REST API, sidebar panel, context menu (v0.32.0)
