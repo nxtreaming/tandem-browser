@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.36.1] - 2026-03-01
+
+- fix: responsive masonry columns + aspect-ratio card images, no stretch on wide panel
+
 ## [v0.36.0] - 2026-03-01
 
 - feat: add text note editor to pinboard (pencil button + inline textarea)
