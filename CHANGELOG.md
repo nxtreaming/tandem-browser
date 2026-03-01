@@ -2,6 +2,20 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.24.0] - 2026-03-01
+
+- feat: bookmarks sidebar panel with search and folder navigation
+
+- New bookmark panel plugin for the sidebar Bookmarks item
+- Renders full bookmark tree from Tandem /bookmarks API
+- Folders and URLs displayed with favicons (Google s2 service)
+- Click folder to navigate into it with breadcrumb trail
+- Click breadcrumb to jump back up the tree
+- Click URL to open in new tab via window.tandem.newTab()
+- Live search with 250ms debounce via /bookmarks/search API
+- Bookmarks tree cached after first load (no redundant fetches)
+- CSS: search input, breadcrumb nav, folder/url items, scrollable list
+
 ## [v0.23.1] - 2026-03-01
 
 - fix: Calendar auth popup and shared Google session partition
