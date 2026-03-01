@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.35.0] - 2026-03-01
+
+- feat: realtime pinboard refresh via IPC after pin added from any context menu
+
 ## [v0.34.0] - 2026-03-01
 
 - feat: OG metadata auto-fetch for thumbnails + masonry card layout fix (v0.33.1)
