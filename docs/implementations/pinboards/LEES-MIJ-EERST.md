@@ -193,9 +193,9 @@ Bij het instantiëren van `ContextMenuManager`, `pinboardManager` meegeven in de
 | Bestand | Wat | Status |
 |---------|-----|--------|
 | `LEES-MIJ-EERST.md` | ← dit bestand | — |
-| `fase-1-backend-api.md` | PinboardManager + REST API endpoints | 📋 Klaar om te starten |
-| `fase-2-ui-panel.md` | Sidebar panel + context menu integratie | ⏳ Wacht op fase 1 |
-| `fase-3-visual-board.md` | Visueel card-grid met drag, delete, polish | ⏳ Wacht op fase 2 |
+| `fase-1-backend-api.md` | PinboardManager + REST API endpoints | ✅ Klaar |
+| `fase-2-ui-panel.md` | Sidebar panel + context menu integratie | ✅ Klaar |
+| `fase-3-visual-board.md` | Visueel card-grid met drag, delete, polish | ✅ Klaar |
 
 ---
 
@@ -221,8 +221,8 @@ npx vitest run
 
 | Fase | Titel | Status | Commit |
 |------|-------|--------|--------|
-| 1 | PinboardManager + REST API | ⏳ niet gestart | — |
-| 2 | Sidebar panel + context menu | ⏳ niet gestart | — |
-| 3 | Visuele card grid view | ⏳ niet gestart | — |
+| 1 | PinboardManager + REST API | ✅ klaar | v0.32.0 |
+| 2 | Sidebar panel + context menu | ✅ klaar | v0.32.0 |
+| 3 | Visuele card grid view | ✅ klaar | v0.32.0 |
 
 > Claude Code: markeer fase als ✅ + voeg commit hash toe na afronden.
