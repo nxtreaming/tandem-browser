@@ -59,6 +59,7 @@ import { SidebarManager } from './sidebar/manager';
 import { WorkspaceManager } from './workspaces/manager';
 import { SyncManager } from './sync/manager';
 import { PinboardManager } from './pinboards/manager';
+import { SessionRestoreManager } from './session/restore';
 import { ContentExtractor } from './content/extractor';
 import { WorkflowEngine } from './workflow/engine';
 import { LoginManager } from './auth/login-manager';
@@ -116,6 +117,7 @@ let sidebarManager: SidebarManager | null = null;
 let workspaceManager: WorkspaceManager | null = null;
 let syncManager: SyncManager | null = null;
 let pinboardManager: PinboardManager | null = null;
+let sessionRestoreManager: SessionRestoreManager | null = null;
 /** Queue webview webContents created before contextMenuManager is ready */
 const pendingContextMenuWebContents: WebContents[] = [];
 /** Queue tab-register IPC when it arrives before tabManager is ready */
@@ -382,7 +384,9 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   }
   pinboardManager = new PinboardManager();
   pinboardManager.setSyncManager(syncManager);
+  sessionRestoreManager = new SessionRestoreManager(syncManager);
   tabManager.setSyncManager(syncManager);
+  tabManager.setSessionRestore(sessionRestoreManager);
   historyManager.setSyncManager(syncManager);
   workspaceManager.setSyncManager(syncManager);
   devToolsManager.setCopilotStream(copilotStream!);
@@ -540,6 +544,39 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     snapshotManager: snapshotManager!,
   });
 
+  // Restore saved session tabs after the initial tab is registered
+  async function restoreSessionTabs(initialTabId: string): Promise<void> {
+    if (!sessionRestoreManager || !tabManager) return;
+    const saved = sessionRestoreManager.load();
+    if (!saved || saved.tabs.length === 0) return;
+
+    log.info(`Restoring ${saved.tabs.length} tabs from session`);
+
+    // Open all saved tabs
+    let firstRestoredTabId: string | null = null;
+    for (const savedTab of saved.tabs) {
+      try {
+        const tab = await tabManager.openTab(savedTab.url, savedTab.groupId ?? undefined, 'robin', 'persist:tandem', false);
+        if (savedTab.pinned) tabManager.pinTab(tab.id);
+        if (savedTab.title) tab.title = savedTab.title;
+        if (!firstRestoredTabId) firstRestoredTabId = tab.id;
+        // Track which saved tab ID maps to active
+        if (saved.activeTabId === savedTab.id) {
+          firstRestoredTabId = tab.id; // override: this is the active one
+        }
+      } catch (e) {
+        log.warn('Failed to restore tab:', savedTab.url, e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // Close the initial default tab (it was just the shell bootstrap)
+    if (firstRestoredTabId) {
+      await tabManager.closeTab(initialTabId);
+      // Focus the previously active tab (or the first restored tab)
+      await tabManager.focusTab(firstRestoredTabId);
+    }
+  }
+
   // Listen for initial tab registration
   ipcMain.on('tab-register', (_event, data: { webContentsId: number; url: string }) => {
     if (!tabManager) {
@@ -558,6 +595,8 @@ async function startAPI(win: BrowserWindow): Promise<void> {
         await devToolsManager?.attachToTab(data.webContentsId).catch(e => log.warn('devToolsManager.attachToTab failed:', e instanceof Error ? e.message : e));
         securityManager?.onTabAttached().catch(e => log.warn('securityManager.onTabAttached failed:', e instanceof Error ? e.message : e));
       }, CDP_ATTACH_DELAY_MS);
+      // Restore saved session tabs (replaces the default new tab)
+      restoreSessionTabs(tab.id).catch(e => log.warn('Session restore failed:', e instanceof Error ? e.message : String(e)));
     }
   });
 
@@ -573,6 +612,8 @@ async function startAPI(win: BrowserWindow): Promise<void> {
       await devToolsManager?.attachToTab(data.webContentsId).catch(e => log.warn('devToolsManager.attachToTab failed:', e instanceof Error ? e.message : e));
       securityManager?.onTabAttached().catch(e => log.warn('securityManager.onTabAttached failed:', e instanceof Error ? e.message : e));
     }, CDP_ATTACH_DELAY_MS);
+    // Restore saved session tabs (replaces the default new tab)
+    restoreSessionTabs(tab.id).catch(e => log.warn('Session restore failed:', e instanceof Error ? e.message : String(e)));
   }
 }
 

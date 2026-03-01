@@ -1,6 +1,7 @@
 import type { BrowserWindow, WebContents} from 'electron';
 import { webContents } from 'electron';
 import type { SyncManager } from '../sync/manager';
+import type { SessionRestoreManager } from '../session/restore';
 
 export type TabSource = 'robin' | 'kees' | 'copilot';
 
@@ -40,6 +41,8 @@ export class TabManager {
   private closedTabs: { url: string; title: string }[] = [];
   private syncManager: SyncManager | null = null;
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
+  private sessionRestore: SessionRestoreManager | null = null;
+  private sessionTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(win: BrowserWindow) {
     this.win = win;
@@ -47,6 +50,28 @@ export class TabManager {
 
   setSyncManager(sm: SyncManager): void {
     this.syncManager = sm;
+  }
+
+  setSessionRestore(sr: SessionRestoreManager): void {
+    this.sessionRestore = sr;
+  }
+
+  /** Debounced save of session state (500ms delay) */
+  private onTabsChanged(): void {
+    if (!this.sessionRestore) return;
+    if (this.sessionTimer) clearTimeout(this.sessionTimer);
+    this.sessionTimer = setTimeout(() => {
+      this.sessionTimer = null;
+      if (!this.sessionRestore) return;
+      const tabs = this.listTabs().map(t => ({
+        id: t.id,
+        url: t.url,
+        title: t.title,
+        groupId: t.groupId,
+        pinned: t.pinned,
+      }));
+      this.sessionRestore.save(tabs, this.activeTabId);
+    }, 500);
   }
 
   /** Debounced publish of tabs to sync folder (2 second delay) */
@@ -132,6 +157,7 @@ export class TabManager {
     this.win.webContents.send('tab-source-changed', { tabId: id, source });
 
     this.scheduleSyncPublish();
+    this.onTabsChanged();
     return tab;
   }
 
@@ -176,6 +202,7 @@ export class TabManager {
     }
 
     this.scheduleSyncPublish();
+    this.onTabsChanged();
     return true;
   }
 
@@ -224,6 +251,7 @@ export class TabManager {
     if (updates.url !== undefined) tab.url = updates.url;
     if (updates.favicon !== undefined) tab.favicon = updates.favicon;
     this.scheduleSyncPublish();
+    this.onTabsChanged();
   }
 
   /** List all tabs — pinned tabs first */
@@ -241,6 +269,7 @@ export class TabManager {
     if (!tab) return false;
     tab.pinned = true;
     this.win.webContents.send('tab-pin-changed', { tabId, pinned: true });
+    this.onTabsChanged();
     return true;
   }
 
@@ -250,6 +279,7 @@ export class TabManager {
     if (!tab) return false;
     tab.pinned = false;
     this.win.webContents.send('tab-pin-changed', { tabId, pinned: false });
+    this.onTabsChanged();
     return true;
   }
 
@@ -274,6 +304,7 @@ export class TabManager {
     }
 
     this.groups.set(groupId, group);
+    this.onTabsChanged();
     return group;
   }
 
