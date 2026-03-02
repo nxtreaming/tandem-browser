@@ -2,6 +2,13 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.41.9] - 2026-03-02
+
+- fix: remove duplicate onOpenUrlInNewTab listener
+
+Was registering the listener twice, causing 2 tabs to open
+instead of 1 when clicking About links
+
 ## [v0.41.8] - 2026-03-02
 
 - fix: remove duplicate onOpenUrlInNewTab handler
