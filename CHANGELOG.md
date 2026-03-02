@@ -2,6 +2,12 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.41.6] - 2026-03-02
+
+- fix: remove duplicate BrowserWindow import
+
+BrowserWindow should be imported as value, not type
+
 ## [v0.41.5] - 2026-03-02
 
 - fix: prevent crash on hamburger menu click
