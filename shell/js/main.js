@@ -457,7 +457,7 @@
           const shellPath = window.location.href.replace(/\/[^/]*$/, '');
           window.tandem.newTab(shellPath + '/bookmarks.html');
         } else if (action === 'show-about') {
-          showAboutOverlay();
+          fetch('http://localhost:8765/sidebar/items/about/activate', { method: 'POST', headers: { Authorization: `Bearer ${window.__TANDEM_TOKEN__ || ''}` } });
          } else if (action === 'show-shortcuts') {
           showShortcutsOverlay();
         } else if (action === 'zoom-in') {
@@ -3238,44 +3238,45 @@
       }).catch(() => { });
     }
 
-// ═══ About Overlay (same pattern as onboarding) ═══
-function showAboutOverlay() {
-  const overlay = document.getElementById('about-overlay');
-  if (overlay) {
-    overlay.classList.add('visible');
-  }
-}
 
-function hideAboutOverlay() {
-  const overlay = document.getElementById('about-overlay');
-  if (overlay) {
-    overlay.classList.remove('visible');
-  }
-}
 
-// About overlay initialization moved to DOMContentLoaded below
 
-// ═══ About Overlay Event Listeners ═══
-(function initAboutOverlay() {
-  const aboutClose = document.getElementById('about-close');
-  const aboutOverlay = document.getElementById('about-overlay');
-  const aboutGithubLink = document.getElementById('about-github-link');
+
+// ═══ About Panel (sidebar) ═══
+function renderAboutPanel() {
+  const panel = document.getElementById('sidebar-panel');
+  const titleEl = document.getElementById('sidebar-panel-title');
+  const content = document.getElementById('sidebar-panel-content');
   
-  if (aboutClose) {
-    aboutClose.addEventListener('click', hideAboutOverlay);
-  }
+  titleEl.textContent = 'About Tandem';
+  panel.classList.add('open');
+  content.classList.remove('webview-mode');
   
-  if (aboutOverlay) {
-    aboutOverlay.addEventListener('click', (e) => {
-      if (e.target === aboutOverlay) hideAboutOverlay();
-    });
-  }
+  content.innerHTML = `
+    <div class="about-panel-wrapper">
+      <img class="about-logo" src="tandem-bike.png" alt="Tandem">
+      <div class="about-title"><span class="about-t">T</span><span class="about-rest">andem</span></div>
+      <div class="about-subtitle">Wingman Browser</div>
+      <div class="about-quote">"Jij bent mij en ik ben jou, samen zijn we 1"</div>
+      <div class="about-version">v0.43.1</div>
+      <div class="about-info">
+        AI-Human symbiotic browser<br>
+        Built for browsing together — human eyes, AI mind
+      </div>
+      <div class="about-link-wrapper">
+        <a href="https://github.com/hydro13" class="about-link" id="about-github-link">GitHub — hydro13</a>
+      </div>
+      <div class="about-copyright">© 2026 Mblock BV — Robin Waslander</div>
+      <div class="about-team">Built by Robin & the GenX Team (Kees 🧀 + Max ⚡)</div>
+    </div>
+  `;
   
-  if (aboutGithubLink) {
-    aboutGithubLink.addEventListener('click', (e) => {
+  // Bind GitHub link
+  const githubLink = document.getElementById('about-github-link');
+  if (githubLink) {
+    githubLink.addEventListener('click', (e) => {
       e.preventDefault();
       if (window.tandem) window.tandem.newTab('https://github.com/hydro13');
-      hideAboutOverlay();
     });
   }
-})();
+}

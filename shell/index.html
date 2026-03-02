@@ -390,6 +390,7 @@
       bookmarks:  { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>`, brand: null },
       history:    { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`, brand: null },
       downloads:  { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`, brand: null },
+      about:      { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>`, brand: null },
 
       // === COMMUNICATIE ITEMS (gekleurde brand icons, eigen achtergrond) ===
       calendar:  { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>`, brand: '#4285F4' },
@@ -622,6 +623,8 @@
         loadHistoryPanel();
       } else if (newActive === 'pinboards') {
         loadPinboardPanel();
+      } else if (newActive === 'about') {
+        renderAboutPanel();
       } else {
         webviewCache.forEach(wv => { wv.style.display = 'none'; });
         const content = document.getElementById('sidebar-panel-content');
@@ -2458,27 +2461,6 @@ async function showConfirm(title, message) {
   return result === true;
 }
 </script>
-
-  <!-- About Overlay -->
-  <div id="about-overlay" class="about-overlay">
-    <div class="about-content">
-      <button class="about-close" id="about-close">✕</button>
-      <img class="logo" src="tandem-bike.png" alt="Tandem">
-      <div class="title"><span class="t">T</span><span class="rest">andem</span></div>
-      <div class="subtitle">Wingman Browser</div>
-      <div class="quote">"Jij bent mij en ik ben jou, samen zijn we 1"</div>
-      <div class="version" id="about-version">v0.43.0</div>
-      <div class="info">
-        AI-Human symbiotic browser<br>
-        Built for browsing together — human eyes, AI mind
-      </div>
-      <div class="links">
-        <a href="https://github.com/hydro13" id="about-github-link">GitHub — hydro13</a>
-      </div>
-      <div class="copyright">© 2026 Mblock BV — Robin Waslander</div>
-      <div class="team">Built by Robin & the GenX Team (Kees 🧀 + Max ⚡)</div>
-    </div>
-  </div>
 
 </body>
 

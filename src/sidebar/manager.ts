@@ -26,6 +26,7 @@ const DEFAULT_CONFIG: SidebarConfig = {
     { id: 'instagram',  label: 'Instagram',       icon: '', type: 'webview', enabled: true, order: 16 },
     { id: 'x',          label: 'X (Twitter)',     icon: '', type: 'webview', enabled: true, order: 17 },
     // === SECTIE 3: Browser utilities ===
+    { id: 'about',      label: 'About Tandem',     icon: '', type: 'panel',   enabled: true, order: 19 },
     { id: 'pinboards',  label: 'Pinboards',       icon: '', type: 'panel',   enabled: true, order: 20 },
     { id: 'bookmarks',  label: 'Bookmarks',       icon: '', type: 'panel',   enabled: true, order: 21 },
     { id: 'history',    label: 'History',         icon: '', type: 'panel',   enabled: true, order: 22 },
