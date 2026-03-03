@@ -1,4 +1,5 @@
 import type { DevToolsManager } from '../devtools/manager';
+import { behaviorReplay } from '../behavior/replay';
 import type { AccessibilityNode, RefMap, SnapshotOptions, SnapshotResult } from './types';
 
 /** Roles considered interactive (buttons, inputs, links, etc.) */
@@ -155,7 +156,7 @@ export class SnapshotManager {
           const x2 = Math.round((c2[0] + c2[2] + c2[4] + c2[6]) / 4);
           const y2 = Math.round((c2[1] + c2[3] + c2[5] + c2[7]) / 4);
           // Use updated coordinates
-          this.performClick(wc, x2, y2);
+          await this.performClick(wc, x2, y2);
           return;
         }
       }
@@ -163,7 +164,7 @@ export class SnapshotManager {
       // fallback to original coordinates
     }
 
-    this.performClick(wc, x, y);
+    await this.performClick(wc, x, y);
   }
 
   /**
@@ -211,7 +212,7 @@ export class SnapshotManager {
     }
 
     // Click to focus
-    this.performClick(wc, x, y);
+    await this.performClick(wc, x, y);
 
     // Small delay to ensure focus
     await this.delay(100);
@@ -224,10 +225,12 @@ export class SnapshotManager {
     wc.sendInputEvent({ type: 'keyUp', keyCode: 'Backspace' });
     await this.delay(50);
 
-    // Type each character
-    for (const char of value) {
+    // Type each character with BehaviorReplay timing (Robin's real typing rhythm)
+    for (let i = 0; i < value.length; i++) {
+      const char = value[i];
+      const nextChar = i + 1 < value.length ? value[i + 1] : '';
       wc.sendInputEvent({ type: 'char', keyCode: char });
-      await this.delay(30 + Math.random() * 50);
+      await this.delay(behaviorReplay.getTypingDelay(char, nextChar));
     }
   }
 
@@ -588,13 +591,51 @@ export class SnapshotManager {
   // ═══════════════════════════════════════════════
 
   /**
-   * Perform a click at (x, y) using sendInputEvent (Event.isTrusted = true).
-   * Same pattern as humanizedClick in src/input/humanized.ts.
+   * Perform a humanized click at (x, y) using sendInputEvent (Event.isTrusted = true).
+   * Uses BehaviorReplay for mouse trajectory and Gaussian timing — mimics Robin's real input.
    */
-  private performClick(wc: Electron.WebContents, x: number, y: number): void {
-    wc.sendInputEvent({ type: 'mouseMove', x, y });
-    wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
-    wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+  private async performClick(wc: Electron.WebContents, x: number, y: number): Promise<void> {
+    // Small random offset — humans don't click dead center
+    const offsetX = Math.round((Math.random() - 0.5) * 6);
+    const offsetY = Math.round((Math.random() - 0.5) * 6);
+    const tx = x + offsetX;
+    const ty = y + offsetY;
+
+    // Pre-click hesitation (hover before clicking)
+    await this.delay(this.gaussian(60, 120));
+
+    // Mouse trajectory from a nearby starting point
+    const startX = Math.round(tx + (Math.random() - 0.5) * 300);
+    const startY = Math.round(ty + (Math.random() - 0.5) * 200);
+    const trajectory = behaviorReplay.getMouseTrajectory(startX, startY, tx, ty);
+    for (const point of trajectory) {
+      wc.sendInputEvent({ type: 'mouseMove', x: point.x, y: point.y });
+      if (point.delayMs > 0) await this.delay(point.delayMs);
+    }
+
+    // Final hover pause before pressing
+    await this.delay(this.gaussian(30, 80));
+
+    // Mouse down
+    wc.sendInputEvent({ type: 'mouseDown', x: tx, y: ty, button: 'left', clickCount: 1 });
+
+    // Hold duration (humans don't instant-release)
+    await this.delay(this.gaussian(40, 110));
+
+    // Mouse up
+    wc.sendInputEvent({ type: 'mouseUp', x: tx, y: ty, button: 'left', clickCount: 1 });
+  }
+
+  /**
+   * Gaussian random value clamped between min and max.
+   */
+  private gaussian(min: number, max: number): number {
+    const mean = (min + max) / 2;
+    const stddev = (max - min) / 4;
+    const u1 = Math.random();
+    const u2 = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.max(min, Math.min(max, Math.round(mean + z * stddev)));
   }
 
   private delay(ms: number): Promise<void> {
