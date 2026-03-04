@@ -2,6 +2,45 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.44.3] - 2026-03-04
+
+- fix: prevent zombie tabs from renderer/main-process state drift
+
+Root cause: when openTab() fails after createTab() has already added the
+webview and tabEl to the renderer's DOM and tabs Map, the main process
+never registers the tab. Subsequent closeTab() calls return early (tab
+not in main-process Map), leaving an uncloseable orphan in the tab strip.
+
+A secondary cause: if the removeTab() IPC call throws during a normal
+closeTab(), the main-process tab entry was never deleted, leaving the tab
+stuck open from the main-process side.
+
+Changes:
+- shell/js/main.js: add 15s timeout to createTab() dom-ready Promise;
+  on timeout, clean up webview/tabEl/tabs Map entry before rejecting.
+  Expose getTabIds() and cleanupOrphan() on window.__tandemTabs for
+  reconciliation from the main process.
+- src/tabs/manager.ts: catch createTab() failures in openTab() and call
+  cleanupOrphan() in the renderer before rethrowing, preventing partial
+  renderer state from persisting.
+  Make removeTab() IPC call in closeTab() best-effort: log the error but
+  always delete from this.tabs so the tab cannot become permanently
+  uncloseable due to a renderer IPC failure.
+  Add reconcileWithRenderer(): queries renderer tab IDs, removes any
+  orphans (renderer knows tab, main process does not) via cleanupOrphan().
+- src/ipc/handlers.ts: in tab-close IPC handler, only emit tab-closed
+  events when the tab was actually tracked. If closeTab() returns false,
+  run reconcileWithRenderer() to clean up any renderer orphan.
+- src/api/routes/tabs.ts: add POST /tabs/reconcile endpoint for on-demand
+  reconciliation via the API.
+- src/main.ts: after restoreSessionTabs() completes, run
+  reconcileWithRenderer() to remove any orphans left by failed restores.
+
+Tests: 36 new test cases covering openTab() cleanup on failure,
+closeTab() robustness against IPC errors, and reconcileWithRenderer()
+behaviour (orphan removal, sync state, getTabIds() failure handling).
+All 947 tests pass.
+
 ## [v0.44.2] - 2026-03-02
 
 - fix: ACTUALLY use sidebar panel for About (was still using BrowserWindow!)
