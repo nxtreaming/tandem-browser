@@ -446,6 +446,34 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     });
   }
 
+  // Configure native messaging host directories before loading extensions.
+  // Electron 40 requires session.setNativeMessagingHostDirectory() to be called
+  // before chrome.runtime.connectNative() / sendNativeMessage() will work.
+  // We call it on both the partition session and defaultSession to cover all cases.
+  // Manifests are mirrored to these dirs by NativeMessagingSetup.mirrorManifestsToTandemDir().
+  try {
+    const os = await import('os');
+    const path = await import('path');
+    const nativeMsgDirs = [
+      path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts'),
+      path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
+      '/Library/Google/Chrome/NativeMessagingHosts',
+    ].filter(d => { try { return require('fs').existsSync(d); } catch { return false; } });
+
+    for (const dir of nativeMsgDirs) {
+      for (const targetSession of [ses, session.defaultSession]) {
+        const s = targetSession as unknown as Record<string, unknown>;
+        if (typeof s['setNativeMessagingHostDirectory'] === 'function') {
+          (s['setNativeMessagingHostDirectory'] as (p: string) => void)(dir);
+          log.info(`🔌 Native messaging: set host directory ${dir}`);
+        }
+      }
+      if (nativeMsgDirs.indexOf(dir) === 0) break; // Use first valid dir only
+    }
+  } catch (err) {
+    log.warn('⚠️ Native messaging dir setup failed:', err instanceof Error ? err.message : String(err));
+  }
+
   // Load extensions from ~/.tandem/extensions/
   extensionToolbar = new ExtensionToolbar(extensionManager);
   extensionToolbar.setMainWindow(win);
