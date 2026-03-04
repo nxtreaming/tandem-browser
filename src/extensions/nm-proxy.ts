@@ -34,6 +34,14 @@ const log = createLogger('NMProxy');
 // Extension ID that Tandem assigns to the 1Password extension
 const TANDEM_EXTENSION_ID = 'chdppelbdlmkldaobdpeaemleeajiodj';
 
+// 1Password's official Chrome Web Store extension ID.
+// When spawning BrowserSupport, we use this ID as the origin argument because
+// 1Password validates extension IDs against its own internal list (not just
+// the Chrome manifest's allowed_origins). The CWS ID is in 1Password's
+// internal list; our Tandem-extracted ID is not.
+// The actual communication still uses the Tandem extension (via polyfill proxy).
+const ONEPW_CHROME_ORIGIN = 'chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/';
+
 // Directories to search for native messaging manifests (macOS)
 const MANIFEST_DIRS = [
   path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
@@ -89,9 +97,11 @@ function writeNativeMessage(msg: unknown): Buffer {
 
 // ─── One-shot: sendNativeMessage ─────────────────────────────────────────────
 
-function sendOneShot(binary: string, extensionId: string, message: unknown): Promise<unknown> {
+function sendOneShot(binary: string, _extensionId: string, message: unknown): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const origin = `chrome-extension://${extensionId}/`;
+    // Use the official CWS origin — BrowserSupport validates against its own
+    // internal extension ID list; Tandem's extracted ID is not in that list.
+    const origin = ONEPW_CHROME_ORIGIN;
     const proc = spawn(binary, [origin], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -134,8 +144,10 @@ function sendOneShot(binary: string, extensionId: string, message: unknown): Pro
 
 // ─── Persistent port: connectNative ──────────────────────────────────────────
 
-function handlePersistentConnection(ws: WebSocket, binary: string, extensionId: string, host: string): void {
-  const origin = `chrome-extension://${extensionId}/`;
+function handlePersistentConnection(ws: WebSocket, binary: string, _extensionId: string, host: string): void {
+  // Use the official CWS origin — BrowserSupport validates against its own
+  // internal extension ID list; Tandem's extracted ID is not in that list.
+  const origin = ONEPW_CHROME_ORIGIN;
   const proc = spawn(binary, [origin], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
