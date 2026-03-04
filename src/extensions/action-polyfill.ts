@@ -292,6 +292,19 @@ export class ActionPolyfill {
           log.info(`🩹 Patched chrome.notifications guard for ${manifest.name || cwsId}`);
         }
 
+        // Patch 2: browser.action.onClicked / browser.browserAction.onClicked — at SW
+        // startup 1Password registers its browser-action click handler:
+        //   En()?browser.action.onClicked.addListener(EBA):browser.browserAction.onClicked.addListener(EBA)
+        // En() returns true in Electron (MV3 context). browser.action is undefined because
+        // Electron does not implement chrome.action in extension service workers.
+        // Fix: add optional chaining so the addListener call is a no-op if the API is absent.
+        const actionClickPattern = 'En()?browser.action.onClicked.addListener(EBA):browser.browserAction.onClicked.addListener(EBA)';
+        const actionClickPatch   = 'En()?browser.action?.onClicked?.addListener(EBA):browser.browserAction?.onClicked?.addListener(EBA)';
+        if (existing.includes(actionClickPattern) && !existing.includes(actionClickPatch)) {
+          existing = existing.replace(actionClickPattern, actionClickPatch);
+          log.info(`🩹 Patched browser.action.onClicked guard for ${manifest.name || cwsId}`);
+        }
+
         fs.writeFileSync(swPath, existing, 'utf-8');
         patched.push(cwsId);
       } catch (err: unknown) {
