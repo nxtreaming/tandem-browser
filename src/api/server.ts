@@ -85,6 +85,8 @@ export class TandemAPI {
         if (origin === 'null') return callback(null, true);
         // Allow localhost origins (dev tools, other local apps)
         if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) return callback(null, true);
+        // Allow extension service workers to call our API (active-tab, log, etc.)
+        if (origin.startsWith('chrome-extension://')) return callback(null, true);
         // Block everything else
         callback(new Error('CORS not allowed'));
       }
@@ -109,7 +111,7 @@ export class TandemAPI {
       }
       // Fallback: also allow by origin for proxied setups
       const origin = req.headers.origin || '';
-      if (!origin || origin.startsWith('file://') || origin === 'null' || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+      if (!origin || origin.startsWith('file://') || origin === 'null' || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || origin.startsWith('chrome-extension://')) {
         return next();
       }
 
