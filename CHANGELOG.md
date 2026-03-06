@@ -2,6 +2,26 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.44.46] - 2026-03-06
+
+- feat(tabs): shrink tabs dynamically when many are open, like Chrome
+
+Tab items now use `flex: 1` with `min-width: 28px` (was fixed 120px),
+so the tab strip compresses automatically as more tabs are added.
+Tab titles truncate with ellipsis at narrow widths; the favicon remains
+visible at all sizes.
+
+## [v0.44.45] - 2026-03-06
+
+- fix(stability): guard win.webContents calls with isDestroyed() checks
+
+All `win.webContents.send()` calls in `panel/manager.ts` are now guarded
+with `isDestroyed()` checks, preventing 'TypeError: Object has been
+destroyed' crashes when the panel window closes while IPC events are
+still firing. Added early isDestroyed() check in `tabs/manager.ts`
+`openTab()`. Also fixed `POST /execute-js` to respect the `tabId`
+parameter instead of always targeting the active webcontents.
+
 ## [v0.44.44] - 2026-03-06
 
 - fix(autofill): patch Kfj() and zj.getShortcuts() via action-polyfill
