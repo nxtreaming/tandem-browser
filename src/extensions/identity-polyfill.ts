@@ -111,7 +111,7 @@ export class IdentityPolyfill {
 
   /**
    * Inject chrome.identity polyfill into extension service workers.
-   * Must be called BEFORE loading extensions via session.loadExtension().
+   * Must be called BEFORE loading extensions via session.extensions.loadExtension().
    *
    * For each extension that declares the "identity" permission in its manifest,
    * prepends polyfill code to the service worker entry point.

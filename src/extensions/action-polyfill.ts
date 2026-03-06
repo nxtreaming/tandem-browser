@@ -392,7 +392,7 @@ var TANDEM_PORT; TANDEM_PORT = ${apiPort}; // used by P$() patch below
  * 2. Prepends a polyfill script to each service worker file on disk
  *    (same strategy as IdentityPolyfill — Electron reads the file at load time)
  * 3. Polyfill is idempotent — guarded by a marker comment and a runtime check
- * 4. Called from ExtensionManager.init() BEFORE session.loadExtension()
+ * 4. Called from ExtensionManager.init() BEFORE session.extensions.loadExtension()
  *
  * Future: when Electron adds native chrome.action support, the runtime guard
  *   `if (chrome.action && typeof chrome.action.onClicked !== 'undefined') return;`
@@ -407,7 +407,7 @@ export class ActionPolyfill {
 
   /**
    * Inject chrome.action polyfill into all MV3 extension service workers.
-   * Must be called BEFORE loading extensions via session.loadExtension().
+   * Must be called BEFORE loading extensions via session.extensions.loadExtension().
    *
    * Targets all MV3 extensions that declare a background service_worker —
    * not limited to extensions with a specific permission, because chrome.action

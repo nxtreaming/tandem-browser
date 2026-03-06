@@ -359,7 +359,7 @@ export class ExtensionManager {
         if (!fs.existsSync(manifestPath)) continue;
 
         try {
-          const ext = await session.loadExtension(extPath, { allowFileAccess: true });
+          const ext = await session.extensions.loadExtension(extPath, { allowFileAccess: true });
           loaded.push(ext.name || dir.name);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);

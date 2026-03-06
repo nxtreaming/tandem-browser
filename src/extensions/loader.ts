@@ -20,7 +20,7 @@ interface LoadedExtension {
  * Extensions are stored in ~/.tandem/extensions/
  * Each subfolder is an unpacked extension with a manifest.json.
  * 
- * Uses Electron's session.loadExtension() API.
+ * Uses Electron's session.extensions.loadExtension() API.
  * Only supports manually-loaded local extensions — no extension store.
  */
 export class ExtensionLoader {
@@ -100,7 +100,7 @@ export class ExtensionLoader {
       // Non-fatal — extension will still load, but native messaging proxy won't work
     }
 
-    const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
+    const ext = await ses.extensions.loadExtension(extPath, { allowFileAccess: true });
 
     const loaded: LoadedExtension = {
       id: ext.id,

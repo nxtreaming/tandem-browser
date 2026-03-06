@@ -25,14 +25,24 @@ export interface NativeMessagingStatus {
   missing: string[];
 }
 
+// Host aliases used by extension variants that expect the same native helper.
+const HOST_ALIASES: Record<string, string> = {
+  'com.1password.1password7': 'com.1password.1password',
+};
+
 // Known native messaging hosts that extensions in our gallery depend on
 const KNOWN_HOSTS: Record<string, { extensionName: string; extensionIds: string[] }> = {
   // Multiple extension IDs: official CWS ID + Tandem-extracted ID (differs because
   // Tandem loads the extension locally, which generates a different Electron ID)
   'com.1password.1password': { extensionName: '1Password', extensionIds: ['aeblfdkhhhdcdjpifhhbdiojplfjncoa', 'chdppelbdlmkldaobdpeaemleeajiodj'] },
+  'com.1password.1password7': { extensionName: '1Password', extensionIds: ['aeblfdkhhhdcdjpifhhbdiojplfjncoa', 'chdppelbdlmkldaobdpeaemleeajiodj'] },
   'com.lastpass.nplastpass': { extensionName: 'LastPass', extensionIds: ['hdokiejnpimakedhajhdlcegeplioahd'] },
   'com.postman.postmanagent': { extensionName: 'Postman Interceptor', extensionIds: ['aicmkgpgakddgnaphhhpliifpcfhicfo'] },
 };
+
+function resolveHostName(hostName: string): string {
+  return HOST_ALIASES[hostName] ?? hostName;
+}
 
 /**
  * NativeMessagingSetup — Detects and configures native messaging hosts.
@@ -244,7 +254,8 @@ export class NativeMessagingSetup {
 
     // Check known hosts for missing native apps
     for (const [hostName, info] of Object.entries(KNOWN_HOSTS)) {
-      const host = this.hosts.find(h => h.name === hostName);
+      const canonicalHostName = resolveHostName(hostName);
+      const host = this.hosts.find(h => h.name === hostName || h.name === canonicalHostName);
       if (!host) {
         missing.push(hostName);
         log.info(`🔌 Native messaging: ${info.extensionName} requires "${hostName}" — desktop app not installed`);
@@ -288,7 +299,8 @@ export class NativeMessagingSetup {
   isHostAvailable(extensionId: string): boolean {
     for (const [hostName, info] of Object.entries(KNOWN_HOSTS)) {
       if (info.extensionIds.includes(extensionId)) {
-        const host = this.hosts.find(h => h.name === hostName);
+        const canonicalHostName = resolveHostName(hostName);
+        const host = this.hosts.find(h => h.name === hostName || h.name === canonicalHostName);
         return !!host && host.binaryExists;
       }
     }
@@ -365,7 +377,8 @@ export class NativeMessagingSetup {
   getHostForExtension(extensionId: string): { hostName: string; host: NativeMessagingHost | null } | null {
     for (const [hostName, info] of Object.entries(KNOWN_HOSTS)) {
       if (info.extensionIds.includes(extensionId)) {
-        const host = this.hosts.find(h => h.name === hostName) || null;
+        const canonicalHostName = resolveHostName(hostName);
+        const host = this.hosts.find(h => h.name === hostName || h.name === canonicalHostName) || null;
         return { hostName, host };
       }
     }

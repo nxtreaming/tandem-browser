@@ -57,6 +57,11 @@ const MANIFEST_DIRS = [
   '/Library/Google/Chrome/NativeMessagingHosts',
 ];
 
+// Host aliases used by extension variants that expect the same native helper.
+const HOST_ALIASES: Record<string, string> = {
+  'com.1password.1password7': 'com.1password.1password',
+};
+
 // ─── Manifest lookup ──────────────────────────────────────────────────────────
 
 interface HostInfo {
@@ -65,8 +70,9 @@ interface HostInfo {
 }
 
 function findHostManifest(hostName: string): HostInfo | null {
+  const resolvedHostName = HOST_ALIASES[hostName] ?? hostName;
   for (const dir of MANIFEST_DIRS) {
-    const manifestPath = path.join(dir, `${hostName}.json`);
+    const manifestPath = path.join(dir, `${resolvedHostName}.json`);
     if (!fs.existsSync(manifestPath)) continue;
     try {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { path?: string };

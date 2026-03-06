@@ -2,6 +2,20 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.44.48] - 2026-03-06
+
+- fix(extensions): add 1password7 NM host + migrate to session.extensions.loadExtension
+
+Added `com.1password.1password7` as a supported alias for the existing
+1Password native messaging host so the NM proxy now resolves both host
+names to the same native helper binary and no longer treats the `...7`
+variant as missing.
+
+Migrated extension loading from deprecated `session.loadExtension()` to
+`session.extensions.loadExtension()` in the extension loader and session
+loading paths, and updated the related inline documentation to match the
+Electron 40 API.
+
 ## [v0.44.47] - 2026-03-06
 
 - fix(lifecycle): teardown managers and IPC listeners on window close
