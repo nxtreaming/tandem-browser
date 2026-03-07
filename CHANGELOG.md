@@ -4,27 +4,6 @@ All notable changes to Tandem Browser will be documented in this file.
 
 ## [v0.44.87] - 2026-03-07
 
-- fix: expand curated security blocklists (security)
-
-What was built/changed:
-- Modified files: src/security/types.ts, src/security/blocklists/updater.ts, src/security/tests/blocklist-updater.test.ts, package.json, package-lock.json, CHANGELOG.md
-- Added curated OpenPhish and ThreatFox sources to the blocklist manifest
-- Added typed parser/source metadata plus CSV/JSON record filtering for structured threat feeds
-- Added focused regression coverage for ThreatFox CSV filtering and expanded source freshness
-
-Why this approach:
-- Phase 4 needs broader phishing/malware feed coverage without turning the browser core into a generic ad blocker
-- Filtering mixed ThreatFox exports before they reach NetworkShield keeps the existing domain/url-first lookup model intact
-- Comment-prefixed CSV header support avoids feed-specific parser forks while staying compatible with live threat intel exports
-
-Tested:
-- npm run compile: zero errors
-- npx vitest run src/security/tests/blocklist-updater.test.ts: passed
-- npx vitest run: still has unrelated pre-existing failures in src/tabs/tests/tabs.test.ts and src/extensions/tests/action-polyfill.test.ts
-- npm start + curl -H "Authorization: Bearer \" http://127.0.0.1:8765/security/status: succeeded
-
-## [v0.44.86] - 2026-03-07
-
 ### Changed
 - **Curated security feed expansion** (`src/security/blocklists/updater.ts`, `src/security/types.ts`) — expanded the browser-core blocklist manifest with OpenPhish plus high-confidence ThreatFox domain and URL feeds, added explicit source signal/scope metadata, and kept new sources limited to phishing and malware intelligence instead of ad/tracker mega-lists
 - **Structured feed filtering** (`src/security/blocklists/updater.ts`) — taught the shared CSV/JSON parser layer to filter records by typed field criteria and to recognize comment-prefixed CSV header rows so mixed IOC exports can stay domain/url-first without feed-specific code paths

@@ -1,7 +1,7 @@
 # Security Blocklist Refresh — START HERE
 
 > **Date:** 2026-03-07
-> **Status:** In Progress
+> **Status:** Complete
 > **Goal:** Make Tandem's blocklist pipeline faster at startup, broader in feed support, and safer to update in the background without freezing the browser
 > **Order:** Phase 1 → 2 → 3 → 4
 
@@ -97,9 +97,9 @@ See the active `fase-*.md` document.
 |------|---------|--------|
 | `LEES-MIJ-EERST.md` | execution guide for the full track | Ready |
 | `fase-1-parser-foundation.md` | parser abstraction + source manifest | Complete |
-| `fase-2-fast-start-hydration.md` | cached startup snapshot + atomic swap | Planned |
-| `fase-3-tiered-update-scheduler.md` | source freshness tiers + async update policy | Planned |
-| `fase-4-core-feed-expansion.md` | add curated JSON/CSV threat feeds | Planned |
+| `fase-2-fast-start-hydration.md` | cached startup snapshot + atomic swap | Complete |
+| `fase-3-tiered-update-scheduler.md` | source freshness tiers + async update policy | Complete |
+| `fase-4-core-feed-expansion.md` | add curated JSON/CSV threat feeds | Complete |
 
 ---
 
@@ -176,8 +176,8 @@ Do not start later phases early.
 
 ### Phase 4 — Core Feed Expansion
 
-- Status: Planned
-- Date: —
-- Commit: —
-- Summary: Add a curated set of security feeds that fit the new parser and scheduler model without reintroducing startup stalls.
-- Remaining risks after this track: CIDR/IP-range blocking remains a separate follow-up because it requires a different lookup model than domain-first `NetworkShield`.
+- Status: Complete
+- Date: 2026-03-07
+- Commit: `8075add06b2aaf28676a045bd099f15a2daf5811`
+- Summary: Added OpenPhish plus high-confidence ThreatFox domain and URL feeds to the shared manifest, extended the structured parser layer with typed record filters and comment-prefixed CSV header support, and verified the expanded curated source set through `/security/status` without reintroducing startup stalls.
+- Remaining risks after this track: PhishTank was left out because the current public dump behavior is empty/rate-limited for unattended refreshes, StevenBlack remains a legacy carryover source until a separate cleanup can safely prune old tracker entries from persisted storage, and CIDR/IP-range blocking still requires a different lookup model than domain-first `NetworkShield`.
