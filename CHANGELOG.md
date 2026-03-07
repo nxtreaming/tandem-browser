@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.44.66] - 2026-03-07
+
+- fix: strengthen outbound containment policy (security-hardening)
+
 ## [v0.44.65] - 2026-03-07
 
 - fix: expand per-tab runtime security coverage (security-hardening)
