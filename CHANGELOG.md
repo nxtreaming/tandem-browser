@@ -19,24 +19,6 @@ Tested:
 - npx vitest run: fails on pre-existing unrelated suites in src/extensions/tests/action-polyfill.test.ts and src/tabs/tests/tabs.test.ts
 - Manual: npm start succeeded and initialized the security stack plus API on 127.0.0.1:8765
 
-## [v0.44.64] - 2026-03-07
-
-- fix: expand per-tab runtime security coverage (security-hardening)
-
-What was built/changed:
-- Modified files: src/devtools/manager.ts, src/ipc/handlers.ts, src/main.ts, src/security/behavior-monitor.ts, src/security/script-guard.ts, src/security/security-manager.ts
-- CDP lifecycle: `class DevToolsManager` now keeps per-webContents debugger sessions so security tooling can attach to multiple live tabs without stealing the primary active-tab target used by the rest of the browser
-- Per-tab monitoring: `class SecurityManager`, `class ScriptGuard`, and `class BehaviorMonitor` now track tab-scoped attachment, monitor injection, and resource polling state, with explicit reset/cleanup on navigation and tab destruction
-- Main-process wiring: normal browsing webviews now queue baseline security coverage on load, refresh their monitoring state after navigation, and tear down tab-scoped security state on close
-
-Why this approach:
-- Preserves the existing active-tab CDP APIs for browser features while giving the security layer its own tab-scoped lifecycle, which avoids shared-state resets leaking between tabs and extends baseline monitoring to restored/background tabs
-
-Tested:
-- npm run compile: zero errors
-- npx vitest run: still fails on pre-existing unrelated suites in src/extensions/tests/action-polyfill.test.ts and src/tabs/tests/tabs.test.ts
-- Manual: npm start succeeded; the app initialized SecurityManager, Gatekeeper, and the API on 127.0.0.1:8765 with multiple tab security injections during session restore
-
 ## [v0.44.63] - 2026-03-07
 
 - fix: enforce gatekeeper decisions for risky requests (security-hardening)

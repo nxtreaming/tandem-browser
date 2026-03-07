@@ -82,8 +82,8 @@ See the active `fase-*.md` document.
 | `LEES-MIJ-EERST.md` | execution guide for the full track | Ready |
 | `fase-1-api-auth.md` | API trust boundary and caller model | Complete |
 | `fase-2-gatekeeper-enforcement.md` | fail-closed decision flow | Complete |
-| `fase-3-per-tab-monitoring.md` | broader runtime monitoring coverage | Ready |
-| `fase-4-outbound-containment.md` | stronger outbound and WebSocket control | Waiting for phase 3 |
+| `fase-3-per-tab-monitoring.md` | broader runtime monitoring coverage | Complete |
+| `fase-4-outbound-containment.md` | stronger outbound and WebSocket control | Ready |
 | `fase-5-extension-trust.md` | extension trust model and route scopes | Waiting for phase 4 |
 | `fase-6-containment-actions.md` | automatic security response actions | Waiting for phase 5 |
 
@@ -198,19 +198,19 @@ instead of depending on chat context.
 
 ### Phase 3 — Per-Tab Monitoring
 
+- Status: Complete
+- Date: 2026-03-07
+- Commit: e05b9e3
+- Summary: Refactored `class DevToolsManager` to keep CDP sessions attached per webContents while preserving a primary active-tab target, moved ScriptGuard and BehaviorMonitor runtime state into per-tab maps, and wired `class SecurityManager` plus `main.ts` tab lifecycle hooks so live browsing tabs receive baseline security coverage, navigation resets stay tab-scoped, and cleanup detaches per-tab monitoring on close.
+- Remaining risks for next phase: Phase 4 must strengthen outbound and WebSocket containment without treating the broader pool of attached background tabs as a global trust signal, and it must keep extension/sidebar/native-messaging traffic separated from normal browsing-tab enforcement so multi-tab attachment does not widen privileged paths.
+
+### Phase 4 — Outbound Containment
+
 - Status: Ready
 - Date: —
 - Commit: —
 - Summary: —
-- Remaining risks for next phase: Request-time holds now work independently of CDP/runtime monitoring, so broader tab coverage must preserve per-tab isolation, cleanup, and attachment sequencing without duplicating listeners or leaking observations between tabs.
-
-### Phase 4 — Outbound Containment
-
-- Status: Waiting
-- Date: —
-- Commit: —
-- Summary: —
-- Remaining risks for next phase: —
+- Remaining risks for next phase: Per-tab CDP coverage now spans restored/background browsing tabs, so outbound containment must preserve those tab boundaries, avoid duplicate WebSocket policing across attached sessions, and keep trusted extension/native-messaging channels out of the normal browsing-tab decision path.
 
 ### Phase 5 — Extension Trust
 
