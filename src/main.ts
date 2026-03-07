@@ -12,6 +12,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 import type { WebContents } from 'electron';
+import fs from 'fs';
 import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'path';
 import { TandemAPI } from './api/server';
@@ -67,6 +68,7 @@ import type { ManagerRegistry } from './registry';
 import { setMainWindow } from './notifications/alert';
 import { registerIpcHandlers, syncTabsToContext } from './ipc/handlers';
 import { API_PORT, WEBHOOK_PORT, DEFAULT_PARTITION, AUTH_POPUP_PATTERNS, COOKIE_FLUSH_INTERVAL_MS, CDP_ATTACH_DELAY_MS } from './utils/constants';
+import { tandemDir } from './utils/paths';
 import { createLogger } from './utils/logger';
 
 const log = createLogger('Main');
@@ -123,6 +125,17 @@ let cookieFlushTimer: ReturnType<typeof setInterval> | null = null;
 const pendingContextMenuWebContents: WebContents[] = [];
 /** Queue tab-register IPC when it arrives before tabManager is ready */
 let pendingTabRegister: { webContentsId: number; url: string } | null = null;
+
+function registerEarlyShellAuthIpc(): void {
+  try { ipcMain.removeHandler('get-api-token'); } catch { /* handler may not exist yet */ }
+  ipcMain.handle('get-api-token', async () => {
+    try {
+      return fs.readFileSync(tandemDir('api-token'), 'utf-8').trim();
+    } catch {
+      return '';
+    }
+  });
+}
 /** Queue security coverage for webviews that load before SecurityManager is ready */
 const pendingSecurityCoverageWebContentsIds: number[] = [];
 
@@ -257,6 +270,8 @@ function teardown(): void {
 }
 
 async function createWindow(): Promise<BrowserWindow> {
+  registerEarlyShellAuthIpc();
+
   const partition = DEFAULT_PARTITION;
   const ses = session.fromPartition(partition);
 
