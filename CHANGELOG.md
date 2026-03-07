@@ -2,6 +2,23 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.44.62] - 2026-03-07
+
+- fix: tighten local API auth boundary (security-hardening)
+
+What was built/changed:
+- Modified files: src/api/server.ts, src/api/routes/extensions.ts, src/extensions/nm-proxy.ts, src/main.ts, package.json, CHANGELOG.md, docs/implementations/security-hardening/LEES-MIJ-EERST.md
+- New API behavior: bearer auth required for normal HTTP routes, explicit trusted-extension allowlist for extension helper routes, query-string token auth removed, native-messaging WS upgrade now validates installed extension origins
+
+Why this approach:
+- Replaces blanket loopback trust with an explicit caller model while keeping only the minimum extension-specific bridges outside bearer auth
+
+Tested:
+- npm run compile: zero errors
+- npx vitest run: fails on pre-existing unrelated suites in src/extensions/tests/action-polyfill.test.ts and src/tabs/tests/tabs.test.ts
+- Manual: npm run dev attempted, but a user-run Tandem process already held 127.0.0.1:8765
+- Curl: isolated TandemAPI on 127.0.0.1:8876 returned 401 for unauthenticated /tabs/list, 200 with bearer token, 401 for query-token auth, and 401 for /extensions/active-tab without a trusted extension origin
+
 ## [v0.44.61] - 2026-03-07
 
 ### Added
