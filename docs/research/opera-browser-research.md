@@ -112,18 +112,18 @@ Workspaces appear as colored square icons at the top of the sidebar, above all m
 ### 2.9 Save Tabs as Speed Dial Folder
 - Right-click tab bar → "Save all tabs as Speed Dial folder"
 - Save the whole session for later
-- Selectie or tabs also mogelijk
+- Selectie of tabs also mogelijk
 
 ### 2.10 Tab Snoozing
 - Send a tab to sleep for later
-- Ontbreekt still in Tandem!
+- Ontbreekt still in Tandem
 
 ---
 
-## 3. SIDEBAR — The hart or Opera's UX
+## 3. SIDEBAR — The heart of Opera's UX
 
 ### 3.1 Integrated Messengers ⭐⭐⭐
-Opera bouwde alle grote messengers IN the browser if sidebar panels:
+Opera bouwde alle grote messengers IN the browser as sidebar panels:
 - **WhatsApp** — fully functioneel in sidebar panel
 - **Telegram** — fully functioneel
 - **Facebook Messenger** — fully functioneel
@@ -445,7 +445,7 @@ Leuke manier to tabs te identificeren. Snel te implementeren, verbetert UX signi
 Opera's music player can losgemaakt be if floating module. Tandem's Wingman panel can also detachable be made if floating widget — for snellere toegang without sidebar te openen.
 
 ### 12. Battery Saver
-Reduce background tab activity. Relevant for Tandem — if Wingman tabs in background houdt, can that "sleeping" made be to RAM/CPU te besparen.
+Reduce background tab activity. Relevant for Tandem — if Wingman tabs in background houdt, kan dat "sleeping" mode helpen om RAM/CPU te besparen.
 
 ---
 
@@ -455,7 +455,7 @@ Reduce background tab activity. Relevant for Tandem — if Wingman tabs in backg
 Snooze a tab for later. Opera has it, and the Tandem TODO already includes it as well.
 
 ### 14. Duplicate Tabs Highlighter
-Detecteer if you the same URL already open hebt. Trivial te bouwen, nuttiger then you denkt.
+Detecteer if you the same URL already open hebt. Trivial te bouwen, nuttiger than you denkt.
 
 ### 15. Tab Emojis
 Visual tabherkenning via emoji. Snel te implementeren.

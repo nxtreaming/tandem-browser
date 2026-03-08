@@ -36,7 +36,7 @@ Last updated: March 8, 2026
 
 ### Maintenance Sweep
 
-- [ ] Fix the `Snoze` typo in `docs/research/opera-browser-research.md` and do a quick spell-check in the same tab-snoozing section
+- [x] Fix the `Snoze` typo in `docs/research/opera-browser-research.md` and do a quick spell-check in the same tab-snoozing section
 - [x] Harden extension update version comparison in `src/extensions/update-checker.ts`; `isNewerVersion()` now handles uneven segment lengths and prerelease suffixes such as `1.2.3-beta`
 - [x] Add focused tests for extension version comparison edge cases in `src/extensions/tests/`, including `1.2` vs `1.2.0`, `1.10.0` vs `1.9.9`, and pre-release suffix input
 
