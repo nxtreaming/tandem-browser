@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.45.2] - 2026-03-08
+
+- fix: remove tandem extension header helper dependency in 1password patches
+
 ## [Unreleased] - 2026-03-08
 
 ### Changed
