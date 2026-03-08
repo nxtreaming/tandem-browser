@@ -2,6 +2,14 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.45.0] - 2026-03-08
+
+- feat: add session fetch relay and security containment design
+
+Add POST /sessions/fetch endpoint for same-origin API calls via tab context,
+with auth header safety rails, timeout handling, and full test coverage.
+Include security containment review design doc.
+
 ## [v0.44.88] - 2026-03-08
 
 ### Added
