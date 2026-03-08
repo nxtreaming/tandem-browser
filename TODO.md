@@ -30,9 +30,11 @@
 
 ### Status-check (TODO vs echte codebase)
 
-- De roadmap bovenaan (0.1.0 t/m 0.10.0) is historisch en niet meer volledig: `CHANGELOG.md` staat inmiddels op `v0.44.87`.
-- Feature-scope in code is groter dan deze TODO-samenvatting (o.a. `src/sidebar/`, `src/workspaces/`, `src/pinboards/`, `src/sync/`, `src/headless/`).
-- "Scheduled browsing" bestaat al in basisvorm via `WatchManager` + `/watch/*` API; openstaand blijft vooral cron-expressies/UX-polish.
+- De roadmap bovenaan (0.1.0 t/m 0.10.0) is historisch en niet meer volledig: `CHANGELOG.md` staat inmiddels op `v0.45.0`.
+- Feature-scope in code is groter dan deze TODO-samenvatting (o.a. `src/sidebar/`, `src/workspaces/`, `src/pinboards/`, `src/sync/`, `src/headless/`, `src/sessions/`).
+- "Scheduled browsing" bestaat al in basisvorm via `WatchManager` + `/watch/*` API; openstaand blijft vooral live updates, cron-expressies, rijkere diffing en UX-polish.
+- "Multi-profile" is deels al aanwezig als sessie-isolatie via `SessionManager` + `/sessions/*`; openstaand blijft vooral volwaardige profiel-UX in de shell.
+- Huidige quick codebase-check: `package.json` staat op `0.45.0` en `src/` telt ~50,349 TypeScript-regels in 153 TS-bestanden.
 - Deze TODO blijft de backlog, maar moet periodiek worden gesynchroniseerd met `CHANGELOG.md` en de actuele `src/` modules.
 
 
@@ -42,7 +44,7 @@
 
 - [x] **Password Manager** — lokale SQLite + AES-256-GCM database, master password, autofill, generator, `GET /passwords/suggest`, nooit cloud sync
 - [x] **Behavioral Learning modellen** — profiel compiler, typing bigram model, mouse Bézier curves, scroll/click/dagritme modellen, replay engine, fallback gaussians
-- [x] **SPA Rendering bug** — `/page-content` retourneert lege content op dynamische pagina's (zie docs/plans/spa-rendering-bug.md)
+- [x] **SPA Rendering bug** — `/page-content` retourneert lege content op dynamische pagina's (zie `docs/archive/plans/spa-rendering-bug.md`)
 
 ### 🟡 Medium prioriteit — Features
 
@@ -52,7 +54,7 @@
 - [ ] Configureerbare quick links — nu hardcoded in newtab.html
 - [ ] Configureerbare diff modes — meer dan SHA-256 hash
 - [ ] HAR export — network inspector
-- [ ] Session recording & replay
+- [ ] Full browsing session recording & replay — huidige code heeft behavior replay + audio recording, maar geen end-to-end sessie-recorder
 - [x] Scheduled browsing (basis) — aanwezig via WatchManager + /watch/add|list|remove|check
 
 
@@ -76,7 +78,7 @@
 
 ### 🟢 Lage prioriteit — Polish & Distributie
 
-- [ ] Multi-profile support (gescheiden browse contexten)
+- [ ] Full multi-profile UX (bovenop bestaande `SessionManager`-isolatie)
 - [ ] Auto-updater (electron-updater) — release/ heeft oud 0.1.0 manifest
 - [ ] Productie DMG build (macOS) — up-to-date, correct genaamd
 - [ ] AppImage build (Linux)
@@ -86,7 +88,7 @@
 ### 🔵 Stealth — Nice-to-have
 
 - [ ] Proxy support (SOCKS5/HTTP, per-tab of globaal)
-- [ ] Request interception (headers wijzigen/blokkeren)
+- [ ] User-facing request interception / header rewrite rules
 - [ ] TLS/JA3 fingerprint matching
 - [ ] Screen resolution spoofing
 - [ ] Battery API masking
@@ -96,7 +98,8 @@
 
 - [ ] Agent Tools Phase 4 — wat zou dit zijn? (docs/agent-tools/STATUS.md vermeldt "next to implement")
 - [ ] Security Fixes Phase 2 — wat zou dit zijn? (docs/security-fixes/STATUS.md)
-- [ ] Audit-rapport items — memory leak + race condition uit docs/archive/AUDIT-REPORT.md: opgelost?
+- [ ] Audit-rapport: memory leak uit `docs/archive/AUDIT-REPORT.md` opnieuw valideren tegen huidige `app.on('web-contents-created')` lifecycle
+- [ ] Audit-rapport: tab registration race expliciet sluiten/documenteren? Huidige code heeft `pendingTabRegister` + renderer rename flow, maar TODO markeert dit nog niet als afgerond
 
 ---
 
