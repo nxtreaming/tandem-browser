@@ -2,6 +2,17 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.51.2] - 2026-03-08
+
+- fix: correct region overlay bleed and application screenshot color profile
+
+Region mode: wait two animation frames after hiding the selection overlay
+before capturing, so the red tint no longer leaks into the saved image.
+
+Application mode: use macOS native screencapture instead of Electron's
+capturePage().toPNG(), which didn't embed the Display P3 color profile,
+causing color shifts in saved files and Apple Photos.
+
 ## [v0.51.1] - 2026-03-08
 
 - fix: use native screenshot mode menu in shell
