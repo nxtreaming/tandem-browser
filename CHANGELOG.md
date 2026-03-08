@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.47.0] - 2026-03-08
+
+- feat: make new tab quick links configurable
+
 ## [v0.46.0] - 2026-03-08
 
 - feat: notify when wingman replies with panel closed
