@@ -518,6 +518,25 @@ export class ContextMenuBuilder {
         label: 'Copy Link Address',
         click: () => clipboard.writeText(params.linkURL),
       }));
+
+      if (wc.getURL().includes('newtab.html')) {
+        const isQuickLink = this.deps.configManager.isQuickLink(params.linkURL);
+        menu.append(new MenuItem({
+          label: isQuickLink ? 'Remove from Quick Links' : 'Add to Quick Links',
+          click: () => {
+            if (isQuickLink) {
+              this.deps.configManager.removeQuickLink(params.linkURL);
+            } else {
+              this.deps.configManager.addQuickLink(params.linkText || this.getQuickLinkLabel(params.linkURL), params.linkURL);
+            }
+            if (!wc.isDestroyed()) {
+              void wc.executeJavaScript(`
+                window.dispatchEvent(new CustomEvent('tandem-quick-links-changed'));
+              `).catch(() => {});
+            }
+          },
+        }));
+      }
     }
 
     this.addSeparator(menu);
@@ -565,6 +584,19 @@ export class ContextMenuBuilder {
         void this.deps.tabManager.openTab(currentUrl);
       },
     }));
+    if (dupUrl && /^https?:\/\//i.test(dupUrl)) {
+      const isQuickLink = this.deps.configManager.isQuickLink(dupUrl);
+      menu.append(new MenuItem({
+        label: isQuickLink ? 'Remove from Quick Links' : 'Add to Quick Links',
+        click: () => {
+          if (isQuickLink) {
+            this.deps.configManager.removeQuickLink(dupUrl);
+          } else {
+            this.deps.configManager.addQuickLink(tab.title || this.getQuickLinkLabel(dupUrl), dupUrl);
+          }
+        },
+      }));
+    }
     menu.append(new MenuItem({
       label: tab.pinned ? 'Unpin Tab' : 'Pin Tab',
       click: () => {
@@ -723,6 +755,15 @@ export class ContextMenuBuilder {
   private addSeparator(menu: Menu): void {
     if (menu.items.length > 0 && menu.items[menu.items.length - 1].type !== 'separator') {
       menu.append(new MenuItem({ type: 'separator' }));
+    }
+  }
+
+  private getQuickLinkLabel(url: string): string {
+    try {
+      const { hostname } = new URL(url);
+      return hostname.replace(/^www\./, '');
+    } catch {
+      return url;
     }
   }
 }

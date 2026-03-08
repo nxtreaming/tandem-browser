@@ -336,6 +336,10 @@
       }
     }
 
+    window.addEventListener('tandem-quick-links-changed', () => {
+      void loadQuickLinks();
+    });
+
     // Load recent tabs from API
     async function loadRecentTabs() {
       const container = document.getElementById('recent-tabs');

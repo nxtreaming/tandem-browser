@@ -49,7 +49,7 @@ describe('ConfigManager', () => {
       expect(config.general.quickLinks[0]).toMatchObject({
         id: 'duckduckgo',
         label: 'DuckDuckGo',
-        url: 'https://duckduckgo.com',
+        url: 'https://duckduckgo.com/',
       });
     });
 
@@ -190,8 +190,39 @@ describe('ConfigManager', () => {
 
       const config = cm.getConfig();
       expect(config.general.quickLinks).toEqual([
-        { id: 'quick-link-1', label: 'Docs', url: 'https://docs.example.com' },
+        { id: 'quick-link-1', label: 'Docs', url: 'https://docs.example.com/' },
       ]);
+    });
+
+    it('adds a quick link and deduplicates by normalized url', () => {
+      const cm = new ConfigManager();
+      const updated = cm.addQuickLink('Tweakers', 'https://tweakers.net#hero');
+
+      expect(updated.general.quickLinks.at(-1)).toEqual({
+        id: 'quick-link-9',
+        label: 'Tweakers',
+        url: 'https://tweakers.net/',
+      });
+
+      const deduped = cm.addQuickLink('Tweakers.net', 'https://tweakers.net/');
+      expect(deduped.general.quickLinks.filter((link) => link.url === 'https://tweakers.net/')).toHaveLength(1);
+      expect(deduped.general.quickLinks.at(-1)?.label).toBe('Tweakers.net');
+    });
+
+    it('removes a quick link by normalized url', () => {
+      const cm = new ConfigManager();
+      cm.addQuickLink('Tweakers', 'https://tweakers.net/');
+
+      const updated = cm.removeQuickLink('https://tweakers.net#hero');
+      expect(updated.general.quickLinks.some((link) => link.url === 'https://tweakers.net/')).toBe(false);
+    });
+
+    it('reports whether a url is already configured as a quick link', () => {
+      const cm = new ConfigManager();
+      cm.addQuickLink('Tweakers', 'https://tweakers.net/');
+
+      expect(cm.isQuickLink('https://tweakers.net#frontpage')).toBe(true);
+      expect(cm.isQuickLink('https://example.com')).toBe(false);
     });
   });
 
@@ -261,7 +292,7 @@ describe('ConfigManager', () => {
       const config = cm.getConfig();
 
       expect(config.general.quickLinks).toEqual([
-        { id: 'docs', label: 'Docs', url: 'https://docs.example.com' },
+        { id: 'docs', label: 'Docs', url: 'https://docs.example.com/' },
       ]);
     });
   });

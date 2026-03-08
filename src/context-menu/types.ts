@@ -5,6 +5,7 @@ import type { HistoryManager } from '../history/manager';
 import type { PanelManager } from '../panel/manager';
 import type { DownloadManager } from '../downloads/manager';
 import type { PinboardManager } from '../pinboards/manager';
+import type { ConfigManager } from '../config/manager';
 
 /**
  * Context info passed from Electron's context-menu event on webContents.
@@ -47,4 +48,5 @@ export interface ContextMenuDeps {
   panelManager: PanelManager;
   downloadManager: DownloadManager;
   pinboardManager: PinboardManager;
+  configManager: ConfigManager;
 }

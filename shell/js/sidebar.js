@@ -64,6 +64,69 @@
       return WORKSPACE_ICONS[slug] || WORKSPACE_ICONS.home;
     }
 
+    async function loadQuickLinksConfig() {
+      const response = await fetch('http://localhost:8765/config', {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!response.ok) throw new Error('Failed to load quick links');
+      return response.json();
+    }
+
+    function isQuickLinkableUrl(url) {
+      return /^https?:\/\//i.test(url || '');
+    }
+
+    function normalizeQuickLinkUrl(url) {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.toString();
+    }
+
+    async function addQuickLink(url, label) {
+      const data = await loadQuickLinksConfig();
+      const normalizedUrl = normalizeQuickLinkUrl(url);
+      const quickLinks = (data.general?.quickLinks || []).filter((link) => {
+        try {
+          return normalizeQuickLinkUrl(link?.url) !== normalizedUrl;
+        } catch {
+          return true;
+        }
+      });
+      quickLinks.push({ label, url: normalizedUrl });
+      const response = await fetch('http://localhost:8765/config', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${TOKEN}`
+        },
+        body: JSON.stringify({ general: { quickLinks } })
+      });
+      if (!response.ok) throw new Error('Failed to save quick links');
+      return response.json();
+    }
+
+    async function removeQuickLink(url) {
+      const data = await loadQuickLinksConfig();
+      const normalizedUrl = normalizeQuickLinkUrl(url);
+      const quickLinks = (data.general?.quickLinks || []).filter((link) => {
+        try {
+          return normalizeQuickLinkUrl(link?.url) !== normalizedUrl;
+        } catch {
+          return true;
+        }
+      });
+      const response = await fetch('http://localhost:8765/config', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${TOKEN}`
+        },
+        body: JSON.stringify({ general: { quickLinks } })
+      });
+      if (!response.ok) throw new Error('Failed to save quick links');
+      return response.json();
+    }
+
     async function loadConfig() {
       const r = await fetch('http://localhost:8765/sidebar/config', { headers: { Authorization: `Bearer ${TOKEN}` } });
       const data = await r.json();
@@ -1899,6 +1962,30 @@
           setTimeout(() => { itemEl.textContent = 'Copy Page Address'; }, 1000);
         }
       });
+
+      if (wv && isQuickLinkableUrl(wv.src)) {
+        const quickLinksData = await loadQuickLinksConfig().catch(() => null);
+        const currentQuickLinks = quickLinksData?.general?.quickLinks || [];
+        const currentUrl = normalizeQuickLinkUrl(wv.src);
+        const alreadyQuickLink = currentQuickLinks.some((link) => {
+          try {
+            return normalizeQuickLinkUrl(link?.url) === currentUrl;
+          } catch {
+            return false;
+          }
+        });
+        addItem(alreadyQuickLink ? 'Remove from Quick Links' : 'Add to Quick Links', async () => {
+          try {
+            if (alreadyQuickLink) {
+              await removeQuickLink(currentUrl);
+            } else {
+              await addQuickLink(currentUrl, wv.getTitle() || currentUrl);
+            }
+          } catch {
+            // Ignore save failures for now; the menu just closes.
+          }
+        });
+      }
 
       addSep();
 

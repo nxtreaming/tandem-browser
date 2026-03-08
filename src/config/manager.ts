@@ -116,6 +116,13 @@ const DEFAULT_QUICK_LINKS: QuickLinkConfig[] = [
   { id: 'x', label: 'X', url: 'https://x.com' },
 ];
 
+function normalizeQuickLinkUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  const parsed = new URL(trimmed);
+  parsed.hash = '';
+  return parsed.toString();
+}
+
 const DEFAULT_CONFIG: TandemConfig = {
   general: {
     startPage: 'wingman',
@@ -303,6 +310,60 @@ export class ConfigManager {
     return this.getConfig();
   }
 
+  isQuickLink(url: string): boolean {
+    try {
+      const normalizedUrl = normalizeQuickLinkUrl(url);
+      return this.config.general.quickLinks.some((link) => {
+        try {
+          return normalizeQuickLinkUrl(link.url) === normalizedUrl;
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  addQuickLink(label: string, url: string): TandemConfig {
+    const normalizedLabel = label.trim();
+    const normalizedUrl = normalizeQuickLinkUrl(url);
+    const existing = this.config.general.quickLinks.filter((link) => {
+      try {
+        return normalizeQuickLinkUrl(link.url) !== normalizedUrl;
+      } catch {
+        return true;
+      }
+    });
+
+    return this.updateConfig({
+      general: {
+        quickLinks: [
+          ...existing,
+          {
+            label: normalizedLabel,
+            url: normalizedUrl,
+          },
+        ],
+      },
+    });
+  }
+
+  removeQuickLink(url: string): TandemConfig {
+    const normalizedUrl = normalizeQuickLinkUrl(url);
+    return this.updateConfig({
+      general: {
+        quickLinks: this.config.general.quickLinks.filter((link) => {
+          try {
+            return normalizeQuickLinkUrl(link.url) !== normalizedUrl;
+          } catch {
+            return true;
+          }
+        }),
+      },
+    });
+  }
+
   private normalizeConfig(config: TandemConfig): TandemConfig {
     return {
       ...config,
@@ -340,7 +401,11 @@ export class ConfigManager {
       ? candidate.id.trim()
       : `quick-link-${index + 1}`;
 
-    return { id, label, url };
+    try {
+      return { id, label, url: normalizeQuickLinkUrl(url) };
+    } catch {
+      return null;
+    }
   }
 
   /** Register a change listener */

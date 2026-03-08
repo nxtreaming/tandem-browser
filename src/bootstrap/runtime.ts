@@ -196,6 +196,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
     panelManager: runtime.panelManager,
     downloadManager: runtime.downloadManager,
     pinboardManager: runtime.pinboardManager,
+    configManager: runtime.configManager,
   });
 
   drainPendingContextMenus(runtime.contextMenuManager, pendingContextMenuWebContents);
