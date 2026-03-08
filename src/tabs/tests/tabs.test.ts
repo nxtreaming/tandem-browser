@@ -52,9 +52,11 @@ function createMockWindow() {
   });
 
   return {
+    isDestroyed: vi.fn().mockReturnValue(false),
     webContents: {
       executeJavaScript: mockExecuteJavaScript,
       send: vi.fn(),
+      isDestroyed: vi.fn().mockReturnValue(false),
     },
     _rendererTabs: rendererTabs,
   } as any;

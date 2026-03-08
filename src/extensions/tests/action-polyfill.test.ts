@@ -216,8 +216,9 @@ describe('ActionPolyfill', () => {
         path.join(__dirname, '../action-polyfill.ts'),
         'utf-8'
       );
-      expect(src).toContain('/* Tandem chrome.action polyfill v5');
-      expect(src).toContain("const marker = '/* Tandem chrome.action polyfill v5'");
+      const markerVersion = src.match(/const marker = '\/\* Tandem chrome\.action polyfill v(\d+)'/);
+      expect(markerVersion).not.toBeNull();
+      expect(src).toContain(`/* Tandem chrome.action polyfill v${markerVersion![1]}`);
     });
   });
 
