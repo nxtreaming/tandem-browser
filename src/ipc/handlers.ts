@@ -23,6 +23,7 @@ import type { ScriptInjector } from '../scripts/injector';
 import type { DeviceEmulator } from '../device/emulator';
 import type { WingmanStream } from '../activity/wingman-stream';
 import type { SnapshotManager } from '../snapshot/manager';
+import type { VideoRecorderManager } from '../video/recorder';
 import { tandemDir } from '../utils/paths';
 import { createLogger } from '../utils/logger';
 
@@ -51,6 +52,7 @@ export interface IpcDeps {
   deviceEmulator: DeviceEmulator;
   wingmanStream: WingmanStream;
   snapshotManager: SnapshotManager;
+  videoRecorderManager: VideoRecorderManager;
 }
 
 /** Sync tab list into ContextBridge for live context summary */
@@ -66,6 +68,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     taskManager, contextMenuManager, devToolsManager, activityTracker,
     securityManager, scriptInjector, deviceEmulator, wingmanStream: _wingmanStream,
     snapshotManager: _snapshotManager,
+    videoRecorderManager,
   } = deps;
 
   // ═══ IPC Handler Cleanup — prevent duplicates on macOS reactivation ═══
@@ -81,6 +84,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'window-maximize',
     'window-close',
     'show-screenshot-menu',
+    'recording-chunk',
   ];
   for (const channel of ipcChannels) {
     ipcMain.removeAllListeners(channel);
@@ -109,6 +113,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'execute-js',
     'get-api-token',
     'is-window-maximized',
+    'start-recording',
+    'stop-recording',
   ];
   for (const handler of ipcHandlers) {
     try { ipcMain.removeHandler(handler); } catch { /* handler may not exist yet */ }
@@ -204,6 +210,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         label: 'Region',
         click: () => _win.webContents.send('screenshot-mode-selected', 'region'),
       },
+      { type: 'separator' },
+      {
+        label: 'Record Application',
+        click: () => _win.webContents.send('recording-mode-selected', 'application'),
+      },
+      {
+        label: 'Record Region',
+        click: () => _win.webContents.send('recording-mode-selected', 'region'),
+      },
     ]);
 
     menu.popup({
@@ -213,6 +228,30 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     });
 
     return { ok: true };
+  });
+
+  // ═══ Recording IPC ═══
+  ipcMain.handle('start-recording', async (_event, data: {
+    mode: 'application' | 'region';
+    region?: { x: number; y: number; width: number; height: number };
+  }) => {
+    return videoRecorderManager.startRecording(data.mode, data.region);
+  });
+
+  ipcMain.on('recording-chunk', (_event, data: ArrayBuffer) => {
+    videoRecorderManager.writeChunk(Buffer.from(data));
+  });
+
+  ipcMain.handle('stop-recording', async () => {
+    const result = await videoRecorderManager.stopRecording();
+    if (result.ok && result.recording) {
+      _win.webContents.send('recording-finished', {
+        path: result.recording.filePath,
+        filename: result.recording.filename,
+        duration: result.recording.duration,
+      });
+    }
+    return result;
   });
 
   // ═══ Voice IPC ═══

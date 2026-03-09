@@ -341,6 +341,7 @@ export function registerRuntimeIpcHandlers(win: BrowserWindow, runtime: RuntimeM
     deviceEmulator: runtime.deviceEmulator,
     wingmanStream: runtime.wingmanStream,
     snapshotManager: runtime.snapshotManager,
+    videoRecorderManager: runtime.videoRecorderManager,
   });
 }
 
