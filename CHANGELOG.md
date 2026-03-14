@@ -2,6 +2,16 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.57.7] - 2026-03-14
+
+- fix: auto-wrap window.location navigation in /devtools/evaluate to prevent renderer blocking
+
+When evaluating `window.location.href = "..."` via the `/devtools/evaluate` endpoint,
+the page navigation destroys the JavaScript context before the evaluate call can return,
+causing 30-second timeouts and "application not responding" dialogs. Now automatically
+wraps such expressions in `setTimeout(() => {...}, 0)` to allow immediate return while
+navigation happens asynchronously in the background.
+
 ## [v0.57.6] - 2026-03-14
 
 - fix: tolerate missing recording audio source

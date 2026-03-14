@@ -141,12 +141,22 @@ export function registerDevtoolsRoutes(router: Router, ctx: RouteContext): void 
   /** Evaluate JavaScript via CDP Runtime */
   router.post('/devtools/evaluate', async (req: Request, res: Response) => {
     try {
-      const { expression, returnByValue = true, awaitPromise = true } = req.body;
+      let { expression, returnByValue = true, awaitPromise = true } = req.body;
       if (!expression) { res.status(400).json({ error: 'expression required' }); return; }
       if (expression.length > MAX_CODE_LENGTH) {
         res.status(413).json({ error: 'Expression too large (max 1MB)' });
         return;
       }
+
+      // Auto-wrap navigation to prevent evaluate() from blocking during page transitions.
+      // When window.location is assigned, the current context is destroyed before the
+      // evaluate call can return, causing timeouts and "not responding" dialogs.
+      // Wrapping in setTimeout(0) allows evaluate to return immediately while navigation
+      // happens asynchronously in the background.
+      if (/window\.location(\.href)?\s*=/.test(expression)) {
+        expression = `setTimeout(() => { ${expression} }, 0); "navigating"`;
+      }
+
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Execution timed out')), DEFAULT_TIMEOUT_MS)
       );
