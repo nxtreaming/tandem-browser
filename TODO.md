@@ -25,6 +25,7 @@ Last updated: March 14, 2026
 ### Product Features
 
 - [ ] `WebSocket /watch/live` for live watch updates
+- [ ] Expose `captureApplicationScreenshot` and `captureRegionScreenshot` as HTTP API endpoints (e.g. `POST /screenshot/application`, `POST /screenshot/region`) so OpenClaw agents can trigger full-window and region captures programmatically without requiring IPC or human interaction
 - [x] Show a notification when the Wingman panel is closed and Wingman replies
 - [x] Google Photos upload support for screenshots; local OAuth client ID setup, connect/disconnect flow, and automatic upload path now exist
 - [x] Screenshot capture modes for `Web Page`, `Application`, and in-app `Region` selection from the main toolbar screenshot button
