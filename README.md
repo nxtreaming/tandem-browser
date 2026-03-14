@@ -1,5 +1,10 @@
 # Tandem Browser
 
+[![Verify](https://github.com/hydro13/tandem-browser/actions/workflows/verify.yml/badge.svg)](https://github.com/hydro13/tandem-browser/actions/workflows/verify.yml)
+[![CodeQL](https://github.com/hydro13/tandem-browser/actions/workflows/codeql.yml/badge.svg)](https://github.com/hydro13/tandem-browser/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/github/package-json/v/hydro13/tandem-browser)](package.json)
+
 Tandem Browser is a local-first Electron browser built specifically for
 human-AI collaboration with OpenClaw.
 
