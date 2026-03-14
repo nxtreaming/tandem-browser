@@ -12,6 +12,19 @@ This repository is a public `developer preview`.
 
 ![Tandem Browser — homescreen with OpenClaw sidebar](docs/screenshots/tandem-homescreen-hero.jpg)
 
+**The real strength is the security model.**
+
+OpenClaw's Chrome MCP gives the agent direct access to your browser — no
+filter, no check. Tandem puts a full security stack between web content and the
+agent: network shield with domain/IP blocklists, outbound guard that scans POST
+bodies for credential leaks, AST-level JavaScript analysis on runtime scripts,
+behavior monitoring per tab, and a gatekeeper channel that surfaces ambiguous
+cases back to the human instead of silently proceeding. Strict layer separation
+means page JavaScript cannot fingerprint or observe the agent layer.
+
+That is not something you bolt onto Chrome after the fact. It has to be in the
+browser.
+
 The human browses normally. OpenClaw gets a local API on `127.0.0.1:8765` for
 navigation, extraction, automation, and observability. Tandem is not a generic
 "AI browser" shell with OpenClaw added later. It is an OpenClaw-first browser
