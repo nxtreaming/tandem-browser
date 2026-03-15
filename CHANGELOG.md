@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.59.19] - 2026-03-15
+
+- fix: add light theme support to bookmarks page
+
 ## [v0.59.18] - 2026-03-15
 
 - fix: add light theme support to help page
