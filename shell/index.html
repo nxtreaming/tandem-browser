@@ -259,10 +259,11 @@
     <div class="wingman-panel" id="wingman-panel">
       <div class="panel-header">
         <h2>🤖 Wingman</h2>
-        <button class="panel-tab active" data-panel-tab="activity">Activity</button>
-        <button class="panel-tab" data-panel-tab="chat">Chat</button>
+        <button class="panel-tab" data-panel-tab="activity">Activity</button>
+        <button class="panel-tab active" data-panel-tab="chat">Chat</button>
         <button class="panel-tab" data-panel-tab="screenshots">📸</button>
-        <button class="panel-tab" data-panel-tab="claronote" title="Voice Notes">🎙️</button>
+        <!-- ClaroNote tab disabled — decoupled, coming in a later update -->
+        <!-- <button class="panel-tab" data-panel-tab="claronote" title="Voice Notes">🎙️</button> -->
         <button class="vault-toggle-btn" id="vault-toggle-btn" title="Password Vault"
           style="background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;margin-left:auto;transition:color 0.15s;">🔒</button>
         <button class="live-toggle-btn" id="live-toggle-btn" title="Live Mode — Wingman is watching"
@@ -271,11 +272,11 @@
       </div>
       <div class="panel-body" id="panel-body">
         <!-- Activity tab -->
-        <div class="panel-content" id="panel-activity" style="display:flex;flex-direction:column;flex:1;">
+        <div class="panel-content" id="panel-activity" style="display:none;flex-direction:column;flex:1;">
         </div>
         <!-- Chat tab — Multi-backend via ChatRouter (Phase 3) -->
         <div class="panel-content" id="panel-chat"
-          style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+          style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="chat-backend-selector" id="chat-backend-selector" style="display:none;"></div>
           <div class="ws-status" id="ws-status"
             style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:10px;color:var(--text-dim);border-bottom:1px solid rgba(255,255,255,0.04);">
@@ -292,6 +293,7 @@
           <div id="chat-image-preview" class="chat-image-preview" style="display:none;"></div>
           <div class="chat-input-wrap">
             <textarea class="chat-input" id="chat-input" placeholder="Message to Wingman..." rows="1"></textarea>
+            <button class="chat-mic-btn" id="chat-mic-btn" title="Voice input">🎤</button>
             <button class="chat-send-btn" id="chat-send-btn">▶</button>
           </div>
         </div>
@@ -400,7 +402,8 @@
   <script src="js/draw.js"></script>
   <script src="js/browser-tools.js"></script>
   <script src="js/wingman.js"></script>
-  <script src="js/claronote.js"></script>
+  <!-- ClaroNote disabled — decoupled, coming in a later update -->
+  <!-- <script src="js/claronote.js"></script> -->
   <script src="js/extensions.js"></script>
   <script src="js/video-recorder.js"></script>
   <script src="js/shortcut-router.js"></script>

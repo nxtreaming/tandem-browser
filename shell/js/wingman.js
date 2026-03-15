@@ -161,12 +161,9 @@
           window.chatRouter?.ensureConnected();
         }
         document.getElementById('panel-screenshots').style.display = tab === 'screenshots' ? 'flex' : 'none';
-        document.getElementById('panel-claronote').style.display = tab === 'claronote' ? 'flex' : 'none';
-
-        // Initialize ClaroNote if switching to that tab
-        if (tab === 'claronote') {
-          window.initClaroNote?.();
-        }
+        // ClaroNote disabled — decoupled, coming in a later update
+        // document.getElementById('panel-claronote').style.display = tab === 'claronote' ? 'flex' : 'none';
+        // if (tab === 'claronote') { window.initClaroNote?.(); }
       });
     });
 
@@ -864,6 +861,75 @@
         inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + 'px';
       });
       sendBtn.addEventListener('click', sendMessage);
+
+      // ── Mic button — voice to text into chat input ──
+      const micBtn = document.getElementById('chat-mic-btn');
+      let micVoiceActive = false;
+      let micRecognition = null;
+
+      if (micBtn) {
+        micBtn.addEventListener('click', () => {
+          if (micVoiceActive) {
+            // Stop
+            micVoiceActive = false;
+            if (micRecognition) { try { micRecognition.stop(); } catch { } micRecognition = null; }
+            micBtn.classList.remove('active');
+            micBtn.textContent = '🎤';
+          } else {
+            // Start
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) { console.warn('Web Speech API not available'); return; }
+            micRecognition = new SR();
+            micRecognition.lang = navigator.language || 'nl-BE';
+            micRecognition.continuous = true;
+            micRecognition.interimResults = true;
+
+            micRecognition.onresult = (event) => {
+              let interim = '', final = '';
+              for (let i = event.resultIndex; i < event.results.length; i++) {
+                const t = event.results[i][0].transcript;
+                if (event.results[i].isFinal) final += t;
+                else interim += t;
+              }
+              // Append final text to input, show interim as placeholder hint
+              if (final) {
+                const current = inputEl.value.trim();
+                inputEl.value = current ? current + ' ' + final.trim() : final.trim();
+                inputEl.dispatchEvent(new Event('input'));
+                inputEl.style.height = '';
+                inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + 'px';
+              }
+              micBtn.title = interim || 'Listening...';
+            };
+
+            micRecognition.onerror = (e) => {
+              if (e.error !== 'no-speech') {
+                micVoiceActive = false;
+                micBtn.classList.remove('active');
+                micBtn.textContent = '🎤';
+                micBtn.title = 'Voice input';
+              }
+            };
+
+            micRecognition.onend = () => {
+              if (micVoiceActive && micRecognition) {
+                try { micRecognition.start(); } catch { }
+              }
+            };
+
+            try {
+              micRecognition.start();
+              micVoiceActive = true;
+              micBtn.classList.add('active');
+              micBtn.textContent = '🔴';
+              micBtn.title = 'Listening... (click to stop)';
+              inputEl.focus();
+            } catch (e) {
+              console.error('Voice input failed:', e);
+            }
+          }
+        });
+      }
 
       // ── Initialize ──
 
