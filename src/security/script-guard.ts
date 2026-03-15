@@ -522,7 +522,13 @@ export class ScriptGuard {
         // If parse fails (syntax error), ast_hash stays null — graceful degradation
       }
 
-      // 1. Run rule engine (cheap regex — always runs, even for CDN scripts)
+      // 1. Run rule engine (cheap regex — skip for trusted CDN domains to avoid false positives
+      //    on minified/obfuscated first-party scripts)
+      if (isTrustedCDN) {
+        state.analyzedUrls.add(url);
+        this.db.markScriptHashAnalyzed(sourceHash);
+        return;
+      }
       const analysis = analyzeScriptContent(source, url);
 
       // 2. Run entropy check (if within size bounds, skip for trusted CDN domains)
