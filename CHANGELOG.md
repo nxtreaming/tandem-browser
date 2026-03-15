@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.59.21] - 2026-03-15
+
+- fix: force-stop converts webm to mp4, cleanup corrupt output on ffmpeg failure
+
 ## [v0.59.20] - 2026-03-15
 
 - fix: guard source variable in video-recorder to prevent crash before overlay shows
