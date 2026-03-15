@@ -275,6 +275,7 @@ contextBridge.exposeInMainWorld('tandem', {
   },
 
   // Chrome-style compact title bar: platform detection and window controls
+  setPanelOpen: (open: boolean) => ipcRenderer.send('panel-open-changed', { open }),
   getPlatform: () => process.platform,
   showAppMenu: (x: number, y: number) => ipcRenderer.send('show-app-menu', { x, y }),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),

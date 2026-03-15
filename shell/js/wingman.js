@@ -1066,6 +1066,8 @@
         panelToggleBtn.style.right = '0';
         wingmanBadge.classList.remove('panel-open');
       }
+      // Sync panel open state to backend so notifications are suppressed when panel is visible
+      if (window.tandem?.setPanelOpen) window.tandem.setPanelOpen(isOpen);
     }
 
     // Toggle panel function

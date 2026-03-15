@@ -665,6 +665,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
 
     // Window controls (frameless window on Linux)
+  ipcMain.on('panel-open-changed', (_event, data: { open: boolean }) => {
+    ctx.panelManager.togglePanel(data.open);
+  });
+
   ipcMain.on('window-minimize', () => {
     _win.minimize();
   });
