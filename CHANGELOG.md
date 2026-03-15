@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.60.6] - 2026-03-16
+
+- fix: start SpeechRecognition before stopping warmup stream to prevent not-allowed error
+
 ## [v0.60.5] - 2026-03-16
 
 - fix: add gstatic and Google CDN domains to trusted scripts
