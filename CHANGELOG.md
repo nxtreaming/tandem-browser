@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.59.13] - 2026-03-15
+
+- fix: correct light theme CSS for lgl-glass-sidebar, navbar and toolbar (invalid selector syntax)
+
 ## [v0.59.12] - 2026-03-15
 
 - fix: light theme overrides for macOS tab-bar, toolbar and bookmarks-bar
