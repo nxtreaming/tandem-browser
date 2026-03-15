@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.57.21] - 2026-03-15
+
+- fix: disable auto-containment on script analysis false positives — log only, containment requires behavioral evidence
+
 ## [v0.57.20] - 2026-03-15
 
 - fix: open sidebar webview links in new tab instead of silently denying them
