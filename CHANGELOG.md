@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.62.3] - 2026-03-16
+
+- fix: hide mic button on macOS (use system dictation), show only on Linux
+
 ## [v0.62.2] - 2026-03-16
 
 - fix: rewrite Swift binary without requestAuthorization (inherits from parent Electron process)
