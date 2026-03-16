@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.62.0] - 2026-03-16
+
+- feat: native voice-to-text via Apple Speech (macOS) + Whisper fallback (Linux/Windows)
+
 ## [v0.61.2] - 2026-03-16
 
 - fix: bypass OutboundGuard for known Google API domains (Speech API, gstatic)
