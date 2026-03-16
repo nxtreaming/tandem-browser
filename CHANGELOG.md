@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.62.5] - 2026-03-16
+
+- fix: skip stealth injection on x.com/twitter.com (site detects and blocks patches)
+
 ## [v0.62.4] - 2026-03-16
 
 - fix: remove unused detectBackend import, fix async Promise executor lint errors
