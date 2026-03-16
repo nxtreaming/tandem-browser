@@ -91,12 +91,11 @@ export class StealthManager {
    */
   static getStealthScript(seed: string = 'tandem-default-seed'): string {
     return `
-      // ═══ Seeded PRNG (mulberry32) — consistent noise per session ═══
+      // ═══ All stealth patches in one IIFE — no globals leaked to window ═══
       (function() {
+        // Seeded PRNG (mulberry32) — consistent noise per session
         var __seed = 0;
-        var seedStr = ${JSON.stringify('')} || 'tandem-default-seed';
-        // Use provided seed
-        seedStr = '${seed}';
+        var seedStr = '${seed}';
         for (var i = 0; i < seedStr.length; i++) {
           __seed = ((__seed << 5) - __seed + seedStr.charCodeAt(i)) | 0;
         }
@@ -109,11 +108,8 @@ export class StealthManager {
           };
         }
         var __rng = mulberry32(__seed);
-        // Noise helper: returns integer in [-range, +range]
+        // Noise helper: returns integer in [-range, +range] — stays in closure, NOT on window
         function __noise(range) { return Math.floor(__rng() * (range * 2 + 1)) - range; }
-        window.__tandemRng = __rng;
-        window.__tandemNoise = __noise;
-      })();
 
       // ═══ 5.1 Canvas Fingerprint Protection ═══
       (function() {
@@ -130,9 +126,9 @@ export class StealthManager {
             var data = imageData.data;
             // Add subtle noise (±2 per channel) using seeded PRNG
             for (var i = 0; i < data.length; i += 4) {
-              data[i]     = Math.max(0, Math.min(255, data[i]     + window.__tandemNoise(2)));
-              data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + window.__tandemNoise(2)));
-              data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + window.__tandemNoise(2)));
+              data[i]     = Math.max(0, Math.min(255, data[i]     + __noise(2)));
+              data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + __noise(2)));
+              data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + __noise(2)));
               // Alpha unchanged
             }
             ctx.putImageData(imageData, 0, 0);
@@ -237,7 +233,7 @@ export class StealthManager {
           AnalyserNode.prototype.getFloatFrequencyData = function(array) {
             origGetFloatFreq.call(this, array);
             for (var i = 0; i < array.length; i++) {
-              array[i] += window.__tandemNoise(1) * 0.001;
+              array[i] += __noise(1) * 0.001;
             }
           };
 
@@ -245,7 +241,7 @@ export class StealthManager {
           AnalyserNode.prototype.getFloatTimeDomainData = function(array) {
             origGetFloatTime.call(this, array);
             for (var i = 0; i < array.length; i++) {
-              array[i] += window.__tandemNoise(1) * 0.0001;
+              array[i] += __noise(1) * 0.0001;
             }
           };
         }
@@ -259,7 +255,7 @@ export class StealthManager {
                 for (var ch = 0; ch < buffer.numberOfChannels; ch++) {
                   var data = buffer.getChannelData(ch);
                   for (var i = 0; i < data.length; i++) {
-                    data[i] += window.__tandemNoise(1) * 0.0001;
+                    data[i] += __noise(1) * 0.0001;
                   }
                 }
               } catch(e) { /* ignore */ }
@@ -280,7 +276,7 @@ export class StealthManager {
         // Add small jitter to Date.now() (±1ms)
         var origDateNow = Date.now;
         Date.now = function() {
-          return origDateNow() + window.__tandemNoise(1);
+          return origDateNow() + __noise(1);
         };
       })();
 
@@ -401,6 +397,8 @@ export class StealthManager {
       if (navigator.connection) {
         // Already exists, fine
       }
+
+      })(); // end of stealth IIFE — __noise and __rng are NOT exposed on window
     `;
   }
 }
