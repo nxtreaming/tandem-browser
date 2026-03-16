@@ -1,56 +1,19 @@
 import Foundation
 import Speech
-import AVFoundation
 
 // tandem-speech — Apple Speech Framework CLI for Tandem Browser
 // Usage: tandem-speech <audio-file-path> [language]
 // Output: transcribed text on stdout, errors on stderr
 // Exit: 0 on success, 1 on failure
 
-func transcribe(fileURL: URL, language: String, completion: @escaping (String?, Error?) -> Void) {
-    let recognizer = SFSpeechRecognizer(locale: Locale(identifier: language))
-    guard let recognizer = recognizer, recognizer.isAvailable else {
-        completion(nil, NSError(domain: "SpeechError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Speech recognizer not available for locale: \(language)"]))
-        return
-    }
-
-    let request = SFSpeechURLRecognitionRequest(url: fileURL)
-    request.shouldReportPartialResults = false
-    request.requiresOnDeviceRecognition = false // allow server if needed for accuracy
-
-    recognizer.recognitionTask(with: request) { result, error in
-        if let error = error {
-            completion(nil, error)
-            return
-        }
-        if let result = result, result.isFinal {
-            completion(result.bestTranscription.formattedString, nil)
-        }
-    }
-}
-
-// Request microphone + speech permission
-func requestPermissions(completion: @escaping (Bool) -> Void) {
-    SFSpeechRecognizer.requestAuthorization { status in
-        guard status == .authorized else {
-            fputs("Speech recognition permission denied\n", stderr)
-            completion(false)
-            return
-        }
-        completion(true)
-    }
-}
-
-// Main
 let args = CommandLine.arguments
 guard args.count >= 2 else {
     fputs("Usage: tandem-speech <audio-file> [language]\n", stderr)
-    fputs("  language: nl-BE (default), en-US, fr-FR, etc.\n", stderr)
     exit(1)
 }
 
 let filePath = args[1]
-let language = args.count >= 3 ? args[2] : "nl-BE"
+let language = args.count >= 3 ? args[2] : "nl-NL"
 let fileURL = URL(fileURLWithPath: filePath)
 
 guard FileManager.default.fileExists(atPath: filePath) else {
@@ -58,29 +21,55 @@ guard FileManager.default.fileExists(atPath: filePath) else {
     exit(1)
 }
 
-let sema = DispatchSemaphore(value: 0)
-var exitCode: Int32 = 0
+// Check authorization status — don't request, just check
+// (authorization was granted to the parent Electron app)
+let authStatus = SFSpeechRecognizer.authorizationStatus()
+if authStatus == .denied || authStatus == .restricted {
+    fputs("Speech recognition not authorized (status: \(authStatus.rawValue))\n", stderr)
+    exit(1)
+}
 
-requestPermissions { granted in
-    guard granted else {
+guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: language)), recognizer.isAvailable else {
+    fputs("Speech recognizer not available for: \(language)\n", stderr)
+    exit(1)
+}
+
+let request = SFSpeechURLRecognitionRequest(url: fileURL)
+request.shouldReportPartialResults = false
+
+var done = false
+var exitCode: Int32 = 1
+
+// Use RunLoop instead of DispatchSemaphore for better CLI compatibility
+recognizer.recognitionTask(with: request) { result, error in
+    defer {
+        done = true
+    }
+    if let error = error {
+        fputs("Recognition error: \(error.localizedDescription)\n", stderr)
         exitCode = 1
-        sema.signal()
         return
     }
-
-    transcribe(fileURL: fileURL, language: language) { text, error in
-        if let error = error {
-            fputs("Transcription error: \(error.localizedDescription)\n", stderr)
-            exitCode = 1
-        } else if let text = text {
-            print(text)
-        } else {
-            fputs("No transcription result\n", stderr)
-            exitCode = 1
-        }
-        sema.signal()
+    guard let result = result, result.isFinal else { return }
+    let text = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
+    if text.isEmpty {
+        fputs("Empty transcription\n", stderr)
+        exitCode = 1
+    } else {
+        print(text)
+        exitCode = 0
     }
 }
 
-sema.wait()
+// Run until done or timeout (30s)
+let deadline = Date().addingTimeInterval(30)
+while !done && Date() < deadline {
+    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+}
+
+if !done {
+    fputs("Timeout waiting for transcription\n", stderr)
+    exitCode = 1
+}
+
 exit(exitCode)
