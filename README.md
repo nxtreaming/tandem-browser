@@ -37,9 +37,12 @@ runtime.
 
 ## Why Tandem For OpenClaw?
 
-OpenClaw can now connect to your real Chrome session via `profile="user"`.
-Tandem is what that looks like when it is built as a browser instead of
-adapted from one.
+OpenClaw does not need Tandem in order to use a real browser context. Tandem
+exists because raw browser access alone is not the product goal.
+
+Tandem adds the missing layer: a browser built for human + AI collaboration on
+the real web, with multiple security layers, review points, and a shared live
+workflow that keeps both the human and the agent safer.
 
 With Tandem, OpenClaw gets:
 
