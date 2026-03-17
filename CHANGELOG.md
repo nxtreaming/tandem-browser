@@ -20,14 +20,6 @@ Tested:
 - npx tsc --pretty false: zero errors
 - npx vitest run: 34 files, 1036 passed, 39 skipped
 - Manual: verified local OpenClaw gateway chat round-trip in the Wingman panel, GET /config/openclaw-connect, and persisted replies via GET /chat
-
-## [Unreleased]
-
-- fix: sign a real OpenClaw device identity for Wingman gateway chat, handle current gateway response frames, persist gateway replies into Tandem chat history, and show honest OpenClaw connection state in the panel
-
-## [v0.62.14] - 2026-03-17
-
-- fix: use assertPathWithinRoot return value so CodeQL traces the safe path
 ## [v0.62.13] - 2026-03-17
 
 - fix: restrict sync root paths to user home directory (security)
