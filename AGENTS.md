@@ -111,12 +111,30 @@ tandem-browser/
 ### 4. Git Discipline
 
 - Commit after each completed sub-feature, not as one giant commit
+- Default to a branch + pull request workflow, even for maintainer-owned work
+- Do not push directly to `main` unless Robin explicitly asks for a direct
+  bypass or the change is an urgent maintainer-only fix
+- While Tandem is still effectively solo-maintained, prefer keeping required CI
+  checks (`verify`, `CodeQL`) and using PRs as the review step; do not assume a
+  second human reviewer will exist
+- Before merging a PR, quickly review the diff for version bumps, changelog
+  noise, release impact, and whether README / CONTRIBUTING / TODO need updates
 - Commit message examples:
   - `feat: tab management with groups`
   - `fix: stealth UA mismatch`
   - `docs: update API endpoints`
   - `test: add curl coverage for /tabs endpoints`
-- Push to `origin main` at the end
+- Merge to `main` only after the PR checks are green or Robin explicitly
+  chooses to bypass them
+
+### 4A. Release Policy
+
+- Tandem is currently a **source-only developer preview**
+- Do not publish official end-user binaries by default
+- Do not attach old local `release/` artifacts to GitHub releases
+- Source tags / GitHub releases are fine; binary releases should wait until
+  packaging, naming, signing, notarization, and update metadata are deliberate
+  and repeatable
 
 ### 5. Code Quality
 
