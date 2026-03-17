@@ -2,6 +2,14 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.62.13] - 2026-03-17
+
+- fix: restrict sync root paths to user home directory (security)
+
+normalizeExistingDirectoryPath accepted any valid directory path on the
+filesystem as a sync root. Added assertPathWithinRoot(os.homedir())
+to ensure sync roots stay within the user's home directory.
+
 ## [v0.62.12] - 2026-03-17
 
 - fix: sanitize preview IDs to prevent path traversal and reflected XSS (security)
