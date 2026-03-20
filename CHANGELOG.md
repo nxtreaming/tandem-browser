@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.63.2] - 2026-03-20
+
+- fix: remove unused imports in app-menu, fix eslint any in overlay
+
 ## [v0.63.1] - 2026-03-20
 
 - fix: UI/UX polish pass v0.63.0 — 18 fixes across shell, sidebar, settings, screenshots
