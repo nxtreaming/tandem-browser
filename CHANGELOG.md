@@ -2,7 +2,13 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.63.5] - 2026-03-20
+
+- fix: resolve CHANGELOG merge conflict
+
 ## [v0.63.4] - 2026-03-20
+
+- fix: increase V8 heap limit to 4GB to prevent OOM on memory-heavy SPAs
 
 ### Linux Fixes
 
