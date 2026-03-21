@@ -391,7 +391,13 @@ const MIN_SUSPICIOUS_TEXT_LENGTH = 20;
 
 /** Escape HTML special characters to prevent injection in log/UI output */
 function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/script/gi, 'scr·ipt');
 }
 
 export class PromptInjectionGuard {
@@ -544,7 +550,7 @@ export class PromptInjectionGuard {
 
     while ((match = styledElementRe.exec(html)) !== null) {
       const [, tag, style, content] = match;
-      const textContent = content.replace(/<[^>]*>/g, '').trim();
+      const textContent = escapeHtml(content.replace(/<[^>]*>/g, '').trim());
 
       if (textContent.length < MIN_SUSPICIOUS_TEXT_LENGTH) continue;
 
@@ -570,7 +576,7 @@ export class PromptInjectionGuard {
 
     while ((match = styledElementRe.exec(html)) !== null) {
       const [, tag, style, content] = match;
-      const textContent = content.replace(/<[^>]*>/g, '').trim();
+      const textContent = escapeHtml(content.replace(/<[^>]*>/g, '').trim());
 
       if (textContent.length < MIN_SUSPICIOUS_TEXT_LENGTH) continue;
 
@@ -684,7 +690,7 @@ export class PromptInjectionGuard {
     const ariaHiddenRe = /<([a-z][a-z0-9]*)\s[^>]*aria-hidden\s*=\s*["']true["'][^>]*>([\s\S]*?)<\/\1>/gi;
     while ((match = ariaHiddenRe.exec(html)) !== null) {
       const [, tag, content] = match;
-      const textContent = content.replace(/<[^>]*>/g, '').trim();
+      const textContent = escapeHtml(content.replace(/<[^>]*>/g, '').trim());
       if (textContent.length < MIN_SUSPICIOUS_TEXT_LENGTH) continue;
 
       const hasInstructionSignal = TEXT_RULES.some(rule => rule.pattern.test(textContent));

@@ -18,9 +18,16 @@ import { createLogger } from '../../utils/logger';
 const log = createLogger('InjectionScanner');
 const guard = new PromptInjectionGuard();
 
-/** Escape a string for safe embedding in JavaScript template literals */
+/** Escape a string for safe embedding in JavaScript template literals and HTML attributes */
 function escapeForJs(str: string): string {
-  return str.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Throttle notifications — max 1 per 30 seconds per domain
