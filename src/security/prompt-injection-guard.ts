@@ -389,6 +389,11 @@ const MIN_SUSPICIOUS_TEXT_LENGTH = 20;
 
 // === PromptInjectionGuard ===
 
+/** Escape HTML special characters to prevent injection in log/UI output */
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export class PromptInjectionGuard {
 
   /**
@@ -443,7 +448,7 @@ export class PromptInjectionGuard {
           severity: rule.severity,
           category: rule.category,
           description: rule.description,
-          matchedText: match[0].slice(0, 200),
+          matchedText: escapeHtml(match[0].slice(0, 200)),
         });
       }
     }
@@ -550,7 +555,7 @@ export class PromptInjectionGuard {
             severity: 'high',
             category: 'hidden_text',
             description: cssPattern.description,
-            matchedText: textContent.slice(0, 200),
+            matchedText: escapeHtml(textContent.slice(0, 200)),
             location: `<${tag} style="...">`,
           });
           break; // One finding per element
@@ -579,7 +584,7 @@ export class PromptInjectionGuard {
             severity: 'high',
             category: 'hidden_text',
             description: 'Text color matches background — invisible to humans',
-            matchedText: textContent.slice(0, 200),
+            matchedText: escapeHtml(textContent.slice(0, 200)),
             location: `<${tag} style="...">`,
           });
         }
@@ -603,7 +608,7 @@ export class PromptInjectionGuard {
           severity: 'high',
           category: 'hidden_text',
           description: 'HTML comment contains instruction-like text',
-          matchedText: commentText.slice(0, 200),
+          matchedText: escapeHtml(commentText.slice(0, 200)),
           location: '<!-- comment -->',
         });
       }
@@ -625,7 +630,7 @@ export class PromptInjectionGuard {
           severity: 'medium',
           category: 'hidden_text',
           description: '<noscript> tag contains instruction-like text',
-          matchedText: content.slice(0, 200),
+          matchedText: escapeHtml(content.slice(0, 200)),
           location: '<noscript>',
         });
       }
@@ -647,7 +652,7 @@ export class PromptInjectionGuard {
           severity: 'medium',
           category: 'hidden_text',
           description: '<template> tag contains instruction-like text',
-          matchedText: content.slice(0, 200),
+          matchedText: escapeHtml(content.slice(0, 200)),
           location: '<template>',
         });
       }
@@ -669,7 +674,7 @@ export class PromptInjectionGuard {
           severity: 'high',
           category: 'hidden_text',
           description: 'aria-label contains instruction-like text',
-          matchedText: labelText.slice(0, 200),
+          matchedText: escapeHtml(labelText.slice(0, 200)),
           location: 'aria-label',
         });
       }
@@ -689,7 +694,7 @@ export class PromptInjectionGuard {
           severity: 'high',
           category: 'hidden_text',
           description: 'aria-hidden element contains instruction-like text',
-          matchedText: textContent.slice(0, 200),
+          matchedText: escapeHtml(textContent.slice(0, 200)),
           location: `<${tag} aria-hidden="true">`,
         });
       }
@@ -711,7 +716,7 @@ export class PromptInjectionGuard {
           severity: 'medium',
           category: 'hidden_text',
           description: 'data-* attribute contains instruction-like text',
-          matchedText: value.slice(0, 200),
+          matchedText: escapeHtml(value.slice(0, 200)),
           location: 'data-* attribute',
         });
       }

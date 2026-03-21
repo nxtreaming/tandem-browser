@@ -18,6 +18,11 @@ import { createLogger } from '../../utils/logger';
 const log = createLogger('InjectionScanner');
 const guard = new PromptInjectionGuard();
 
+/** Escape a string for safe embedding in JavaScript template literals */
+function escapeForJs(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Throttle notifications — max 1 per 30 seconds per domain
 const lastNotificationTime = new Map<string, number>();
 const NOTIFICATION_COOLDOWN_MS = 30_000;
@@ -152,10 +157,10 @@ export function injectionScannerMiddleware(req: Request, res: Response, next: Ne
             if (win && !win.isDestroyed()) {
               const findingsHtml = warning.findings
                 .slice(0, 5)
-                .map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="background:#991b1b;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;">${f.severity.toUpperCase()}</span> ${f.description}${f.matchedText ? '<br><span style=\\"opacity:0.7;font-style:italic;\\">Matched: \\"' + f.matchedText.replace(/"/g, '&quot;').substring(0, 80) + '\\"</span>' : ''}</div>`)
+                .map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="background:#991b1b;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;">${escapeForJs(f.severity.toUpperCase())}</span> ${escapeForJs(f.description)}${f.matchedText ? '<br><span style=\\"opacity:0.7;font-style:italic;\\">Matched: \\"' + escapeForJs(f.matchedText.substring(0, 80)) + '\\"</span>' : ''}</div>`)
                 .join('');
-              const safePageUrl = pageUrl.replace(/'/g, "\\'").substring(0, 120);
-              const tabId = (req.headers['x-tab-id'] as string) || '';
+              const safePageUrl = escapeForJs(pageUrl.substring(0, 120));
+              const tabId = escapeForJs((req.headers['x-tab-id'] as string) || '');
               win.webContents.executeJavaScript(`
                 (() => {
                   // Remove existing
@@ -296,10 +301,10 @@ export function injectionScannerMiddleware(req: Request, res: Response, next: Ne
             const color = report.riskScore >= 40 ? '#f59e0b' : '#3b82f6';
             const findingsHtml = warning.findings
               .slice(0, 5)
-              .map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="background:${color};color:#000;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;">${f.severity.toUpperCase()}</span> ${f.description}${f.matchedText ? '<br><span style="opacity:0.7;font-style:italic;">Matched: "' + f.matchedText.replace(/"/g, '&quot;').substring(0, 80) + '"</span>' : ''}</div>`)
+              .map(f => `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);"><span style="background:${color};color:#000;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;">${escapeForJs(f.severity.toUpperCase())}</span> ${escapeForJs(f.description)}${f.matchedText ? '<br><span style="opacity:0.7;font-style:italic;">Matched: "' + escapeForJs(f.matchedText.substring(0, 80)) + '"</span>' : ''}</div>`)
               .join('');
-            const safePageUrl = pageUrl.replace(/'/g, "\\'").substring(0, 120);
-            const warnTabId = (req.headers['x-tab-id'] as string) || '';
+            const safePageUrl = escapeForJs(pageUrl.substring(0, 120));
+            const warnTabId = escapeForJs((req.headers['x-tab-id'] as string) || '');
             win.webContents.executeJavaScript(`
               (() => {
                 const existing = document.getElementById('tandem-injection-overlay');
