@@ -2,6 +2,38 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.64.0] - 2026-03-21
+
+### New: Prompt Injection Guard (Security Layer 8)
+
+Tandem now detects and blocks prompt injection attacks in web page content before
+it reaches the AI agent. This is the first browser-level prompt injection defense.
+
+- **New module:** `PromptInjectionGuard` — 40+ regex patterns detecting instruction
+  override, role hijacking, config manipulation, credential theft, stealth instructions,
+  and filesystem write attempts
+- **Hidden text detection:** CSS tricks (font-size:0, opacity:0, off-screen positioning),
+  HTML tricks (comments, noscript, template, data attributes, aria-labels),
+  Unicode tricks (zero-width chars, RTL override, homoglyphs)
+- **API middleware:** Scans all content returned via `/page-content`, `/page-html`,
+  `/snapshot`, `/snapshot/text`, and `/execute-js`
+- **Risk scoring:** 0-100 scale. Score ≥70 = content BLOCKED (AI receives nothing).
+  Score 30-70 = content forwarded with `injectionWarnings` field
+- **User alerts:** Centered modal with detected threats, source URL, and tab highlighting
+  (red for blocked, orange for warnings)
+- **User override:** "Override — Allow this page" button with double confirmation
+  ("Are you absolutely sure?"). Override grants 5-minute access per domain
+- **Config integrity monitor:** Watches `openclaw.json` for suspicious modifications
+  (CORS wildcard, short auth tokens). Triggers OS notification on tamper detection
+- **89 tests** covering text patterns, CSS/HTML/Unicode tricks, combined scanning,
+  and false positive validation
+
+### Security endpoint
+- `POST /security/injection-override` — User override for blocked domains (5 min TTL)
+
+### Dialog endpoint
+- `POST /dialog/pick-folder` — Native folder picker for screenshot settings
+
 ## [v0.63.6] - 2026-03-20
 
 - fix: add zhipin.com to stealth skip list — bypasses bot detection after login

@@ -473,6 +473,20 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   await api.start();
   log.info(`🧠 Tandem API running on http://localhost:${API_PORT}`);
 
+  // Security: Monitor openclaw.json for unauthorized modifications (prompt injection defense)
+  const { startConfigIntegrityMonitor } = await import('./openclaw/connect');
+  startConfigIntegrityMonitor((detail) => {
+    log.warn(`[ConfigIntegrity] ${detail}`);
+    // Alert the user via notification
+    const { Notification } = require('electron');
+    new Notification({
+      title: '⚠️ Security Alert — Tandem Browser',
+      body: detail,
+      urgency: 'critical',
+    }).show();
+
+  });
+
   // Phase 4: Wire GatekeeperWebSocket + NM proxy WebSocket onto the running HTTP server
   const httpServer = api.getHttpServer();
   if (httpServer) {

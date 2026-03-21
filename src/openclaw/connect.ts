@@ -6,6 +6,63 @@ import * as path from 'path';
 import { ensureDir, tandemDir } from '../utils/paths';
 
 const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+
+// ═══ Config Integrity Monitor ═══
+// Watch openclaw.json for unexpected modifications (prompt injection defense).
+// Tandem NEVER writes to this file — any change is either the user or a compromised agent.
+let configWatcher: fs.FSWatcher | null = null;
+let lastKnownConfigHash: string | null = null;
+
+function hashFileSync(filePath: string): string | null {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return crypto.createHash('sha256').update(content).digest('hex');
+  } catch { return null; }
+}
+
+export function startConfigIntegrityMonitor(onTamper: (detail: string) => void): void {
+  if (configWatcher) return;
+  if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) return;
+
+  lastKnownConfigHash = hashFileSync(OPENCLAW_CONFIG_PATH);
+
+  configWatcher = fs.watch(OPENCLAW_CONFIG_PATH, () => {
+    const newHash = hashFileSync(OPENCLAW_CONFIG_PATH);
+    if (newHash && newHash !== lastKnownConfigHash) {
+      lastKnownConfigHash = newHash;
+      // Only alert on suspicious patterns — normal config changes are fine
+      try {
+        const content = JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8'));
+        const suspicious: string[] = [];
+        // CORS wildcard = classic prompt injection target
+        const raw = JSON.stringify(content);
+        if (raw.includes('"*"') && (raw.includes('cors') || raw.includes('CORS') || raw.includes('allowedOrigins'))) {
+          suspicious.push('CORS set to wildcard (*)');
+        }
+        // Auth token replaced with something trivially short
+        if (content.auth?.token && content.auth.token.length < 10) {
+          suspicious.push(`Auth token suspiciously short: "${content.auth.token}"`);
+        }
+        // Gateway token replaced
+        if (content.token && typeof content.token === 'string' && content.token.length < 10) {
+          suspicious.push(`Gateway token suspiciously short: "${content.token}"`);
+        }
+        // Only fire if something actually looks wrong
+        if (suspicious.length > 0) {
+          onTamper(`⚠️ SUSPICIOUS openclaw.json modification: ${suspicious.join(', ')}`);
+        }
+      } catch {
+        // Parse failure after modification = also suspicious
+        onTamper('openclaw.json was modified but could not be parsed — possible corruption');
+      }
+    }
+  });
+}
+
+export function stopConfigIntegrityMonitor(): void {
+  configWatcher?.close();
+  configWatcher = null;
+}
 const OPENCLAW_IDENTITY_PATH = tandemDir('openclaw', 'identity', 'device.json');
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 const OPENCLAW_SCOPES = ['operator.read', 'operator.write'] as const;

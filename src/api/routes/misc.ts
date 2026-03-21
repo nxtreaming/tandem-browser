@@ -63,6 +63,23 @@ export function registerMiscRoutes(router: Router, ctx: RouteContext): void {
     }
   });
 
+  // ═══ Injection Override ═══
+  router.post('/security/injection-override', (req: Request, res: Response) => {
+    try {
+      const { domain } = req.body;
+      if (!domain || typeof domain !== 'string') {
+        res.status(400).json({ error: 'domain required' });
+        return;
+      }
+      // Import the override map from the middleware
+      const { addInjectionOverride } = require('../middleware/injection-scanner');
+      addInjectionOverride(domain);
+      res.json({ ok: true, domain, expiresIn: '5 minutes' });
+    } catch (e) {
+      handleRouteError(res, e);
+    }
+  });
+
   // ═══ Folder Picker Dialog ═══
   router.post('/dialog/pick-folder', async (_req: Request, res: Response) => {
     try {
