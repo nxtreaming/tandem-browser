@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.65.4] - 2026-03-21
+
+- fix: CodeQL — use char-level sanitization to break taint tracking for HTML output
+
 ## [v0.65.3] - 2026-03-21
 
 - fix: CodeQL — strengthen HTML/JS escaping, escape at extraction point, strip script tags
