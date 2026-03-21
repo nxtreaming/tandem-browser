@@ -2,6 +2,10 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.65.1] - 2026-03-21
+
+- fix: lint — prefer-const for zeroWidthPositions
+
 ## [v0.65.0] - 2026-03-21
 
 - feat: Prompt Injection Guard — browser-level AI content defense (Layer 8)
