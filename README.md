@@ -48,7 +48,7 @@ With Tandem, OpenClaw gets:
 
 - a browser designed from the start for human + agent collaboration on the
   same machine
-- a 250-endpoint local API for tabs, navigation, snapshots, sessions,
+- a 300+ endpoint local API for tabs, navigation, snapshots, sessions,
   devtools, network mocking, and controlled automation
 - an eight-layer security model built around the fact that an AI has access to
   live web content — including the first browser-level prompt injection defense

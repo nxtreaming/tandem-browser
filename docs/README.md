@@ -21,6 +21,7 @@ If you are new to the project, use this order:
 
 ## Public-Facing Docs
 
+- `api-current.md`: current API notes for live features that are easy to miss in README
 - `plans/`: design proposals for not-yet-implemented features
 - `research/`: browser and feature research material
 - `implementations/`: subsystem notes and implementation writeups
