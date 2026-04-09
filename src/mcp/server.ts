@@ -32,6 +32,8 @@ import { registerDataTools } from './tools/data.js';
 import { registerContextTools } from './tools/context.js';
 import { registerWindowTools } from './tools/window.js';
 import { registerSidebarTools } from './tools/sidebar.js';
+import { registerMediaTools } from './tools/media.js';
+import { registerEventTools } from './tools/events.js';
 
 const log = createLogger('McpServer');
 
@@ -71,6 +73,8 @@ registerDataTools(server);
 registerContextTools(server);
 registerWindowTools(server);
 registerSidebarTools(server);
+registerMediaTools(server);
+registerEventTools(server);
 
 // ═══════════════════════════════════════════════
 // MCP Resources
