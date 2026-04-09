@@ -1054,7 +1054,7 @@ server.tool(
     stepId: z.string().describe('The step ID to approve'),
   },
   async ({ id, stepId }) => {
-    const result = await apiCall('POST', `/tasks/${encodeURIComponent(id)}/approve`, { stepId });
+    await apiCall('POST', `/tasks/${encodeURIComponent(id)}/approve`, { stepId });
     await logActivity('task_approve', `task ${id}, step ${stepId}`);
     return { content: [{ type: 'text', text: `Step ${stepId} of task ${id} approved.` }] };
   }
@@ -1068,7 +1068,7 @@ server.tool(
     stepId: z.string().describe('The step ID to reject'),
   },
   async ({ id, stepId }) => {
-    const result = await apiCall('POST', `/tasks/${encodeURIComponent(id)}/reject`, { stepId });
+    await apiCall('POST', `/tasks/${encodeURIComponent(id)}/reject`, { stepId });
     await logActivity('task_reject', `task ${id}, step ${stepId}`);
     return { content: [{ type: 'text', text: `Step ${stepId} of task ${id} rejected.` }] };
   }
