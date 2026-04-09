@@ -2681,6 +2681,189 @@ server.tool(
 );
 
 // ═══════════════════════════════════════════════
+// DevTools extras
+// ═══════════════════════════════════════════════
+
+server.tool(
+  'tandem_devtools_console_clear',
+  'Clear the console log buffer in DevTools. Removes all captured console entries.',
+  async () => {
+    const data = await apiCall('POST', '/devtools/console/clear');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_devtools_network_body',
+  'Get the response body for a specific network request captured via CDP. Use requestId from tandem_devtools_network results.',
+  {
+    requestId: z.string().describe('The request ID from DevTools network entries'),
+  },
+  async ({ requestId }) => {
+    const data = await apiCall('GET', `/devtools/network/${encodeURIComponent(requestId)}/body`);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_devtools_network_clear',
+  'Clear the DevTools network log buffer. Removes all captured network entries.',
+  async () => {
+    const data = await apiCall('POST', '/devtools/network/clear');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_devtools_dom_xpath',
+  'Query the DOM by XPath expression via CDP. Returns matching nodes with their attributes and text content. Supports targeting a background tab by ID.',
+  {
+    expression: z.string().describe('XPath expression to evaluate'),
+    tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
+  },
+  async ({ expression, tabId }) => {
+    const data = await apiCall('POST', '/devtools/dom/xpath', { expression }, tabHeaders(tabId));
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_devtools_screenshot_element',
+  'Take a screenshot of a specific DOM element by CSS selector. Returns the screenshot as a PNG image. Supports targeting a background tab by ID.',
+  {
+    selector: z.string().describe('CSS selector of the element to screenshot'),
+    tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
+  },
+  async ({ selector, tabId }) => {
+    const base64 = await apiCall('POST', '/devtools/screenshot/element', { selector }, tabHeaders(tabId));
+    await logActivity('screenshot_element', selector);
+    return {
+      content: [{
+        type: 'image',
+        data: base64,
+        mimeType: 'image/png',
+      }],
+    };
+  }
+);
+
+// ═══════════════════════════════════════════════
+// Auth state detection
+// ═══════════════════════════════════════════════
+
+server.tool(
+  'tandem_auth_states',
+  'Get all detected authentication states across visited domains. Shows login status for each domain the browser has tracked.',
+  async () => {
+    const data = await apiCall('GET', '/auth/states');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_auth_state',
+  'Get the detected authentication state for a specific domain.',
+  {
+    domain: z.string().describe('Domain to check auth state for (e.g. "github.com")'),
+  },
+  async ({ domain }) => {
+    const data = await apiCall('GET', `/auth/state/${encodeURIComponent(domain)}`);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_auth_check',
+  'Check the authentication state of the current page. Analyzes the active tab to detect login forms, logged-in indicators, and auth cookies.',
+  async () => {
+    const data = await apiCall('POST', '/auth/check');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_auth_is_login_page',
+  'Check if the current page is a login page. Uses heuristics to detect login forms and authentication UI.',
+  async () => {
+    const data = await apiCall('GET', '/auth/is-login-page');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ═══════════════════════════════════════════════
+// Network extras
+// ═══════════════════════════════════════════════
+
+server.tool(
+  'tandem_network_clear',
+  'Clear the network request log. Removes all captured webRequest-level network entries.',
+  async () => {
+    const data = await apiCall('DELETE', '/network/clear');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_network_mock_clear',
+  'Remove all active network mock rules at once. WARNING: This clears all mock rules — real network requests will resume for all previously mocked patterns.',
+  {},
+  {
+    destructiveHint: true,
+    readOnlyHint: false,
+    openWorldHint: false,
+  },
+  async () => {
+    const data = await apiCall('POST', '/network/mock-clear');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ═══════════════════════════════════════════════
+// Headless browser
+// ═══════════════════════════════════════════════
+
+server.tool(
+  'tandem_headless_open',
+  'Open a URL in the headless browser. Loads the page in a hidden browser window for background scraping or testing.',
+  {
+    url: z.string().describe('The URL to open in the headless browser'),
+  },
+  async ({ url }) => {
+    const data = await apiCall('POST', '/headless/open', { url });
+    await logActivity('headless_open', url);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_headless_content',
+  'Get the page content from the headless browser. Returns the HTML or text content of the currently loaded headless page.',
+  async () => {
+    const data = await apiCall('GET', '/headless/content');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_headless_status',
+  'Get the status of the headless browser. Shows whether a page is loaded and its current URL.',
+  async () => {
+    const data = await apiCall('GET', '/headless/status');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  'tandem_headless_close',
+  'Close the headless browser and release its resources.',
+  async () => {
+    const data = await apiCall('POST', '/headless/close');
+    await logActivity('headless_close');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ═══════════════════════════════════════════════
 // Start the server
 // ═══════════════════════════════════════════════
 
