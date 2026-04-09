@@ -4,6 +4,7 @@ release/
 *.lock
 *.log
 .playwright-mcp/
+coverage/
 src/security/blocklists/data/
 
 # Native binaries (compiled locally)

@@ -5,5 +5,12 @@ export default defineConfig({
     include: [
       'src/**/tests/**/*.test.ts',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/tests/**', 'node_modules'],
+      reportOnFailure: true,
+    },
   },
 });
