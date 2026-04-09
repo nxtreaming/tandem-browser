@@ -1,0 +1,64 @@
+import { z } from 'zod';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { apiCall, logActivity } from '../api-client.js';
+
+export function registerTabTools(server: McpServer): void {
+  server.tool(
+    'tandem_list_tabs',
+    'List all open browser tabs with their titles, URLs, and IDs',
+    async () => {
+      const data = await apiCall('GET', '/tabs/list');
+      const tabs: Array<{ id: string; title: string; url: string; active: boolean }> = data.tabs || [];
+
+      let text = `Open tabs (${tabs.length}):\n\n`;
+      for (const tab of tabs) {
+        const marker = tab.active ? '→ ' : '  ';
+        text += `${marker}[${tab.id}] ${tab.title || '(untitled)'}\n   ${tab.url}\n`;
+      }
+
+      return { content: [{ type: 'text', text }] };
+    }
+  );
+
+  server.tool(
+    'tandem_open_tab',
+    'Open a new browser tab, optionally with a URL and workspace assignment',
+    {
+      url: z.string().optional().describe('URL to open (default: new tab page)'),
+      workspaceId: z.string().optional().describe('Optional workspace ID to assign the new tab to'),
+    },
+    async ({ url, workspaceId }) => {
+      const body: Record<string, unknown> = { url: url || undefined, source: 'wingman' };
+      if (workspaceId) body.workspaceId = workspaceId;
+      const result = await apiCall('POST', '/tabs/open', body);
+      await logActivity('open_tab', url || 'new tab');
+      return { content: [{ type: 'text', text: `Opened tab: ${result.tab?.id || 'unknown'} — ${url || 'new tab'}` }] };
+    }
+  );
+
+  server.tool(
+    'tandem_close_tab',
+    'Close a browser tab by its ID',
+    {
+      tabId: z.string().describe('The tab ID to close'),
+    },
+    async ({ tabId }) => {
+      await apiCall('POST', '/tabs/close', { tabId });
+      await logActivity('close_tab', tabId);
+      return { content: [{ type: 'text', text: `Closed tab: ${tabId}` }] };
+    }
+  );
+
+  server.tool(
+    'tandem_focus_tab',
+    'Switch to a specific browser tab by its ID',
+    {
+      tabId: z.string().describe('The tab ID to focus'),
+    },
+    async ({ tabId }) => {
+      await apiCall('POST', '/tabs/focus', { tabId });
+      await logActivity('focus_tab', tabId);
+      return { content: [{ type: 'text', text: `Focused tab: ${tabId}` }] };
+    }
+  );
+}
