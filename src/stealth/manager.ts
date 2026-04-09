@@ -20,10 +20,8 @@ export class StealthManager {
   private session: Session;
   private partitionSeed: string;
   private readonly originalUserAgent: string;
-
-  // Match latest stable Chrome on macOS
-  private readonly USER_AGENT =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  private readonly USER_AGENT: string;
+  private readonly chromeMajor: string;
 
   constructor(session: Session, partition: string = 'persist:tandem') {
     this.session = session;
@@ -31,6 +29,12 @@ export class StealthManager {
     this.originalUserAgent = session.getUserAgent();
     // Generate a deterministic seed from the partition name for consistent noise per session
     this.partitionSeed = crypto.createHash('sha256').update(partition).digest('hex');
+
+    // Build UA from Electron's actual Chromium version to avoid detection mismatches
+    const chromeVersion = process.versions.chrome;
+    this.chromeMajor = chromeVersion.split('.')[0];
+    this.USER_AGENT =
+      `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
   }
 
   async apply(): Promise<void> {
@@ -52,7 +56,7 @@ export class StealthManager {
         const url = _details.url || '';
         if (isGoogleAuthUrl(url)) {
           // Restore the real Electron UA — deleting the header doesn't work because
-          // session.setUserAgent() bakes Chrome/131 into Chromium's default headers.
+          // session.setUserAgent() bakes the Chrome UA into Chromium's default headers.
           // We must overwrite it with the original Electron UA.
           headers['User-Agent'] = this.originalUserAgent;
           // Also remove fake Sec-CH-UA headers — session.setUserAgent() causes Chromium
@@ -88,10 +92,10 @@ export class StealthManager {
         }
 
         // Ensure Sec-CH-UA matches our UA (Google checks these for login)
-        headers['Sec-CH-UA'] = '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"';
+        headers['Sec-CH-UA'] = `"Google Chrome";v="${this.chromeMajor}", "Chromium";v="${this.chromeMajor}", "Not_A Brand";v="24"`;
         headers['Sec-CH-UA-Mobile'] = '?0';
         headers['Sec-CH-UA-Platform'] = '"macOS"';
-        headers['Sec-CH-UA-Full-Version-List'] = '"Google Chrome";v="131.0.6778.205", "Chromium";v="131.0.6778.205", "Not_A Brand";v="24.0.0.0"';
+        headers['Sec-CH-UA-Full-Version-List'] = `"Google Chrome";v="${process.versions.chrome}", "Chromium";v="${process.versions.chrome}", "Not_A Brand";v="24.0.0.0"`;
 
         return headers;
       }
@@ -108,7 +112,8 @@ export class StealthManager {
    * Phase 5: includes canvas, WebGL, audio, font, and timing fingerprint protection.
    * @param seed - Deterministic seed for consistent noise per session
    */
-  static getStealthScript(seed: string = 'tandem-default-seed'): string {
+  static getStealthScript(seed: string = 'tandem-default-seed', chromeVersion: string = process.versions.chrome): string {
+    const chromeMajor = chromeVersion.split('.')[0];
     return `
       // ═══ All stealth patches in one IIFE — no globals leaked to window ═══
       (function() {
@@ -361,19 +366,21 @@ export class StealthManager {
       // navigator.userAgentData — ALWAYS override to match real Chrome
       // Electron exposes its own brands (Chromium/130, Not?A_Brand/99) which Google detects
       {
+        var __chromeMajor = '${chromeMajor}';
+        var __chromeVersion = '${chromeVersion}';
         Object.defineProperty(navigator, 'userAgentData', {
           get: () => ({
             brands: [
-              { brand: 'Google Chrome', version: '131' },
-              { brand: 'Chromium', version: '131' },
+              { brand: 'Google Chrome', version: __chromeMajor },
+              { brand: 'Chromium', version: __chromeMajor },
               { brand: 'Not_A Brand', version: '24' },
             ],
             mobile: false,
             platform: 'macOS',
             getHighEntropyValues: (hints) => Promise.resolve({
               brands: [
-                { brand: 'Google Chrome', version: '131' },
-                { brand: 'Chromium', version: '131' },
+                { brand: 'Google Chrome', version: __chromeMajor },
+                { brand: 'Chromium', version: __chromeMajor },
                 { brand: 'Not_A Brand', version: '24' },
               ],
               mobile: false,
@@ -382,10 +389,10 @@ export class StealthManager {
               architecture: 'arm',
               bitness: '64',
               model: '',
-              uaFullVersion: '131.0.0.0',
+              uaFullVersion: __chromeVersion,
               fullVersionList: [
-                { brand: 'Google Chrome', version: '131.0.0.0' },
-                { brand: 'Chromium', version: '131.0.0.0' },
+                { brand: 'Google Chrome', version: __chromeVersion },
+                { brand: 'Chromium', version: __chromeVersion },
                 { brand: 'Not_A Brand', version: '24.0.0.0' },
               ],
             }),
