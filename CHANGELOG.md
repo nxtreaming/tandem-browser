@@ -2,6 +2,14 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.69.1] - 2026-04-10
+
+- fix: route MCP server logging to stderr to prevent protocol corruption
+
+MCP uses stdio for JSON protocol messages. console.info/debug go to stdout
+and break the protocol. All MCP server logging now goes through console.error
+(stderr) only.
+
 ## [v0.69.0] - 2026-04-09
 
 ### Added
