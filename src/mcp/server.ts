@@ -40,7 +40,7 @@ const log = createLogger('McpServer');
 
 const server = new McpServer({
   name: 'tandem-browser',
-  version: '0.2.0',  // 52 tools
+  version: '0.69.0',  // 231 tools — full API parity
 });
 
 // ═══════════════════════════════════════════════

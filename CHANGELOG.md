@@ -2,7 +2,7 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
-## [v0.68.1] - 2026-04-09
+## [v0.69.0] - 2026-04-09
 
 ### Added
 

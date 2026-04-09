@@ -14,7 +14,7 @@ Last updated: April 9, 2026
 
 ## Current Snapshot
 
-- Current app version: `0.68.1`
+- Current app version: `0.69.0`
 - MCP server: 231 tools (full API parity)
 - The codebase scope is larger than this backlog summary and includes major subsystems such as `sidebar`, `workspaces`, `pinboards`, `sync`, `headless`, and `sessions`.
 - Scheduled browsing already exists in baseline form via `WatchManager` and the `/watch/*` API routes.
