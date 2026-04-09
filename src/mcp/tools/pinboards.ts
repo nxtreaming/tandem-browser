@@ -126,4 +126,36 @@ export function registerPinboardTools(server: McpServer): void {
       return { content: [{ type: 'text', text: data.ok ? `Removed item ${itemId} from pinboard ${id}` : `Item or pinboard not found` }] };
     }
   );
+
+  server.tool(
+    'tandem_pinboard_settings',
+    'Update display settings for a pinboard (layout, background, etc.)',
+    {
+      id: z.string().describe('Pinboard ID'),
+      layout: z.unknown().optional().describe('Layout configuration'),
+      background: z.unknown().optional().describe('Background configuration'),
+    },
+    async ({ id, layout, background }) => {
+      const body: Record<string, unknown> = {};
+      if (layout !== undefined) body.layout = layout;
+      if (background !== undefined) body.background = background;
+      const data = await apiCall('PUT', `/pinboards/${encodeURIComponent(id)}/settings`, body);
+      await logActivity('pinboard_settings', id);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_pinboard_reorder_items',
+    'Reorder items within a pinboard by providing the desired item ID order.',
+    {
+      id: z.string().describe('Pinboard ID'),
+      itemIds: z.array(z.string()).describe('Ordered array of item IDs representing the new order'),
+    },
+    async ({ id, itemIds }) => {
+      const data = await apiCall('POST', `/pinboards/${encodeURIComponent(id)}/items/reorder`, { itemIds });
+      await logActivity('pinboard_reorder_items', id);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

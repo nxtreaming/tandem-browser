@@ -34,6 +34,7 @@ import { registerWindowTools } from './tools/window.js';
 import { registerSidebarTools } from './tools/sidebar.js';
 import { registerMediaTools } from './tools/media.js';
 import { registerEventTools } from './tools/events.js';
+import { registerSystemTools } from './tools/system.js';
 
 const log = createLogger('McpServer');
 
@@ -75,6 +76,7 @@ registerWindowTools(server);
 registerSidebarTools(server);
 registerMediaTools(server);
 registerEventTools(server);
+registerSystemTools(server);
 
 // ═══════════════════════════════════════════════
 // MCP Resources

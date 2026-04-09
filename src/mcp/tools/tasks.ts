@@ -143,4 +143,69 @@ export function registerTaskTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
+
+  server.tool(
+    'tandem_task_check_approval',
+    'Check whether a specific action type needs user approval before execution.',
+    {
+      actionType: z.string().optional().describe('The action type to check (e.g. "navigate", "click")'),
+      targetUrl: z.string().optional().describe('Optional target URL for context-dependent approval checks'),
+    },
+    async ({ actionType, targetUrl }) => {
+      const params = new URLSearchParams();
+      if (actionType) params.set('actionType', actionType);
+      if (targetUrl) params.set('targetUrl', targetUrl);
+      const qs = params.toString();
+      const data = await apiCall('GET', qs ? `/tasks/check-approval?${qs}` : '/tasks/check-approval');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_autonomy_get',
+    'Get the current autonomy settings that control how much freedom the agent has.',
+    async () => {
+      const data = await apiCall('GET', '/autonomy');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_autonomy_update',
+    'Update autonomy settings that control agent freedom level.',
+    {
+      settings: z.object({}).passthrough().describe('Autonomy settings to update'),
+    },
+    async ({ settings }) => {
+      const data = await apiCall('PATCH', '/autonomy', settings);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_agent_activity_log',
+    'Get recent activity log entries for agent actions specifically.',
+    {
+      limit: z.number().optional().describe('Maximum entries to return (default: 50)'),
+    },
+    async ({ limit }) => {
+      const params = new URLSearchParams();
+      if (limit !== undefined) params.set('limit', String(limit));
+      const qs = params.toString();
+      const data = await apiCall('GET', qs ? `/activity-log/agent?${qs}` : '/activity-log/agent');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_tab_lock_status',
+    'Get the lock status for a specific tab.',
+    {
+      tabId: z.string().describe('The tab ID to check lock status for'),
+    },
+    async ({ tabId }) => {
+      const data = await apiCall('GET', `/tab-locks/${encodeURIComponent(tabId)}`);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

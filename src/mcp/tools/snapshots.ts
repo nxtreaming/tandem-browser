@@ -114,4 +114,19 @@ export function registerSnapshotTools(server: McpServer): void {
       return { content: [{ type: 'text', text: `Filled element found by ${by}="${value}" with "${text}" (ref: ${result.ref})` }] };
     }
   );
+
+  server.tool(
+    'tandem_find_all',
+    'Find all matching elements on the page by semantic locator. Returns all matches instead of just the first. Supports targeting a background tab by ID.',
+    {
+      by: z.enum(['role', 'text', 'label', 'placeholder']).describe('Locator strategy'),
+      value: z.string().describe('Value to search for'),
+      tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
+    },
+    async ({ by, value, tabId }) => {
+      const result = await apiCall('POST', '/find/all', { by, value }, tabHeaders(tabId));
+      await logActivity('find_all', `${by}="${value}"`);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+  );
 }
