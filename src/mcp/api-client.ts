@@ -46,6 +46,18 @@ export async function apiCall(method: string, endpoint: string, body?: any, head
   return response.json();
 }
 
+/** Build X-Tab-Id headers when a tabId is provided */
+export function tabHeaders(tabId?: string): Record<string, string> | undefined {
+  return tabId ? { 'X-Tab-Id': tabId } : undefined;
+}
+
+/** Truncate text to a maximum number of words */
+export function truncateToWords(text: string, maxWords: number): string {
+  const words = text.split(/\s+/);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(' ') + '\n\n[... truncated, ' + (words.length - maxWords) + ' more words]';
+}
+
 /** Log an activity message to the Wingman panel */
 export async function logActivity(toolName: string, details?: string): Promise<void> {
   const text = details ? `🤖 ${toolName}: ${details}` : `🤖 ${toolName}`;
