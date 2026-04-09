@@ -25,11 +25,12 @@
     "local-first"
   ],
   "scripts": {
-    "dev": "tsc && npx electron .",
+    "dev": "tsc && npm run bundle:preload && npx electron .",
     "start": "xattr -cr node_modules/electron/dist/Electron.app 2>/dev/null; npm run compile && node scripts/run-electron.js",
-    "compile": "tsc",
+    "compile": "tsc && npm run bundle:preload",
     "watch": "tsc -w",
-    "build": "tsc && electron-builder",
+    "build": "tsc && npm run bundle:preload && electron-builder",
+    "bundle:preload": "esbuild dist/preload/index.js --bundle --platform=node --external:electron --outfile=dist/preload/index.js --allow-overwrite",
     "mcp": "node dist/mcp/server.js",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
@@ -65,13 +66,14 @@
     "@types/supertest": "^7.2.0",
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.0.18",
     "electron": "^40.6.0",
     "electron-builder": "^26.0.0",
+    "esbuild": "^0.28.0",
     "eslint": "^10.0.3",
     "supertest": "^7.2.2",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.56.1",
-    "@vitest/coverage-v8": "^4.0.18",
     "vitest": "^4.0.18"
   },
   "overrides": {
