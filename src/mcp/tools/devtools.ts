@@ -181,4 +181,40 @@ export function registerDevtoolsTools(server: McpServer): void {
       };
     }
   );
+
+  server.tool(
+    'tandem_devtools_status',
+    'Get the current status of the DevTools manager. Shows whether DevTools is connected and available.',
+    async () => {
+      const data = await apiCall('GET', '/devtools/status');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_devtools_cdp',
+    'Send a raw Chrome DevTools Protocol (CDP) command. WARNING: This is a powerful low-level tool that can modify browser state.',
+    {
+      method: z.string().describe('CDP method name (e.g. "Page.reload", "DOM.getDocument")'),
+      params: z.object({}).passthrough().optional().describe('Optional CDP method parameters'),
+    },
+    {
+      destructiveHint: true,
+      readOnlyHint: false,
+      openWorldHint: true,
+    },
+    async ({ method, params }) => {
+      const data = await apiCall('POST', '/devtools/cdp', { method, params });
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_devtools_toggle',
+    'Toggle DevTools open/closed for the active tab.',
+    async () => {
+      const data = await apiCall('POST', '/devtools/toggle');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

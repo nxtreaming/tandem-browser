@@ -43,4 +43,22 @@ export function registerHeadlessTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
+
+  server.tool(
+    'tandem_headless_show',
+    'Make the headless browser window visible.',
+    async () => {
+      const data = await apiCall('POST', '/headless/show');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_headless_hide',
+    'Hide the headless browser window.',
+    async () => {
+      const data = await apiCall('POST', '/headless/hide');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

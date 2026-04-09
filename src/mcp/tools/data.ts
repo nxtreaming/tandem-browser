@@ -207,4 +207,22 @@ export function registerDataTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
+
+  server.tool(
+    'tandem_browser_status',
+    'Get the overall browser status including ready state, active tab info, viewport dimensions, and version.',
+    async () => {
+      const data = await apiCall('GET', '/status');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_active_tab_context',
+    'Get rich context about the active tab including URL, title, loading state, viewport, page text excerpt, and list of all open tabs.',
+    async () => {
+      const data = await apiCall('GET', '/active-tab/context');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

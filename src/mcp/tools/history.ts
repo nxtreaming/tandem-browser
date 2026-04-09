@@ -127,4 +127,16 @@ export function registerHistoryTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
+
+  server.tool(
+    'tandem_site_memory_diff',
+    'Get a diff of changes in site memory for a specific domain since the last visit.',
+    {
+      domain: z.string().describe('Domain to get memory diff for (e.g. "github.com")'),
+    },
+    async ({ domain }) => {
+      const data = await apiCall('GET', `/memory/site/${encodeURIComponent(domain)}/diff`);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }

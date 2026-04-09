@@ -41,4 +41,37 @@ export function registerAuthTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
+
+  server.tool(
+    'tandem_auth_update',
+    'Manually update the authentication state for a domain.',
+    {
+      domain: z.string().describe('Domain to update auth state for (e.g. "github.com")'),
+      status: z.string().describe('New auth status (e.g. "logged_in", "logged_out")'),
+      username: z.string().optional().describe('Optional username for the authenticated session'),
+    },
+    async ({ domain, status, username }) => {
+      const body: Record<string, unknown> = { domain, status };
+      if (username) body.username = username;
+      const data = await apiCall('POST', '/auth/update', body);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_auth_delete',
+    'Delete the stored authentication state for a domain. This is irreversible.',
+    {
+      domain: z.string().describe('Domain to delete auth state for (e.g. "github.com")'),
+    },
+    {
+      destructiveHint: true,
+      readOnlyHint: false,
+      openWorldHint: false,
+    },
+    async ({ domain }) => {
+      const data = await apiCall('DELETE', `/auth/state/${encodeURIComponent(domain)}`);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
 }
