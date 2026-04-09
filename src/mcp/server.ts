@@ -31,6 +31,7 @@ import { registerHeadlessTools } from './tools/headless.js';
 import { registerDataTools } from './tools/data.js';
 import { registerContextTools } from './tools/context.js';
 import { registerWindowTools } from './tools/window.js';
+import { registerSidebarTools } from './tools/sidebar.js';
 
 const log = createLogger('McpServer');
 
@@ -69,6 +70,7 @@ registerHeadlessTools(server);
 registerDataTools(server);
 registerContextTools(server);
 registerWindowTools(server);
+registerSidebarTools(server);
 
 // ═══════════════════════════════════════════════
 // MCP Resources

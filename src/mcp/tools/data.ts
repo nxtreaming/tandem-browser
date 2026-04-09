@@ -3,6 +3,95 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
 
 export function registerDataTools(server: McpServer): void {
+  // ── Chrome Import ──
+
+  server.tool(
+    'tandem_chrome_import_status',
+    'Get Chrome import status (whether Chrome is detected, last import info).',
+    async () => {
+      const data = await apiCall('GET', '/import/chrome/status');
+      await logActivity('chrome_import_status');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_import_profiles',
+    'List available Chrome profiles for import.',
+    async () => {
+      const data = await apiCall('GET', '/import/chrome/profiles');
+      await logActivity('chrome_import_profiles');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_import_bookmarks',
+    'Import bookmarks from Chrome into Tandem.',
+    async () => {
+      const data = await apiCall('POST', '/import/chrome/bookmarks');
+      await logActivity('chrome_import_bookmarks');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_import_history',
+    'Import browsing history from Chrome into Tandem.',
+    async () => {
+      const data = await apiCall('POST', '/import/chrome/history');
+      await logActivity('chrome_import_history');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_import_cookies',
+    'Import cookies from Chrome into Tandem.',
+    async () => {
+      const data = await apiCall('POST', '/import/chrome/cookies');
+      await logActivity('chrome_import_cookies');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_sync_start',
+    'Start continuous Chrome sync. Optionally specify a Chrome profile.',
+    {
+      profile: z.string().optional().describe('Chrome profile name to sync from'),
+    },
+    async ({ profile }) => {
+      const body: Record<string, unknown> = {};
+      if (profile) body.profile = profile;
+      const data = await apiCall('POST', '/import/chrome/sync/start', body);
+      await logActivity('chrome_sync_start', profile || 'default');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_sync_stop',
+    'Stop continuous Chrome sync.',
+    async () => {
+      const data = await apiCall('POST', '/import/chrome/sync/stop');
+      await logActivity('chrome_sync_stop');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  server.tool(
+    'tandem_chrome_sync_status',
+    'Check whether Chrome sync is currently active.',
+    async () => {
+      const data = await apiCall('GET', '/import/chrome/sync/status');
+      await logActivity('chrome_sync_status');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── Existing tools ──
+
   server.tool(
     'tandem_data_export',
     'Export all user data (config, chat history, behavior stats) as JSON.',
