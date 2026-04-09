@@ -1,18 +1,19 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, tabHeaders } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerNetworkTools(server: McpServer): void {
   server.tool(
     'tandem_network_log',
     'Get the network request log captured via Electron webRequest API. Lighter-weight than DevTools network — shows URL, method, status, and timing for recent requests. Supports targeting a background tab by ID.',
-    {
+    coerceShape({
       domain: z.string().optional().describe('Filter by domain'),
       type: z.string().optional().describe('Filter by resource type'),
       limit: z.number().optional().describe('Maximum entries to return (default: 100)'),
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
-    },
-    async ({ domain, type, limit, tabId }) => {
+    }),
+    async ({ domain, type, limit, tabId }: any) => {
       const params = new URLSearchParams();
       if (domain) params.set('domain', domain);
       if (type) params.set('type', type);
@@ -54,19 +55,19 @@ export function registerNetworkTools(server: McpServer): void {
   server.tool(
     'tandem_network_mock',
     'Add a network mock rule to intercept and override HTTP responses. Matched requests will return the specified status, body, and headers instead of hitting the real server. WARNING: This modifies network behavior.',
-    {
+    coerceShape({
       url: z.string().describe('URL pattern to match (supports wildcards)'),
       method: z.string().optional().describe('HTTP method to match (e.g. "GET", "POST")'),
       status: z.number().optional().describe('HTTP status code to return (default: 200)'),
       body: z.string().optional().describe('Response body to return'),
       headers: z.record(z.string(), z.string()).optional().describe('Response headers to return'),
-    },
+    }),
     {
       destructiveHint: true,
       readOnlyHint: false,
       openWorldHint: false,
     },
-    async ({ url, method, status, body, headers }) => {
+    async ({ url, method, status, body, headers }: any) => {
       const payload: Record<string, unknown> = { pattern: url };
       if (method) payload.method = method;
       if (status !== undefined) payload.status = status;

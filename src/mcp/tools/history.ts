@@ -1,16 +1,17 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerHistoryTools(server: McpServer): void {
   server.tool(
     'tandem_history_list',
     'List recent browsing history with pagination',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Max entries to return (default 100)'),
       offset: z.number().optional().describe('Offset for pagination (default 0)'),
-    },
-    async ({ limit, offset }) => {
+    }),
+    async ({ limit, offset }: any) => {
       const params = new URLSearchParams();
       if (limit !== undefined) params.set('limit', String(limit));
       if (offset !== undefined) params.set('offset', String(offset));
@@ -67,10 +68,10 @@ export function registerHistoryTools(server: McpServer): void {
   server.tool(
     'tandem_activity_log',
     'Get recent browser activity events (navigations, clicks, searches, etc.)',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Max entries to return (default 100)'),
-    },
-    async ({ limit }) => {
+    }),
+    async ({ limit }: any) => {
       const params = new URLSearchParams();
       if (limit !== undefined) params.set('limit', String(limit));
       const qs = params.toString();

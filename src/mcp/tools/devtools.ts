@@ -1,18 +1,19 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, tabHeaders, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerDevtoolsTools(server: McpServer): void {
   server.tool(
     'tandem_devtools_console',
     'Get console log entries from the browser DevTools. Use to inspect logs, warnings, errors, and debug output from the page. Supports filtering by level (log, warn, error, info, debug) and searching message text. Supports targeting a background tab by ID.',
-    {
+    coerceShape({
       level: z.string().optional().describe('Filter by log level: log, warn, error, info, debug'),
       search: z.string().optional().describe('Search string to filter messages'),
       limit: z.number().optional().describe('Maximum entries to return (default: 100)'),
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
-    },
-    async ({ level, search, limit, tabId }) => {
+    }),
+    async ({ level, search, limit, tabId }: any) => {
       const params = new URLSearchParams();
       if (level) params.set('level', level);
       if (search) params.set('search', search);
@@ -27,11 +28,11 @@ export function registerDevtoolsTools(server: McpServer): void {
   server.tool(
     'tandem_devtools_console_errors',
     'Get only console errors from the browser DevTools. A quick way to check if the page has any JavaScript errors. Supports targeting a background tab by ID.',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Maximum errors to return (default: 50)'),
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
-    },
-    async ({ limit, tabId }) => {
+    }),
+    async ({ limit, tabId }: any) => {
       const params = new URLSearchParams();
       if (limit !== undefined) params.set('limit', String(limit));
       const qs = params.toString();
@@ -53,14 +54,14 @@ export function registerDevtoolsTools(server: McpServer): void {
   server.tool(
     'tandem_devtools_network',
     'Get network request entries captured via CDP (Chrome DevTools Protocol). Includes full headers and POST bodies. Use to inspect API calls, failed requests, and resource loading. Supports targeting a background tab by ID.',
-    {
+    coerceShape({
       domain: z.string().optional().describe('Filter by domain (e.g. "api.example.com")'),
       type: z.string().optional().describe('Filter by resource type (e.g. "XHR", "Fetch", "Script")'),
       failed: z.boolean().optional().describe('Filter to only failed requests (true) or successful (false)'),
       limit: z.number().optional().describe('Maximum entries to return (default: 100)'),
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
-    },
-    async ({ domain, type, failed, limit, tabId }) => {
+    }),
+    async ({ domain, type, failed, limit, tabId }: any) => {
       const params = new URLSearchParams();
       if (domain) params.set('domain', domain);
       if (type) params.set('type', type);

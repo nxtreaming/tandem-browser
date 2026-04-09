@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerPinboardTools(server: McpServer): void {
   server.tool(
@@ -148,11 +149,11 @@ export function registerPinboardTools(server: McpServer): void {
   server.tool(
     'tandem_pinboard_reorder_items',
     'Reorder items within a pinboard by providing the desired item ID order.',
-    {
+    coerceShape({
       id: z.string().describe('Pinboard ID'),
       itemIds: z.array(z.string()).describe('Ordered array of item IDs representing the new order'),
-    },
-    async ({ id, itemIds }) => {
+    }),
+    async ({ id, itemIds }: any) => {
       const data = await apiCall('POST', `/pinboards/${encodeURIComponent(id)}/items/reorder`, { itemIds });
       await logActivity('pinboard_reorder_items', id);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };

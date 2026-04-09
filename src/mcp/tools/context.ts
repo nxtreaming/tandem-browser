@@ -1,15 +1,16 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerContextTools(server: McpServer): void {
   server.tool(
     'tandem_context_recent',
     'Get recently visited pages from the context bridge',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Maximum number of pages to return (default: 50)'),
-    },
-    async ({ limit }) => {
+    }),
+    async ({ limit }: any) => {
       const params = limit ? `?limit=${limit}` : '';
       const data = await apiCall('GET', `/context/recent${params}`);
       await logActivity('context_recent');

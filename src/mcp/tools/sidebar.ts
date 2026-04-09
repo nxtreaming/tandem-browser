@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerSidebarTools(server: McpServer): void {
   server.tool(
@@ -55,10 +56,10 @@ export function registerSidebarTools(server: McpServer): void {
   server.tool(
     'tandem_sidebar_reorder',
     'Reorder sidebar items by providing an ordered list of item IDs.',
-    {
+    coerceShape({
       orderedIds: z.array(z.string()).describe('Array of sidebar item IDs in desired order'),
-    },
-    async ({ orderedIds }) => {
+    }),
+    async ({ orderedIds }: any) => {
       const data = await apiCall('POST', '/sidebar/reorder', { orderedIds });
       await logActivity('sidebar_reorder');
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, truncateToWords, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 import { hostnameMatches, tryParseUrl, urlHasProtocol } from '../../utils/security';
 
 /**
@@ -26,12 +27,12 @@ export function registerWindowTools(server: McpServer): void {
   server.tool(
     'tandem_research',
     'Perform autonomous research by opening tabs, searching, and reading pages. Returns a summary of findings. Uses human-paced timing to avoid detection.',
-    {
+    coerceShape({
       query: z.string().describe('What to research'),
       maxPages: z.number().optional().default(5).describe('Maximum number of pages to visit (1-10)'),
       searchEngine: z.enum(['google', 'duckduckgo']).optional().default('duckduckgo').describe('Search engine to use'),
-    },
-    async ({ query, maxPages, searchEngine }) => {
+    }),
+    async ({ query, maxPages, searchEngine }: any) => {
       const clampedMax = Math.min(Math.max(maxPages || 5, 1), 10);
       await logActivity('research_start', `"${query}" (max ${clampedMax} pages via ${searchEngine})`);
 

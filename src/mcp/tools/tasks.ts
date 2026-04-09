@@ -1,21 +1,22 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerTaskTools(server: McpServer): void {
   server.tool(
     'tandem_create_task',
     'Create an AI task with multiple steps that can be tracked and approved by Robin',
-    {
+    coerceShape({
       description: z.string().describe('What the task is about'),
       steps: z.array(z.object({
         description: z.string().describe('Step description'),
         actionType: z.string().describe('Action type: navigate, read_page, click, type, etc.'),
         params: z.record(z.string(), z.string()).optional().describe('Action parameters as key-value pairs'),
       })).describe('Steps to execute'),
-    },
-    async ({ description, steps }) => {
-      const formattedSteps = steps.map(s => ({
+    }),
+    async ({ description, steps }: any) => {
+      const formattedSteps = steps.map((s: any) => ({
         description: s.description,
         action: { type: s.actionType, params: s.params || {} },
         riskLevel: 'low' as const,
@@ -107,12 +108,12 @@ export function registerTaskTools(server: McpServer): void {
   server.tool(
     'tandem_tab_lock',
     'Acquire a lock on a browser tab for exclusive agent access. Use for multi-agent coordination to prevent conflicting actions on the same tab.',
-    {
+    coerceShape({
       tabId: z.string().describe('The tab ID to lock'),
       agent: z.string().optional().describe('Agent identifier claiming the lock'),
       timeout: z.number().optional().describe('Lock timeout in milliseconds'),
-    },
-    async ({ tabId, agent, timeout }) => {
+    }),
+    async ({ tabId, agent, timeout }: any) => {
       const body: Record<string, unknown> = { tabId };
       if (agent) body.agent = agent;
       if (timeout !== undefined) body.timeout = timeout;
@@ -185,10 +186,10 @@ export function registerTaskTools(server: McpServer): void {
   server.tool(
     'tandem_agent_activity_log',
     'Get recent activity log entries for agent actions specifically.',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Maximum entries to return (default: 50)'),
-    },
-    async ({ limit }) => {
+    }),
+    async ({ limit }: any) => {
       const params = new URLSearchParams();
       if (limit !== undefined) params.set('limit', String(limit));
       const qs = params.toString();

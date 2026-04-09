@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerWorkflowTools(server: McpServer): void {
   server.tool(
@@ -17,7 +18,7 @@ export function registerWorkflowTools(server: McpServer): void {
   server.tool(
     'tandem_workflow_create',
     'Create a new automation workflow with named steps.',
-    {
+    coerceShape({
       name: z.string().describe('Workflow name'),
       steps: z.array(z.object({
         type: z.string().describe('Step type (e.g. navigate, click, type, extract, wait, script)'),
@@ -26,8 +27,8 @@ export function registerWorkflowTools(server: McpServer): void {
       })).describe('Workflow steps to execute in order'),
       description: z.string().optional().describe('Optional workflow description'),
       variables: z.record(z.string(), z.any()).optional().describe('Optional default variable values'),
-    },
-    async ({ name, steps, description, variables }) => {
+    }),
+    async ({ name, steps, description, variables }: any) => {
       const body: Record<string, unknown> = { name, steps };
       if (description) body.description = description;
       if (variables) body.variables = variables;

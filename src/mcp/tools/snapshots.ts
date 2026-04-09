@@ -1,18 +1,19 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, tabHeaders, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerSnapshotTools(server: McpServer): void {
   server.tool(
     'tandem_snapshot',
     'Get the accessibility tree of the page with @ref IDs for element interaction. Supports targeting a background tab by ID.',
-    {
+    coerceShape({
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
       compact: z.boolean().optional().describe('Return a compact snapshot (fewer details)'),
       interactive: z.boolean().optional().describe('Only include interactive elements'),
       selector: z.string().optional().describe('CSS selector to scope the snapshot to a subtree'),
-    },
-    async ({ tabId, compact, interactive, selector }) => {
+    }),
+    async ({ tabId, compact, interactive, selector }: any) => {
       const params = new URLSearchParams();
       if (compact) params.set('compact', 'true');
       if (interactive) params.set('interactive', 'true');

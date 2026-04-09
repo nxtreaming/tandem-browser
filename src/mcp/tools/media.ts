@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerMediaTools(server: McpServer): void {
   // ── Voice ──
@@ -105,10 +106,10 @@ export function registerMediaTools(server: McpServer): void {
   server.tool(
     'tandem_screenshots_list',
     'List saved screenshots.',
-    {
+    coerceShape({
       limit: z.number().optional().describe('Maximum number of screenshots to return (default: 10)'),
-    },
-    async ({ limit }) => {
+    }),
+    async ({ limit }: any) => {
       const params = new URLSearchParams();
       if (limit) params.set('limit', String(limit));
       const qs = params.toString();
@@ -123,10 +124,10 @@ export function registerMediaTools(server: McpServer): void {
   server.tool(
     'tandem_draw_toggle',
     'Toggle draw mode on/off. When enabled, users can annotate the screen.',
-    {
+    coerceShape({
       enabled: z.boolean().optional().describe('Set draw mode on (true) or off (false). Omit to toggle.'),
-    },
-    async ({ enabled }) => {
+    }),
+    async ({ enabled }: any) => {
       const body: Record<string, unknown> = {};
       if (enabled !== undefined) body.enabled = enabled;
       const data = await apiCall('POST', '/draw/toggle', body);
@@ -140,10 +141,10 @@ export function registerMediaTools(server: McpServer): void {
   server.tool(
     'tandem_panel_toggle',
     'Toggle the Wingman side panel open/closed.',
-    {
+    coerceShape({
       open: z.boolean().optional().describe('Set panel open (true) or closed (false). Omit to toggle.'),
-    },
-    async ({ open }) => {
+    }),
+    async ({ open }: any) => {
       const body: Record<string, unknown> = {};
       if (open !== undefined) body.open = open;
       const data = await apiCall('POST', '/panel/toggle', body);
@@ -157,10 +158,10 @@ export function registerMediaTools(server: McpServer): void {
   server.tool(
     'tandem_wingman_stream_toggle',
     'Toggle Wingman activity streaming to OpenClaw on/off.',
-    {
+    coerceShape({
       enabled: z.boolean().describe('Enable (true) or disable (false) the wingman stream'),
-    },
-    async ({ enabled }) => {
+    }),
+    async ({ enabled }: any) => {
       const data = await apiCall('POST', '/wingman-stream/toggle', { enabled });
       await logActivity('wingman_stream_toggle', `enabled: ${data.enabled}`);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };

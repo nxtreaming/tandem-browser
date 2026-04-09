@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerExtensionTools(server: McpServer): void {
   // ── Chrome extension import ──
@@ -24,12 +25,12 @@ export function registerExtensionTools(server: McpServer): void {
   server.tool(
     'tandem_extensions_chrome_import',
     'Import Chrome extension(s) into Tandem. Provide an extensionId for a single extension or set all=true to import all.',
-    {
+    coerceShape({
       extensionId: z.string().optional().describe('Chrome extension ID to import'),
       all: z.boolean().optional().describe('Import all Chrome extensions'),
       profile: z.string().optional().describe('Chrome profile name (default: "Default")'),
-    },
-    async ({ extensionId, all, profile }) => {
+    }),
+    async ({ extensionId, all, profile }: any) => {
       const body: Record<string, unknown> = {};
       if (extensionId) body.extensionId = extensionId;
       if (all) body.all = true;

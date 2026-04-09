@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerChatTools(server: McpServer): void {
   server.tool(
@@ -18,10 +19,10 @@ export function registerChatTools(server: McpServer): void {
   server.tool(
     'tandem_get_chat_history',
     'Get recent chat messages from the Wingman panel',
-    {
+    coerceShape({
       limit: z.number().optional().default(20).describe('Number of messages to return (default: 20)'),
-    },
-    async ({ limit }) => {
+    }),
+    async ({ limit }: any) => {
       const data = await apiCall('GET', `/chat?limit=${limit}`);
       const messages: Array<{ from: string; text: string; timestamp: number }> = data.messages || [];
 

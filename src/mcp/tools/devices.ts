@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerDeviceTools(server: McpServer): void {
   server.tool(
@@ -26,15 +27,15 @@ export function registerDeviceTools(server: McpServer): void {
   server.tool(
     'tandem_device_emulate',
     'Emulate a device in the active tab. Provide a profile name OR custom dimensions (width + height).',
-    {
+    coerceShape({
       device: z.string().optional().describe('Device profile name (e.g. "iPhone 15 Pro"). Use tandem_device_profiles to list available profiles.'),
       width: z.number().optional().describe('Custom viewport width in pixels'),
       height: z.number().optional().describe('Custom viewport height in pixels'),
       deviceScaleFactor: z.number().optional().describe('Device scale factor (e.g. 2 for retina)'),
       mobile: z.boolean().optional().describe('Whether to emulate a mobile device'),
       userAgent: z.string().optional().describe('Custom user agent string'),
-    },
-    async ({ device, width, height, deviceScaleFactor, mobile, userAgent }) => {
+    }),
+    async ({ device, width, height, deviceScaleFactor, mobile, userAgent }: any) => {
       const body: Record<string, unknown> = {};
       if (device) body.device = device;
       if (width !== undefined) body.width = width;

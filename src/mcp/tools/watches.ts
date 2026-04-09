@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall, logActivity } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerWatchTools(server: McpServer): void {
   server.tool(
@@ -16,11 +17,11 @@ export function registerWatchTools(server: McpServer): void {
   server.tool(
     'tandem_watch_add',
     'Add a website to the watch list for monitoring changes',
-    {
+    coerceShape({
       url: z.string().describe('URL to monitor'),
       intervalMinutes: z.number().optional().describe('Check interval in minutes (default: 30)'),
-    },
-    async ({ url, intervalMinutes }) => {
+    }),
+    async ({ url, intervalMinutes }: any) => {
       const data = await apiCall('POST', '/watch/add', { url, intervalMinutes });
       await logActivity('watch_add', url);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };

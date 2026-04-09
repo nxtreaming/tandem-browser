@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { apiCall } from '../api-client.js';
+import { coerceShape } from '../coerce.js';
 
 export function registerPasswordTools(server: McpServer): void {
   server.tool(
@@ -40,10 +41,10 @@ export function registerPasswordTools(server: McpServer): void {
   server.tool(
     'tandem_password_generate',
     'Generate a random secure password string. Returns a JSON object with a "password" field containing the generated password.',
-    {
+    coerceShape({
       length: z.number().optional().describe('Password length (default: 24)'),
-    },
-    async ({ length }) => {
+    }),
+    async ({ length }: any) => {
       const query = length ? `?length=${length}` : '';
       const data = await apiCall('GET', `/passwords/generate${query}`);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
