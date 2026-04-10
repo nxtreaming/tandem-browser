@@ -86,7 +86,7 @@ export function registerAwarenessRoutes(router: Router, ctx: RouteContext): void
 
       const clickCount = activityEntries.filter(e => e.type === 'click').length;
       const formEvents = streamEvents.filter(e => e.type === 'form-submit');
-      const inputEvents = activityEntries.filter(e => e.type === 'input');
+      const _inputEvents = activityEntries.filter(e => e.type === 'input');
 
       // Text selections from activity
       const textSelections = activityEntries
