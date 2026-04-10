@@ -48,7 +48,7 @@ import { registerAwarenessTools } from './tools/awareness.js';
 
 const server = new McpServer({
   name: 'tandem-browser',
-  version: '0.69.0',  // 233 tools — full API parity
+  version: '0.70.0',  // 233 tools — full API parity + awareness
 });
 
 // ═══════════════════════════════════════════════

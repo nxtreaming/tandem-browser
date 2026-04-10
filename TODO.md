@@ -14,8 +14,8 @@ Last updated: April 9, 2026
 
 ## Current Snapshot
 
-- Current app version: `0.69.0`
-- MCP server: 231 tools (full API parity)
+- Current app version: `0.70.0`
+- MCP server: 233 tools (full API parity + awareness)
 - The codebase scope is larger than this backlog summary and includes major subsystems such as `sidebar`, `workspaces`, `pinboards`, `sync`, `headless`, and `sessions`.
 - Scheduled browsing already exists in baseline form via `WatchManager` and the `/watch/*` API routes.
 - Session isolation already exists in baseline form via `SessionManager` and the `/sessions/*` API routes.
@@ -88,6 +88,7 @@ Last updated: April 9, 2026
 
 ## Recently Completed
 
+- [x] Awareness tools: activity digest and real-time focus detection for shared human-AI context
 - [x] URL bar autocomplete from browsing history (Chrome-style dropdown with inline completion)
 - [x] MCP bookmark management: list, add, delete, update, folders, move, check (7 tools)
 - [x] MCP history and site memory: list, clear, activity log, site memory search (6 tools)

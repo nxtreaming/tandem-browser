@@ -38,8 +38,9 @@ either protocol.
 | **Device Emulation** | 4 | Emulate phones/tablets, custom viewports |
 | **Data & Config** | 16 | Export/import, downloads, watches, pinboards, browser config |
 | **System** | 6 | Browser status, headless mode, Google Photos, security overrides |
+| **Awareness** | 2 | Activity digest, real-time focus detection — the AI knows what you're doing |
 
-**231 tools total** — full parity with the HTTP API.
+**233 tools total** — full parity with the HTTP API.
 
 ## Why Not Just Use Playwright?
 
@@ -99,7 +100,7 @@ Add to your MCP configuration:
 }
 ```
 
-Start Tandem, and 231 tools are available immediately.
+Start Tandem, and 233 tools are available immediately.
 
 ### Cursor / Windsurf / Other MCP Clients
 
