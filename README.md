@@ -5,177 +5,77 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/github/package-json/v/hydro13/tandem-browser)](package.json)
 
-Tandem Browser is a local-first Electron browser built for human-AI
-collaboration. Any AI agent that speaks MCP or HTTP can control it.
+**231 MCP tools. Plug in any AI. No scraping. No API wrangling.**
 
-![Tandem Browser — homescreen with OpenClaw sidebar](docs/screenshots/tandem-homescreen-hero.jpg)
+Tandem is a local-first Electron browser where a human and an AI agent browse
+together. The agent sees what you see, navigates your tabs, reads your pages,
+and operates inside your authenticated sessions — while an 8-layer security
+model keeps web content from attacking the agent layer.
 
-**The real strength is the security model.**
+Connect via **MCP** (Claude Code, Claude Desktop, Cursor, Windsurf, Ollama, any
+MCP client) or a **300+ endpoint HTTP API**. Works with any AI that speaks
+either protocol.
 
-Tandem puts a full security stack between web content and the
-agent: network shield with domain/IP blocklists, outbound guard that scans POST
-bodies for credential leaks, AST-level JavaScript analysis on runtime scripts,
-behavior monitoring per tab, and a gatekeeper channel that surfaces ambiguous
-cases back to the human instead of silently proceeding. Strict layer separation
-means page JavaScript cannot fingerprint or observe the agent layer.
+![Tandem Browser — homescreen](docs/screenshots/tandem-homescreen-hero.jpg)
 
-That is not something you bolt onto Chrome after the fact. It has to be in the
-browser.
+## What Can An Agent Do?
 
-The human browses normally. AI agents connect via a built-in **MCP server**
-(231 tools) or a **local HTTP API** (300+ endpoints) on `127.0.0.1:8765` for
-navigation, extraction, automation, and observability. Tandem is not a generic
-"AI browser" shell — it is an agent-first browser environment designed so a
-human and an AI can browse together on the same machine.
+| Category | Tools | Examples |
+|----------|-------|---------|
+| **Navigation & Input** | 10 | Navigate, click, type, scroll, press keys, wait for load |
+| **Tabs & Workspaces** | 10 | Open/close/focus tabs, create workspaces, move tabs between them |
+| **Page Content** | 8 | Read page, get HTML, extract content, get links, forms, screenshots |
+| **Accessibility Snapshots** | 7 | Accessibility tree with `@ref` IDs, click/fill by ref, semantic find |
+| **DevTools** | 12 | Console logs, network requests, DOM queries, XPath, performance, storage |
+| **Network Inspector** | 9 | Network log, API discovery, HAR export, request mocking |
+| **Sessions & Auth** | 12 | Isolated sessions, session fetch relay, auth state detection |
+| **Bookmarks & History** | 15 | Full bookmark CRUD, history search, site memory |
+| **Passwords & Forms** | 9 | Vault management, password generation, form autofill |
+| **Extensions** | 13 | List, install, import from Chrome, gallery, updates, conflicts |
+| **Workflows & Tasks** | 18 | Multi-step workflows, task approval, agent autonomy, tab locks |
+| **Previews** | 4 | Create live HTML pages in the browser, update with instant reload |
+| **Media & UI** | 19 | Voice, audio, screenshots, draw mode, sidebar config, panel toggle |
+| **Device Emulation** | 4 | Emulate phones/tablets, custom viewports |
+| **Data & Config** | 16 | Export/import, downloads, watches, pinboards, browser config |
+| **System** | 6 | Browser status, headless mode, Google Photos, security overrides |
 
-Tandem was originally built for OpenClaw and continues to be developed by an
-OpenClaw maintainer, but the MCP server makes it equally accessible to Claude
-Code, Cursor, Windsurf, or any other MCP-compatible agent.
+**231 tools total** — full parity with the HTTP API.
 
-**The left sidebar brings your communication and tools into the browser.** Built-in panels for Telegram, WhatsApp, Discord, Slack, Gmail, Google Calendar, Instagram, and X — all persistent, all in their own isolated session alongside your main browsing. Next to the messengers: Workspaces, Pinboards, Bookmarks, History, Downloads, and Personal News. The sidebar is resizable, pinnable, and rendered with frosted glass so it stays out of the way when you don't need it.
+## Why Not Just Use Playwright?
 
-**The right-side Wingman panel** is where the AI agent lives. Chat, activity feed, screenshots, and agent context — all in one place, connected to the local API so the agent can see what you're looking at and act on it.
+Playwright gives you a headless browser that you control. Tandem gives you
+the user's **real browser** — their tabs, their sessions, their cookies,
+their extensions. The agent doesn't start from scratch; it joins what's
+already there.
 
-## Why Tandem?
+Plus:
 
-Raw browser access alone is not the product goal. Tandem adds the missing
-layer: a browser built for human + AI collaboration on the real web, with
-multiple security layers, review points, and a shared live workflow that keeps
-both the human and the agent safer.
-
-With Tandem, any AI agent gets:
-
-- a browser designed from the start for human + agent collaboration on the
-  same machine
-- a **231-tool MCP server** for direct integration with Claude Code, Cursor,
-  Windsurf, or any MCP-compatible client
-- a **300+ endpoint HTTP API** for tabs, navigation, snapshots, sessions,
-  devtools, network mocking, and controlled automation
-- an eight-layer security model built around the fact that an AI has access to
-  live web content — including the first browser-level prompt injection defense
-- a browser surface where the human stays in the loop for ambiguous or risky
-  situations, with explicit handoff points instead of silent automation
-- a local-first workflow with no dependency on a remote browser vendor or
-  cloud automation service
-
-## Status
-
-This repository is a public `developer preview` — real project, early public state, open for contributors, not yet a polished mass-user release.
-
-![Tandem Browser — browsing with OpenClaw](docs/screenshots/tandem-browser-interaction.png)
-
-- primary platform: macOS
-- secondary platform: Linux
-- Windows is not actively validated yet
-- current version: see [package.json](package.json)
-- current release history: [CHANGELOG.md](CHANGELOG.md)
-- official release format today: source code only
-- official binaries: not published yet
-
-The goal of making the repository public is to let other contributors and builders help improve the browser over time — not just to show it.
-If you want to help shape Tandem, now is the right time. The browser still has
-rough edges, and extra engineering eyes on bugs, architecture, UX, Linux
-behavior, extension compatibility, and agent workflow polish would be
-genuinely useful.
-
-## Agent-First Positioning
-
-Tandem is built around collaboration with AI agents.
-
-- **MCP server** (231 tools): the recommended way for Claude Code, Cursor, and other MCP clients to connect — zero config, full browser control
-- **HTTP API** (300+ endpoints): for agents that prefer direct HTTP, or for custom integrations
-- the right-side Wingman workflow supports OpenClaw as a primary runtime, with the MCP server opening Tandem to any agent ecosystem
-- the security model is shaped by the fact that an AI agent has access to a live browser
-- the repository may still be useful for general Electron browser experimentation, but the product itself is intentionally agent-first
-
-## Typical Agent Workflows
-
-Tandem is most useful when an AI agent needs more than a single scripted page
-action.
-
-Examples:
-
-- research workflows across multiple tabs, where the agent opens, inspects, and
-  summarizes pages while the human keeps browsing
-- autonomous agent workspace, where the agent creates its own dedicated
-  workspace, opens and manages tabs there independently from the user's
-  browsing, and calls `tandem_wingman_alert` to instantly surface the right
-  workspace to the user when human help is needed
-- SPA inspection, where the agent uses accessibility snapshots, semantic
-  locators, and devtools surfaces instead of guessing from raw HTML alone
-- session-aware tasks, where the agent can operate inside the human's real
-  authenticated browser context
-- human-in-the-loop workflows, where captchas, risky actions, or uncertain
-  cases are surfaced back to the human instead of hidden
-
-## What Tandem Does
-
-- Human + AI shared browsing with one local browser session
-- **MCP server** with 231 tools for direct agent integration (snapshots,
-  devtools, network, sessions, workspaces, tab locks, and more)
-- **HTTP API** with 300+ endpoints for tabs, navigation, screenshots, content
-  extraction, sessions, devtools surfaces, and automation
-- Background-tab-safe targeting via `X-Tab-Id` for snapshots, page reads,
-  JS evaluation, waits, links, and form inspection without forcing focus
-- Security-by-default browsing with multi-layer filtering and review points
-- Agent-first runtime integration for chat, browser control, and local workflows
-- Local-first persistence for sessions, history, workspaces, bookmarks, and
-  settings
-- Chrome-style extension loading and related compatibility work
-
-## Security Principles
-
-Tandem treats security as part of the agent integration story, not as a
-separate afterthought.
-
-The high-level rules are:
-
-- local-first: the browser runtime itself does not depend on a Tandem cloud
-- local API only: the Tandem API binds to `127.0.0.1`
-- human remains the dead-man switch: risky or blocked flows can be surfaced back
-  to the user
-- hostile-content mindset: web content is treated as potentially adversarial
-- separation of layers: browser pages should not directly observe or fingerprint
-  the agent layer
-
-Current protections include network filtering, outbound request checks, runtime
-script inspection, behavior monitoring, and agent-facing decision points for
-ambiguous cases.
+- **Security model**: 8 layers between web content and the agent, including
+  prompt injection defense. Playwright has none.
+- **Shared context**: the agent sees what the human is doing and vice versa
+- **Stealth**: websites see a normal Chrome browser, not an automation tool
+- **Background tabs**: operate on any tab without stealing focus
+- **Human-in-the-loop**: captchas, risky actions, and ambiguous cases go
+  back to the human
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 20+
-- npm
-- macOS or Linux
-
-### Install
-
 ```bash
+git clone https://github.com/hydro13/tandem-browser.git
+cd tandem-browser
 npm install
-```
-
-### Verify
-
-```bash
-npm run verify
-```
-
-### Start
-
-```bash
 npm start
 ```
 
-On macOS, the start script clears Electron quarantine flags before launch.
+macOS is the primary platform. Linux works. Windows is not validated yet.
 
-## Connecting An Agent
+## Connect Your AI Agent
 
-### Option 1: MCP (recommended for Claude Code, Cursor, etc.)
+### Claude Code / Claude Desktop (MCP)
 
-Add to your MCP client configuration (e.g. `~/.claude/settings.json`):
+Add to your MCP configuration:
 
+**Claude Code** (`.mcp.json` in project root or `~/.claude/settings.json`):
 ```json
 {
   "mcpServers": {
@@ -187,14 +87,28 @@ Add to your MCP client configuration (e.g. `~/.claude/settings.json`):
 }
 ```
 
-Start Tandem (`npm start`), and the agent has 231 tools available immediately.
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "tandem": {
+      "command": "node",
+      "args": ["/path/to/tandem-browser/dist/mcp/server.js"]
+    }
+  }
+}
+```
 
-### Option 2: HTTP API (for custom integrations)
+Start Tandem, and 231 tools are available immediately.
+
+### Cursor / Windsurf / Other MCP Clients
+
+Same config — point your MCP client at `dist/mcp/server.js`. Any client
+that implements the MCP protocol works.
+
+### HTTP API (for custom integrations)
 
 ```bash
-npm install
-npm start
-
 TOKEN="$(cat ~/.tandem/api-token)"
 
 curl -sS http://127.0.0.1:8765/status
@@ -202,118 +116,94 @@ curl -sS http://127.0.0.1:8765/tabs/list \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-If those return live JSON, Tandem is up and the agent has a usable control
-surface.
+300+ endpoints for everything the MCP tools can do, plus lower-level access.
 
-### Option 3: OpenClaw (Wingman chat integration)
+## Security Model
 
-Tandem was originally built for OpenClaw and includes deep integration:
+Tandem treats security as core architecture, not an afterthought. When an AI
+has access to your browser, every ad network, tracking pixel, and malicious
+domain is in the agent's attack surface.
 
-- Tandem serves its local API on `http://127.0.0.1:8765`
-- OpenClaw uses the Tandem skill and sends requests to that local API
-- OpenClaw reads the Tandem bearer token from `~/.tandem/api-token`
-- For the in-app Wingman chat experience, the local OpenClaw gateway also needs
-  to be running on `ws://127.0.0.1:18789`
+**8 security layers:**
 
-The easiest way to get OpenClaw working with Tandem is to point it at this
-repository. Clone it, run `npm install && npm start`, then tell OpenClaw:
-"read `skill/SKILL.md` in the Tandem repo — that is your instruction manual for
-working with this browser."
+1. Network shield with domain/IP blocklists
+2. Outbound guard scanning POST bodies for credential leaks
+3. AST-level JavaScript analysis on runtime scripts
+4. Behavior monitoring per tab
+5. Gatekeeper channel for ambiguous cases
+6. Prompt injection defense on page content
+7. Layer separation — pages cannot fingerprint the agent
+8. Human-in-the-loop for risky or blocked actions
 
-## Verify The Connection
+Strict layer separation means page JavaScript cannot observe or fingerprint
+the agent layer. That's not something you bolt onto Chrome after the fact.
 
-```bash
-TOKEN="$(cat ~/.tandem/api-token)"
+## The Browser
 
-curl -sS http://127.0.0.1:8765/status
+Beyond the agent layer, Tandem is a full daily-driver browser:
 
-curl -sS http://127.0.0.1:8765/tabs/list \
-  -H "Authorization: Bearer $TOKEN"
-```
+- **Left sidebar**: Telegram, WhatsApp, Discord, Slack, Gmail, Calendar,
+  Instagram, X — all in isolated sessions alongside your browsing
+- **Workspaces**: organize tabs into separate spaces (the agent gets its own)
+- **Pinboards**: collect and organize links, images, quotes
+- **Bookmarks & History**: with Chrome import and sync
+- **Chrome extensions**: load from disk or install from Chrome Web Store
+- **URL autocomplete**: Chrome-style suggestions from browsing history
+- **Password manager**: local vault with AES-256-GCM encryption
+- **Video recorder**: application and region capture
+- **Device emulation**: test responsive designs
 
-Expected result:
+All local-first. No cloud dependency.
 
-- `/status` returns a live Tandem status payload
-- `/tabs/list` returns JSON instead of `401 Unauthorized`
+## Typical Agent Workflows
 
-## Public API Snapshot
+- **Research**: agent opens multiple tabs, reads and summarizes pages while
+  you keep browsing
+- **Autonomous workspace**: agent creates its own workspace, manages tabs
+  independently, and alerts you when human help is needed
+- **SPA inspection**: accessibility snapshots and semantic locators instead
+  of guessing from raw HTML
+- **Session-aware tasks**: agent operates inside your real authenticated
+  browser context
+- **Live previews**: agent builds HTML pages and shows them to you in the
+  browser with instant live reload
 
-Examples:
+## Status
 
-```bash
-curl http://127.0.0.1:8765/status
+Public **developer preview** — real project, early public state, open for
+contributors, not yet a polished mass-user release.
 
-curl -X POST http://127.0.0.1:8765/tabs/open \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"url":"https://example.com","focus":false}'
+![Tandem Browser — browsing](docs/screenshots/tandem-browser-interaction.png)
 
-curl http://127.0.0.1:8765/snapshot?compact=true \
-  -H "Authorization: Bearer $TOKEN"
+- Primary platform: macOS
+- Secondary platform: Linux
+- Windows: not actively validated
+- Binaries: not published yet (source-only)
+- Current version: see [package.json](package.json)
 
-curl -X POST http://127.0.0.1:8765/find \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"by":"text","value":"Sign in"}'
+## Contributing
 
-curl -X POST http://127.0.0.1:8765/sessions/fetch \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"tabId":"tab-7","url":"/api/me","method":"GET"}'
-```
-
-The local API binds to `127.0.0.1:8765`.
-
-## Known Limitations
-
-- `Personal News` exists as a sidebar slot but is not a finished panel
-- Linux video recording still has desktop audio limitations due to Electron
-  process isolation
-- Windows support is not actively validated
-- Packaging and auto-update flows are still less mature than the core browser
-  and API surface
-- Public releases are currently source-only; no official end-user binaries are
-  published yet
-
-## Contributing Focus
-
-This repo is public because Tandem should be buildable with contributors, not
-only observed from a distance.
-
-Good contribution areas right now:
+Good contribution areas:
 
 - MCP tool improvements and new tool proposals
-- browser API improvements for tabs, snapshots, sessions, and devtools
+- Browser API improvements
 - Linux quality and cross-platform testing
-- security review and containment hardening
-- UI polish for the shared human + agent browsing workflow
-- bug reports with reproduction steps and logs
-- code review, issue triage, and docs cleanup
+- Security review and hardening
+- UI polish for human + agent workflows
+- Bug reports with reproduction steps
 
-If you want the project map first, start with:
-
-- [PROJECT.md](PROJECT.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [skill/SKILL.md](skill/SKILL.md)
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [PROJECT.md](PROJECT.md).
 
 ## Repository Guide
 
-- [PROJECT.md](PROJECT.md): product vision and architecture overview
-- [docs/README.md](docs/README.md): documentation map
-- [CHANGELOG.md](CHANGELOG.md): release history
-- [CONTRIBUTING.md](CONTRIBUTING.md): contribution workflow
-- [SECURITY.md](SECURITY.md): vulnerability reporting
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): collaboration expectations
-
-Files such as [AGENTS.md](AGENTS.md), [TODO.md](TODO.md), and several archived
-documents are maintainer workflow material. They remain in the repository for
-engineering context, but they are not the primary public entry points.
-
-Contributions are welcome. If you want to help improve Tandem as an
-agent-first browser, start with [CONTRIBUTING.md](CONTRIBUTING.md). Even if
-you are not ready to ship a large feature, smaller fixes, validation work,
-security review, Linux testing, docs improvements, and focused issue reports
-are all useful contributions.
+| File | What |
+|------|------|
+| [PROJECT.md](PROJECT.md) | Product vision and architecture |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [skill/SKILL.md](skill/SKILL.md) | Agent instruction manual |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+| [docs/](docs/) | Full documentation |
 
 ## License
 
