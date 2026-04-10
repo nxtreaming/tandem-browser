@@ -144,7 +144,7 @@ for (const [rel, checks] of targets) {
 
   // Check version
   if (checks.version) {
-    const escaped = version.replace(/\./g, '\\.');
+    const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`, 'g');
     if (!re.test(content)) {
       errors.push({ file: rel, issue: `version ${version} not found` });
