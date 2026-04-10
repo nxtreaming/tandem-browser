@@ -3,6 +3,11 @@ import { webContents } from 'electron';
 import type { RouteContext } from '../context';
 import { handleRouteError } from '../../utils/errors';
 
+/**
+ * Register all tab-related API routes (open, close, list, focus, group, source, reconcile, cleanup).
+ * @param router - Express router to attach routes to
+ * @param ctx - shared manager registry and main BrowserWindow
+ */
 export function registerTabRoutes(router: Router, ctx: RouteContext): void {
   router.post('/tabs/open', async (req: Request, res: Response) => {
     const {
