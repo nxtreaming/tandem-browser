@@ -69,14 +69,25 @@ export class SidebarManager {
 
   // === 4. Public methods ===
 
+  /** Get the current sidebar configuration. */
   getConfig(): SidebarConfig { return this.config; }
 
+  /**
+   * Merge partial updates into the sidebar configuration and persist.
+   * @param partial - fields to update (state, activeItemId, panelPinned, etc.)
+   * @returns the updated configuration
+   */
   updateConfig(partial: Partial<SidebarConfig>): SidebarConfig {
     this.config = { ...this.config, ...partial };
     this.save();
     return this.config;
   }
 
+  /**
+   * Toggle a sidebar item's enabled/disabled state.
+   * @param id - sidebar item ID
+   * @returns the toggled item, or undefined if not found
+   */
   toggleItem(id: string): SidebarItem | undefined {
     const item = this.config.items.find(i => i.id === id);
     if (!item) return undefined;
@@ -85,6 +96,10 @@ export class SidebarManager {
     return item;
   }
 
+  /**
+   * Reorder sidebar items by assigning new order values from the given ID sequence.
+   * @param orderedIds - item IDs in desired display order
+   */
   reorderItems(orderedIds: string[]): void {
     orderedIds.forEach((id, idx) => {
       const item = this.config.items.find(i => i.id === id);
@@ -94,11 +109,13 @@ export class SidebarManager {
     this.save();
   }
 
+  /** Set the sidebar visibility state (hidden, narrow, or wide). */
   setState(state: SidebarState): void {
     this.config.state = state;
     this.save();
   }
 
+  /** Set which sidebar item's panel is open, or null to close all panels. */
   setActiveItem(id: string | null): void {
     this.config.activeItemId = id;
     this.save();
@@ -109,6 +126,7 @@ export class SidebarManager {
 
   // === 6. Cleanup ===
 
+  /** Clean up resources (currently a no-op). */
   destroy(): void { /* nothing to clean up */ }
 
   // === 7. Private I/O ===

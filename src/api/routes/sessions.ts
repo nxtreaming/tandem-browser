@@ -13,6 +13,11 @@ const FORBIDDEN_SESSION_FETCH_HEADERS = new Set([
   'referer',
 ]);
 
+/**
+ * Register session, device emulation, session-fetch relay, and auth-header routes.
+ * @param router - Express router to attach routes to
+ * @param ctx - shared manager registry and main BrowserWindow
+ */
 export function registerSessionRoutes(router: Router, ctx: RouteContext): void {
   // ═══════════════════════════════════════════════
   // DEVICE EMULATION

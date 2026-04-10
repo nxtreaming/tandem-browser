@@ -2,6 +2,11 @@ import type { Router, Request, Response } from 'express';
 import type { RouteContext } from '../context';
 import { handleRouteError } from '../../utils/errors';
 
+/**
+ * Register sidebar layout and item management routes.
+ * @param router - Express router to attach routes to
+ * @param ctx - shared manager registry and main BrowserWindow
+ */
 export function registerSidebarRoutes(router: Router, ctx: RouteContext): void {
   // GET /sidebar/config
   router.get('/sidebar/config', (_req: Request, res: Response) => {

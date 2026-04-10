@@ -63,10 +63,12 @@ export class WorkspaceManager {
 
   // === 3. Dependency setters ===
 
+  /** Set the main BrowserWindow for IPC workspace-switch notifications. */
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win;
   }
 
+  /** Wire up sync manager and merge any newer shared workspace data. */
   setSyncManager(sm: SyncManager): void {
     this.syncManager = sm;
     this.mergeFromSync();
@@ -74,24 +76,33 @@ export class WorkspaceManager {
 
   // === 4. Public methods ===
 
+  /** List all workspaces sorted by display order. */
   list(): Workspace[] {
     return Array.from(this.workspaces.values()).sort((a, b) => a.order - b.order);
   }
 
+  /** Get a workspace by ID, or undefined if not found. */
   get(id: string): Workspace | undefined {
     return this.workspaces.get(id);
   }
 
+  /** Get the currently active workspace (falls back to default). */
   getActive(): Workspace {
     const ws = this.workspaces.get(this.activeId);
     if (!ws) return this.getDefaultWorkspace()!;
     return ws;
   }
 
+  /** Get the ID of the active workspace. */
   getActiveId(): string {
     return this.activeId;
   }
 
+  /**
+   * Look up which workspace a tab belongs to.
+   * @param tabId - webContentsId of the tab
+   * @returns workspace ID, or null if unassigned
+   */
   getWorkspaceIdForTab(tabId: number): string | null {
     for (const workspace of this.workspaces.values()) {
       if (workspace.tabIds.includes(tabId)) {
@@ -101,6 +112,12 @@ export class WorkspaceManager {
     return null;
   }
 
+  /**
+   * Create a new workspace.
+   * @param opts - name (required), icon, and color
+   * @returns the created workspace
+   * @throws if name is missing
+   */
   create(opts: { name: string; icon?: string; color?: string }): Workspace {
     if (!opts.name) throw new Error('name is required');
     // Pick a default color based on current count
@@ -120,6 +137,10 @@ export class WorkspaceManager {
     return ws;
   }
 
+  /**
+   * Update a workspace's name, icon, or color.
+   * @throws if the workspace is not found
+   */
   update(id: string, opts: Partial<Pick<Workspace, 'name' | 'icon' | 'color'>>): Workspace {
     const ws = this.workspaces.get(id);
     if (!ws) throw new Error(`Workspace ${id} not found`);
@@ -130,6 +151,10 @@ export class WorkspaceManager {
     return ws;
   }
 
+  /**
+   * Delete a workspace, moving its tabs to the default workspace.
+   * @throws if workspace not found or is the default workspace
+   */
   remove(id: string): void {
     const ws = this.workspaces.get(id);
     if (!ws) throw new Error(`Workspace ${id} not found`);
@@ -155,6 +180,10 @@ export class WorkspaceManager {
     log.info(`Removed workspace "${ws.name}" (${id})`);
   }
 
+  /**
+   * Switch the active workspace and notify the renderer.
+   * @throws if workspace not found
+   */
   switch(id: string): Workspace {
     const ws = this.workspaces.get(id);
     if (!ws) throw new Error(`Workspace ${id} not found`);
@@ -165,6 +194,7 @@ export class WorkspaceManager {
     return ws;
   }
 
+  /** Assign a tab (by webContentsId) to the currently active workspace. */
   assignTab(tabId: number): void {
     const active = this.getActive();
     for (const workspace of this.workspaces.values()) {
@@ -177,6 +207,7 @@ export class WorkspaceManager {
     this.saveToDisk();
   }
 
+  /** Remove a tab from whichever workspace it belongs to. */
   removeTab(tabId: number): void {
     for (const ws of this.workspaces.values()) {
       const idx = ws.tabIds.indexOf(tabId);
@@ -187,6 +218,10 @@ export class WorkspaceManager {
     this.saveToDisk();
   }
 
+  /**
+   * Move a tab to a specific workspace and refresh the tab bar.
+   * @throws if workspace not found
+   */
   moveTab(tabId: number, workspaceId: string): void {
     const target = this.workspaces.get(workspaceId);
     if (!target) throw new Error(`Workspace ${workspaceId} not found`);
@@ -205,6 +240,7 @@ export class WorkspaceManager {
     this.notifySwitch(this.getActive());
   }
 
+  /** Clear all tab assignments from every workspace. */
   resetTabAssignments(): void {
     for (const workspace of this.workspaces.values()) {
       workspace.tabIds = [];
@@ -241,6 +277,7 @@ export class WorkspaceManager {
 
   // === 6. Cleanup ===
 
+  /** Persist workspace state to disk on shutdown. */
   destroy(): void {
     this.saveToDisk();
   }

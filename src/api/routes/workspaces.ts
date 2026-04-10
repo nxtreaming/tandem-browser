@@ -16,6 +16,11 @@ function parseWorkspaceTabId(rawTabId: unknown): number | null {
   return null;
 }
 
+/**
+ * Register workspace CRUD, activation, and tab-move routes.
+ * @param router - Express router to attach routes to
+ * @param ctx - shared manager registry and main BrowserWindow
+ */
 export function registerWorkspaceRoutes(router: Router, ctx: RouteContext): void {
   // ═══════════════════════════════════════════════
   // WORKSPACES — Visual workspace management

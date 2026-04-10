@@ -5,6 +5,11 @@ import { handleRouteError } from '../../utils/errors';
 interface IdParams { id: string }
 interface ItemParams { id: string; itemId: string }
 
+/**
+ * Register pinboard and pinboard-item CRUD routes.
+ * @param router - Express router to attach routes to
+ * @param ctx - shared manager registry and main BrowserWindow
+ */
 export function registerPinboardRoutes(router: Router, ctx: RouteContext): void {
   // ═══════════════════════════════════════════════
   // PINBOARDS — Content Curation Boards

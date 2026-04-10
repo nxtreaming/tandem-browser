@@ -73,6 +73,7 @@ export class PinboardManager {
 
   // === 3. Dependency setters ===
 
+  /** Wire up sync manager and merge any newer shared pinboard data. */
   setSyncManager(sm: SyncManager): void {
     this.syncManager = sm;
     this.mergeFromSync();
@@ -82,6 +83,7 @@ export class PinboardManager {
 
   // --- Board CRUD ---
 
+  /** List all pinboards with summary info (no items included). */
   listBoards(): Array<{ id: string; name: string; emoji: string; itemCount: number; createdAt: string; updatedAt: string }> {
     return this.store.boards.map(b => ({
       id: b.id,
@@ -93,10 +95,16 @@ export class PinboardManager {
     }));
   }
 
+  /** Get a pinboard by ID, including all its items. */
   getBoard(boardId: string): Pinboard | null {
     return this.store.boards.find(b => b.id === boardId) || null;
   }
 
+  /**
+   * Create a new pinboard.
+   * @param name - board display name
+   * @param emoji - optional emoji icon (defaults to 📌)
+   */
   createBoard(name: string, emoji?: string): Pinboard {
     const now = new Date().toISOString();
     const board: Pinboard = {
@@ -112,6 +120,7 @@ export class PinboardManager {
     return board;
   }
 
+  /** Update a pinboard's name or emoji. Returns null if not found. */
   updateBoard(boardId: string, updates: { name?: string; emoji?: string }): Pinboard | null {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return null;
@@ -122,6 +131,7 @@ export class PinboardManager {
     return board;
   }
 
+  /** Delete a pinboard and all its items. Returns false if not found. */
   deleteBoard(boardId: string): boolean {
     const idx = this.store.boards.findIndex(b => b.id === boardId);
     if (idx === -1) return false;
@@ -130,6 +140,7 @@ export class PinboardManager {
     return true;
   }
 
+  /** Update a pinboard's visual settings (layout density and background). */
   updateBoardSettings(boardId: string, settings: { layout?: 'default' | 'spacious' | 'dense'; background?: 'dark' | 'light' }): Pinboard | null {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return null;
@@ -142,12 +153,14 @@ export class PinboardManager {
 
   // --- Item CRUD ---
 
+  /** Get all items for a pinboard, sorted by position. Returns null if board not found. */
   getItems(boardId: string): PinboardItem[] | null {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return null;
     return [...board.items].sort((a, b) => a.position - b.position);
   }
 
+  /** Add an item to a pinboard, auto-enriching link items with OG metadata. */
   async addItem(boardId: string, item: Omit<PinboardItem, 'id' | 'createdAt' | 'position'>): Promise<PinboardItem | null> {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return null;
@@ -170,6 +183,7 @@ export class PinboardManager {
     return newItem;
   }
 
+  /** Update an item's metadata (title, note, content, etc.). Returns null if not found. */
   updateItem(boardId: string, itemId: string, updates: { title?: string; note?: string; content?: string; description?: string; thumbnail?: string }): PinboardItem | null {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return null;
@@ -185,6 +199,7 @@ export class PinboardManager {
     return item;
   }
 
+  /** Remove an item from a pinboard and recalculate positions. */
   deleteItem(boardId: string, itemId: string): boolean {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return false;
@@ -198,6 +213,7 @@ export class PinboardManager {
     return true;
   }
 
+  /** Reorder items within a pinboard by assigning positions from the given ID sequence. */
   reorderItems(boardId: string, itemIds: string[]): boolean {
     const board = this.store.boards.find(b => b.id === boardId);
     if (!board) return false;
@@ -233,6 +249,7 @@ export class PinboardManager {
 
   // === 6. Cleanup ===
 
+  /** Clean up resources (currently a no-op). */
   destroy(): void {
     // Currently noop (no file watchers or timers)
   }

@@ -73,14 +73,20 @@ export class TabManager {
 
   // === 3. Dependency setters ===
 
+  /** Wire up the sync manager for cross-device tab publishing. */
   setSyncManager(sm: SyncManager): void {
     this.syncManager = sm;
   }
 
+  /** Wire up the session restore manager for crash-safe tab persistence. */
   setSessionRestore(sr: SessionRestoreManager): void {
     this.sessionRestore = sr;
   }
 
+  /**
+   * Set the callback used to look up which workspace a tab belongs to.
+   * @param resolver - maps a webContentsId to its workspace ID, or null to clear
+   */
   setWorkspaceIdResolver(resolver: ((webContentsId: number) => string | null) | null): void {
     this.workspaceIdResolver = resolver;
   }
