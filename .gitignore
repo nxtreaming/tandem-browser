@@ -13,5 +13,8 @@ native/speech/tandem-speech
 # macOS system files
 .DS_Store
 
+# Local MCP config
+.mcp.json
+
 # Cowork workspace (local only, not for the repo)
 .cowork/
