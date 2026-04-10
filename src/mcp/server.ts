@@ -42,12 +42,13 @@ import { registerSidebarTools } from './tools/sidebar.js';
 import { registerMediaTools } from './tools/media.js';
 import { registerEventTools } from './tools/events.js';
 import { registerSystemTools } from './tools/system.js';
+import { registerAwarenessTools } from './tools/awareness.js';
 
 // log is defined above — stderr-only for MCP stdio safety
 
 const server = new McpServer({
   name: 'tandem-browser',
-  version: '0.69.0',  // 231 tools — full API parity
+  version: '0.69.0',  // 233 tools — full API parity
 });
 
 // ═══════════════════════════════════════════════
@@ -84,6 +85,7 @@ registerSidebarTools(server);
 registerMediaTools(server);
 registerEventTools(server);
 registerSystemTools(server);
+registerAwarenessTools(server);
 
 // ═══════════════════════════════════════════════
 // MCP Resources
