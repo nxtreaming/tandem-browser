@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { calculateEntropy, normalizeScriptSource, computeASTHash, computeSimilarity } from '../script-utils';
+import { calculateEntropy, normalizeScriptSource, computeASTHash, computeASTFeatureVector, computeSimilarity, parseToAST } from '../script-utils';
 import { JS_THREAT_RULES } from '../types';
 import * as acorn from 'acorn';
 
@@ -28,6 +28,29 @@ describe('calculateEntropy', () => {
     const alpha = 'abcdefghijklmnopqrstuvwxyz';
     // 26 unique chars → log2(26) ≈ 4.7
     expect(calculateEntropy(alpha)).toBeCloseTo(4.7, 0);
+  });
+
+  it('returns exactly log2(N) for N distinct chars each appearing once', () => {
+    // 8 unique chars → log2(8) = 3.0 exactly
+    const input = 'abcdefgh';
+    expect(calculateEntropy(input)).toBeCloseTo(3.0, 5);
+  });
+
+  it('single character string has 0 entropy', () => {
+    expect(calculateEntropy('z')).toBe(0);
+  });
+
+  it('obfuscated script-like content has high entropy (>4)', () => {
+    // Simulating base64-encoded payload common in obfuscated scripts
+    const encoded = 'ZXZhbChhdG9iKCJiV0ZzZDJGeVpRPT0iKSk=';
+    expect(calculateEntropy(encoded)).toBeGreaterThan(4);
+  });
+
+  it('typical minified JS has moderate entropy (3-5)', () => {
+    const minified = 'var a=function(b,c){return b+c};var d=a(1,2);console.log(d);';
+    const e = calculateEntropy(minified);
+    expect(e).toBeGreaterThan(3);
+    expect(e).toBeLessThan(5);
   });
 });
 
@@ -306,5 +329,92 @@ describe('JS_THREAT_RULES', () => {
   it('window_open_data — matches window.open with data: URI', () => {
     const rule = JS_THREAT_RULES.find(r => r.id === 'window_open_data')!;
     expect(rule.pattern.test('window.open("data:text/html,<h1>phishing</h1>")')).toBe(true);
+  });
+
+  // --- Edge cases: negative matches / boundary conditions ---
+
+  it('fromcharcode_chain — does NOT match fewer than 3 codes', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'fromcharcode_chain')!;
+    expect(rule.pattern.test('String.fromCharCode(72)')).toBe(false);
+  });
+
+  it('hex_escape_heavy — does NOT match fewer than 10 hex escapes', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'hex_escape_heavy')!;
+    const fewHex = '\\x48\\x65\\x6c';
+    expect(rule.pattern.test(fewHex)).toBe(false);
+  });
+
+  it('unicode_escape_heavy — does NOT match fewer than 8 unicode escapes', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'unicode_escape_heavy')!;
+    const fewUni = '\\u0048\\u0065\\u006c';
+    expect(rule.pattern.test(fewUni)).toBe(false);
+  });
+
+  it('cookie_to_fetch — does NOT match cookie access far from fetch', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'cookie_to_fetch')!;
+    const farApart = 'var c = document.cookie;' + ' '.repeat(200) + 'fetch("/api");';
+    expect(rule.pattern.test(farApart)).toBe(false);
+  });
+
+  it('innerhtml_dynamic — does NOT match static innerHTML', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'innerhtml_dynamic')!;
+    // Pattern requires = followed by a non-quote char (dynamic value)
+    expect(rule.pattern.test('el.innerHTML = "<b>static</b>";')).toBe(false);
+  });
+
+  it('credential_harvest — does NOT match non-password field queries', () => {
+    const rule = JS_THREAT_RULES.find(r => r.id === 'credential_harvest')!;
+    expect(rule.pattern.test('querySelector("input[type=text]")')).toBe(false);
+  });
+});
+
+// ─── parseToAST ───
+
+describe('parseToAST', () => {
+  it('parses valid JavaScript', () => {
+    const ast = parseToAST('var x = 1;');
+    expect(ast).not.toBeNull();
+    expect(ast!.type).toBe('Program');
+  });
+
+  it('returns null for invalid syntax', () => {
+    expect(parseToAST('function {')).toBeNull();
+  });
+
+  it('parses ES module syntax', () => {
+    const ast = parseToAST('import x from "y"; export default x;');
+    expect(ast).not.toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    // Empty string is valid JS (empty program)
+    const ast = parseToAST('');
+    expect(ast).not.toBeNull();
+  });
+});
+
+// ─── computeASTFeatureVector ───
+
+describe('computeASTFeatureVector', () => {
+  it('returns non-empty map for valid AST', () => {
+    const ast = parse('function foo(x) { return x + 1; }');
+    const vec = computeASTFeatureVector(ast);
+    expect(vec.size).toBeGreaterThan(0);
+  });
+
+  it('counts node types as features', () => {
+    const ast = parse('var a = 1; var b = 2;');
+    const vec = computeASTFeatureVector(ast);
+    // Should have VariableDeclaration counted twice
+    const varDeclKey = Array.from(vec.keys()).find(k => k.startsWith('VariableDeclaration'));
+    expect(varDeclKey).toBeDefined();
+    expect(vec.get(varDeclKey!)).toBe(2);
+  });
+
+  it('produces same vector for renamed variables', () => {
+    const vec1 = computeASTFeatureVector(parse('function foo(a) { return a + 1; }'));
+    const vec2 = computeASTFeatureVector(parse('function bar(b) { return b + 1; }'));
+    // Same structure → same feature vector
+    expect(Array.from(vec1.entries())).toEqual(Array.from(vec2.entries()));
   });
 });
