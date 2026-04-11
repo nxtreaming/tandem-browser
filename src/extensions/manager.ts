@@ -101,6 +101,8 @@ const EXTENSION_ROUTE_POLICIES: Record<string, ExtensionRoutePolicy> = {
   },
 };
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
 /**
  * ExtensionManager — Central extension management layer.
  *
@@ -108,6 +110,9 @@ const EXTENSION_ROUTE_POLICIES: Record<string, ExtensionRoutePolicy> = {
  * into a single interface for install, uninstall, and metadata access.
  */
 export class ExtensionManager {
+
+  // === 1. Private state ===
+
   private loader: ExtensionLoader;
   private downloader: CrxDownloader;
   private nativeMessaging: NativeMessagingSetup;
@@ -115,6 +120,8 @@ export class ExtensionManager {
   private actionPolyfill: ActionPolyfill;
   private updateChecker: UpdateChecker;
   private conflictDetector: ConflictDetector;
+
+  // === 2. Constructor ===
 
   constructor(apiPort: number = API_PORT) {
     this.loader = new ExtensionLoader();
@@ -125,6 +132,8 @@ export class ExtensionManager {
     this.updateChecker = new UpdateChecker(this.downloader, this.loader);
     this.conflictDetector = new ConflictDetector();
   }
+
+  // === 4. Public methods ===
 
   /**
    * Initialize: load all existing extensions from ~/.tandem/extensions/.
@@ -364,6 +373,131 @@ export class ExtensionManager {
     return this.identityPolyfill;
   }
 
+  // ── Update Methods (Phase 9) ──
+
+  /** Get the update checker instance */
+  getUpdateChecker(): UpdateChecker {
+    return this.updateChecker;
+  }
+
+  /** Check all installed extensions for updates (batch protocol) */
+  async checkForUpdates(): Promise<UpdateCheckResult[]> {
+    const installed = this.updateChecker.getInstalledExtensions();
+    return this.updateChecker.checkAll(installed);
+  }
+
+  /** Apply update for a single extension */
+  async applyUpdate(extensionId: string, session: Session): Promise<UpdateResult> {
+    return this.updateChecker.updateOne(extensionId, session);
+  }
+
+  /** Apply all available updates */
+  async applyAllUpdates(session: Session): Promise<UpdateResult[]> {
+    return this.updateChecker.updateAll(session);
+  }
+
+  /** Get current update state */
+  getUpdateState(): UpdateState {
+    return this.updateChecker.getState();
+  }
+
+  /** Get next scheduled check time */
+  getNextScheduledCheck(): string | null {
+    return this.updateChecker.getNextScheduledCheck();
+  }
+
+  /** Get installed extensions list (for update checking) */
+  getInstalledExtensions(): InstalledExtension[] {
+    return this.updateChecker.getInstalledExtensions();
+  }
+
+  /** Get disk usage for all extensions */
+  getDiskUsage(): { totalBytes: number; extensions: Array<{ id: string; name: string; sizeBytes: number }> } {
+    return this.updateChecker.getDiskUsage();
+  }
+
+  // ── Conflict Detection Methods (Phase 10a) ──
+
+  /** Get the conflict detector instance */
+  getConflictDetector(): ConflictDetector {
+    return this.conflictDetector;
+  }
+
+  /** Analyze a single extension's manifest for conflicts */
+  getConflictsForExtension(extensionId: string): ExtensionConflict[] {
+    const extensionsDir = tandemDir('extensions');
+    const manifestPath = path.join(extensionsDir, extensionId, 'manifest.json');
+    return this.conflictDetector.analyzeManifest(manifestPath);
+  }
+
+  /** Get all conflicts across all installed extensions */
+  getAllConflicts(): { conflicts: ExtensionConflict[]; summary: { info: number; warnings: number; critical: number } } {
+    const conflicts = this.conflictDetector.getAllConflicts();
+    const summary = this.conflictDetector.getSummary(conflicts);
+    return { conflicts, summary };
+  }
+
+  // ── Isolated Session Loading (Phase 10a Foundation) ──
+
+  /**
+   * Load all installed extensions into a given Electron session.
+   *
+   * This is the foundation for loading extensions in isolated sessions
+   * (persist:session-{name}). Currently NOT wired into SessionManager —
+   * that requires careful consideration of:
+   * - Security stack: isolated sessions also need a RequestDispatcher + Guardian
+   * - Performance: loading 10+ extensions per session has startup cost
+   * - User preference: not all users want extensions in isolated sessions
+   *
+   * Future integration point: SessionManager.create() could call this method
+   * after setting up the security stack for the new session.
+   *
+   * @param session - The Electron session to load extensions into
+   * @returns Array of loaded extension names
+   */
+  async loadInSession(session: Session): Promise<string[]> {
+    const extensionsDir = tandemDir('extensions');
+    const loaded: string[] = [];
+
+    try {
+      const dirs = fs.readdirSync(extensionsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory());
+
+      for (const dir of dirs) {
+        const extPath = path.join(extensionsDir, dir.name);
+        const manifestPath = path.join(extPath, 'manifest.json');
+
+        if (!fs.existsSync(manifestPath)) continue;
+
+        try {
+          const ext = await session.extensions.loadExtension(extPath, { allowFileAccess: true });
+          loaded.push(ext.name || dir.name);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.warn(`⚠️ Failed to load extension ${dir.name} into session: ${message}`);
+        }
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn(`⚠️ Could not read extensions directory for session loading: ${message}`);
+    }
+
+    if (loaded.length > 0) {
+      log.info(`🧩 Loaded ${loaded.length} extension(s) into session: ${loaded.join(', ')}`);
+    }
+
+    return loaded;
+  }
+
+  // === 6. Cleanup ===
+
+  /** Stop update checker and clean up */
+  destroyUpdateChecker(): void {
+    this.updateChecker.destroy();
+  }
+
+  // === 7. Private helpers ===
+
   private resolveInstalledExtension(extensionId: string): ResolvedExtensionIdentity | null {
     const { loaded, available } = this.list();
     const loadedMatch = loaded.find((extension) =>
@@ -487,126 +621,5 @@ export class ExtensionManager {
       permissions,
       auditLabel: `${labelBase} [${level}${idParts.length > 0 ? `; ${idParts.join(', ')}` : ''}]`,
     };
-  }
-
-  // ─── Update Methods (Phase 9) ──────────────────────────────────────────
-
-  /** Get the update checker instance */
-  getUpdateChecker(): UpdateChecker {
-    return this.updateChecker;
-  }
-
-  /** Check all installed extensions for updates (batch protocol) */
-  async checkForUpdates(): Promise<UpdateCheckResult[]> {
-    const installed = this.updateChecker.getInstalledExtensions();
-    return this.updateChecker.checkAll(installed);
-  }
-
-  /** Apply update for a single extension */
-  async applyUpdate(extensionId: string, session: Session): Promise<UpdateResult> {
-    return this.updateChecker.updateOne(extensionId, session);
-  }
-
-  /** Apply all available updates */
-  async applyAllUpdates(session: Session): Promise<UpdateResult[]> {
-    return this.updateChecker.updateAll(session);
-  }
-
-  /** Get current update state */
-  getUpdateState(): UpdateState {
-    return this.updateChecker.getState();
-  }
-
-  /** Get next scheduled check time */
-  getNextScheduledCheck(): string | null {
-    return this.updateChecker.getNextScheduledCheck();
-  }
-
-  /** Get installed extensions list (for update checking) */
-  getInstalledExtensions(): InstalledExtension[] {
-    return this.updateChecker.getInstalledExtensions();
-  }
-
-  /** Get disk usage for all extensions */
-  getDiskUsage(): { totalBytes: number; extensions: Array<{ id: string; name: string; sizeBytes: number }> } {
-    return this.updateChecker.getDiskUsage();
-  }
-
-  /** Stop update checker and clean up */
-  destroyUpdateChecker(): void {
-    this.updateChecker.destroy();
-  }
-
-  // ─── Conflict Detection Methods (Phase 10a) ──────────────────────────
-
-  /** Get the conflict detector instance */
-  getConflictDetector(): ConflictDetector {
-    return this.conflictDetector;
-  }
-
-  /** Analyze a single extension's manifest for conflicts */
-  getConflictsForExtension(extensionId: string): ExtensionConflict[] {
-    const extensionsDir = tandemDir('extensions');
-    const manifestPath = path.join(extensionsDir, extensionId, 'manifest.json');
-    return this.conflictDetector.analyzeManifest(manifestPath);
-  }
-
-  /** Get all conflicts across all installed extensions */
-  getAllConflicts(): { conflicts: ExtensionConflict[]; summary: { info: number; warnings: number; critical: number } } {
-    const conflicts = this.conflictDetector.getAllConflicts();
-    const summary = this.conflictDetector.getSummary(conflicts);
-    return { conflicts, summary };
-  }
-
-  // ─── Isolated Session Loading (Phase 10a Foundation) ──────────────────
-
-  /**
-   * Load all installed extensions into a given Electron session.
-   *
-   * This is the foundation for loading extensions in isolated sessions
-   * (persist:session-{name}). Currently NOT wired into SessionManager —
-   * that requires careful consideration of:
-   * - Security stack: isolated sessions also need a RequestDispatcher + Guardian
-   * - Performance: loading 10+ extensions per session has startup cost
-   * - User preference: not all users want extensions in isolated sessions
-   *
-   * Future integration point: SessionManager.create() could call this method
-   * after setting up the security stack for the new session.
-   *
-   * @param session - The Electron session to load extensions into
-   * @returns Array of loaded extension names
-   */
-  async loadInSession(session: Session): Promise<string[]> {
-    const extensionsDir = tandemDir('extensions');
-    const loaded: string[] = [];
-
-    try {
-      const dirs = fs.readdirSync(extensionsDir, { withFileTypes: true })
-        .filter(d => d.isDirectory());
-
-      for (const dir of dirs) {
-        const extPath = path.join(extensionsDir, dir.name);
-        const manifestPath = path.join(extPath, 'manifest.json');
-
-        if (!fs.existsSync(manifestPath)) continue;
-
-        try {
-          const ext = await session.extensions.loadExtension(extPath, { allowFileAccess: true });
-          loaded.push(ext.name || dir.name);
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          log.warn(`⚠️ Failed to load extension ${dir.name} into session: ${message}`);
-        }
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      log.warn(`⚠️ Could not read extensions directory for session loading: ${message}`);
-    }
-
-    if (loaded.length > 0) {
-      log.info(`🧩 Loaded ${loaded.length} extension(s) into session: ${loaded.join(', ')}`);
-    }
-
-    return loaded;
   }
 }

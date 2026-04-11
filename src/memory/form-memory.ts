@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { tandemDir } from '../utils/paths';
 import { resolvePathWithinRoot, tryParseUrl } from '../utils/security';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 export interface FormField {
   name: string;
   type: string;
@@ -27,17 +29,23 @@ export interface DomainFormData {
 // Sensitive field types that get encrypted
 const SENSITIVE_TYPES = ['password'];
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
 /**
  * FormMemoryManager — Remembers every form the user fills in.
- * 
- * Stores form data per domain in ~/.tandem/forms/{domain}.json
+ *
+ * Stores form data per domain in ~/.tandem/forms/{domain}.json.
  * Sensitive fields (type=password) are AES-256-GCM encrypted.
- * Encryption key is stored/generated in ~/.tandem/config.json
  */
 export class FormMemoryManager {
+
+  // === 1. Private state ===
+
   private formsDir: string;
   private encryptionKey: Buffer | null = null;
   private configPath: string;
+
+  // === 2. Constructor ===
 
   constructor() {
     const baseDir = tandemDir();
@@ -51,92 +59,7 @@ export class FormMemoryManager {
     this.initEncryptionKey();
   }
 
-  /** Initialize or load the encryption key from config */
-  private initEncryptionKey(): void {
-    try {
-      let config: Record<string, unknown> = {};
-      if (fs.existsSync(this.configPath)) {
-        config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
-      }
-
-      if (config.formEncryptionKey && typeof config.formEncryptionKey === 'string') {
-        this.encryptionKey = Buffer.from(config.formEncryptionKey, 'hex');
-      } else {
-        // Generate new 256-bit key
-        this.encryptionKey = crypto.randomBytes(32);
-        config.formEncryptionKey = this.encryptionKey.toString('hex');
-        const configDir = path.dirname(this.configPath);
-        if (!fs.existsSync(configDir)) {
-          fs.mkdirSync(configDir, { recursive: true });
-        }
-        fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
-      }
-    } catch {
-      // Fallback: generate ephemeral key (won't persist across restarts)
-      this.encryptionKey = crypto.randomBytes(32);
-    }
-  }
-
-  /** Encrypt a value with AES-256-GCM */
-  private encrypt(plaintext: string): string {
-    if (!this.encryptionKey) return plaintext;
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
-  }
-
-  /** Decrypt a value with AES-256-GCM */
-  private decrypt(ciphertext: string): string {
-    if (!this.encryptionKey) return ciphertext;
-    try {
-      const parts = ciphertext.split(':');
-      if (parts.length !== 3) return ciphertext;
-      const iv = Buffer.from(parts[0], 'hex');
-      const authTag = Buffer.from(parts[1], 'hex');
-      const encrypted = parts[2];
-      const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
-      decipher.setAuthTag(authTag);
-      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return decrypted;
-    } catch {
-      return '[decryption failed]';
-    }
-  }
-
-  /** Extract domain from URL */
-  private getDomain(url: string): string {
-    const parsedUrl = tryParseUrl(url);
-    if (!parsedUrl) {
-      return 'unknown';
-    }
-    return parsedUrl.hostname;
-  }
-
-  /** Sanitize domain for filesystem */
-  private domainToFilename(domain: string): string {
-    return domain.replace(/[^a-zA-Z0-9.-]/g, '_') + '.json';
-  }
-
-  /** Load form data for a domain */
-  private loadDomain(domain: string): DomainFormData | null {
-    const filePath = resolvePathWithinRoot(this.formsDir, this.domainToFilename(domain));
-    if (!fs.existsSync(filePath)) return null;
-    try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    } catch {
-      return null;
-    }
-  }
-
-  /** Save form data for a domain */
-  private saveDomain(data: DomainFormData): void {
-    const filePath = resolvePathWithinRoot(this.formsDir, this.domainToFilename(data.domain));
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-  }
+  // === 4. Public methods ===
 
   /**
    * Record a form submission. Called when a form submit is detected.
@@ -257,5 +180,94 @@ export class FormMemoryManager {
   hasDataForUrl(url: string): boolean {
     const domain = this.getDomain(url);
     return this.loadDomain(domain) !== null;
+  }
+
+  // === 7. Private helpers ===
+
+  /** Initialize or load the encryption key from config */
+  private initEncryptionKey(): void {
+    try {
+      let config: Record<string, unknown> = {};
+      if (fs.existsSync(this.configPath)) {
+        config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
+      }
+
+      if (config.formEncryptionKey && typeof config.formEncryptionKey === 'string') {
+        this.encryptionKey = Buffer.from(config.formEncryptionKey, 'hex');
+      } else {
+        // Generate new 256-bit key
+        this.encryptionKey = crypto.randomBytes(32);
+        config.formEncryptionKey = this.encryptionKey.toString('hex');
+        const configDir = path.dirname(this.configPath);
+        if (!fs.existsSync(configDir)) {
+          fs.mkdirSync(configDir, { recursive: true });
+        }
+        fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+      }
+    } catch {
+      // Fallback: generate ephemeral key (won't persist across restarts)
+      this.encryptionKey = crypto.randomBytes(32);
+    }
+  }
+
+  /** Encrypt a value with AES-256-GCM */
+  private encrypt(plaintext: string): string {
+    if (!this.encryptionKey) return plaintext;
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag().toString('hex');
+    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  }
+
+  /** Decrypt a value with AES-256-GCM */
+  private decrypt(ciphertext: string): string {
+    if (!this.encryptionKey) return ciphertext;
+    try {
+      const parts = ciphertext.split(':');
+      if (parts.length !== 3) return ciphertext;
+      const iv = Buffer.from(parts[0], 'hex');
+      const authTag = Buffer.from(parts[1], 'hex');
+      const encrypted = parts[2];
+      const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+      decipher.setAuthTag(authTag);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch {
+      return '[decryption failed]';
+    }
+  }
+
+  /** Extract domain from URL */
+  private getDomain(url: string): string {
+    const parsedUrl = tryParseUrl(url);
+    if (!parsedUrl) {
+      return 'unknown';
+    }
+    return parsedUrl.hostname;
+  }
+
+  /** Sanitize domain for filesystem */
+  private domainToFilename(domain: string): string {
+    return domain.replace(/[^a-zA-Z0-9.-]/g, '_') + '.json';
+  }
+
+  /** Load form data for a domain */
+  private loadDomain(domain: string): DomainFormData | null {
+    const filePath = resolvePathWithinRoot(this.formsDir, this.domainToFilename(domain));
+    if (!fs.existsSync(filePath)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Save form data for a domain */
+  private saveDomain(data: DomainFormData): void {
+    const filePath = resolvePathWithinRoot(this.formsDir, this.domainToFilename(data.domain));
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   }
 }

@@ -1,14 +1,6 @@
-/**
- * TabLockManager — Prevents multiple agents from controlling the same tab (Phase 5)
- *
- * Simple lock mechanism:
- * - First agent to claim a tab gets the lock
- * - Robin always has priority (can override any lock)
- * - Locks timeout after 60 seconds to prevent abandoned locks
- * - Fail-safe: if lock not acquired, returns clear error (never crashes)
- */
-
 import { EventEmitter } from 'events';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface TabLock {
   tabId: string;
@@ -19,14 +11,26 @@ export interface TabLock {
 
 const DEFAULT_LOCK_TIMEOUT_MS = 60_000; // 60 seconds
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
+/**
+ * TabLockManager — Prevents multiple agents from controlling the same tab.
+ */
 export class TabLockManager extends EventEmitter {
+
+  // === 1. Private state ===
+
   private locks: Map<string, TabLock> = new Map();
   private lockTimeoutMs: number;
+
+  // === 2. Constructor ===
 
   constructor(lockTimeoutMs = DEFAULT_LOCK_TIMEOUT_MS) {
     super();
     this.lockTimeoutMs = lockTimeoutMs;
   }
+
+  // === 4. Public methods ===
 
   /**
    * Try to acquire a lock on a tab for an agent.
@@ -124,6 +128,18 @@ export class TabLockManager extends EventEmitter {
     return released;
   }
 
+  // === 6. Cleanup ===
+
+  /**
+   * Cleanup: release all locks.
+   */
+  destroy(): void {
+    this.locks.clear();
+    this.removeAllListeners();
+  }
+
+  // === 7. Private helpers ===
+
   /**
    * Remove all expired locks.
    */
@@ -135,13 +151,5 @@ export class TabLockManager extends EventEmitter {
         this.emit('lock-expired', { tabId, agentId: lock.agentId });
       }
     }
-  }
-
-  /**
-   * Cleanup: release all locks.
-   */
-  destroy(): void {
-    this.locks.clear();
-    this.removeAllListeners();
   }
 }

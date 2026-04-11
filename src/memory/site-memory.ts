@@ -6,6 +6,8 @@ import { resolvePathWithinRoot, tryParseUrl, urlHasProtocol } from '../utils/sec
 
 const log = createLogger('SiteMemory');
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 export interface SiteVisit {
   url: string;
   title: string;
@@ -40,15 +42,19 @@ export interface SiteData {
   diffs: SiteDiff[];
 }
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
 /**
- * SiteMemoryManager — Remembers every site the AI wingman & human visit.
- * 
- * Stores structured data per domain in ~/.tandem/site-memory/{domain}.json
- * Tracks changes between visits (diff detection).
+ * SiteMemoryManager — Remembers every site the AI wingman and human visit.
  */
 export class SiteMemoryManager {
+
+  // === 1. Private state ===
+
   private memoryDir: string;
   private visitStartTimes: Map<string, number> = new Map();
+
+  // === 2. Constructor ===
 
   constructor() {
     this.memoryDir = tandemDir('site-memory');
@@ -57,37 +63,7 @@ export class SiteMemoryManager {
     }
   }
 
-  /** Extract domain from URL */
-  private getDomain(url: string): string {
-    const parsedUrl = tryParseUrl(url);
-    if (!parsedUrl) {
-      return 'unknown';
-    }
-    return parsedUrl.hostname;
-  }
-
-  /** Sanitize domain for filesystem */
-  private domainToFilename(domain: string): string {
-    return domain.replace(/[^a-zA-Z0-9.-]/g, '_') + '.json';
-  }
-
-  /** Load site data from disk */
-  private loadSite(domain: string): SiteData | null {
-    const filePath = resolvePathWithinRoot(this.memoryDir, this.domainToFilename(domain));
-    if (!fs.existsSync(filePath)) return null;
-    try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    } catch (e) {
-      log.warn('Site memory load failed for', domain + ':', e instanceof Error ? e.message : String(e));
-      return null;
-    }
-  }
-
-  /** Save site data to disk */
-  private saveSite(data: SiteData): void {
-    const filePath = resolvePathWithinRoot(this.memoryDir, this.domainToFilename(data.domain));
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-  }
+  // === 4. Public methods ===
 
   /** Record a page visit start (for time tracking) */
   trackVisitStart(url: string): void {
@@ -193,41 +169,6 @@ export class SiteMemoryManager {
     }
   }
 
-  /** Compute diff between two visits */
-  private computeDiff(prev: SiteVisit, curr: SiteVisit): SiteDiff | null {
-    const prevHeadingsSet = new Set(prev.headings);
-    const currHeadingsSet = new Set(curr.headings);
-
-    const newHeadings = curr.headings.filter(h => !prevHeadingsSet.has(h));
-    const removedHeadings = prev.headings.filter(h => !currHeadingsSet.has(h));
-
-    const titleChanged = prev.title !== curr.title;
-    const descriptionChanged = prev.description !== curr.description;
-    const textPreviewChanged = prev.textPreview !== curr.textPreview;
-    const linksCountDelta = curr.linksCount - prev.linksCount;
-    const formsCountDelta = curr.formsCount - prev.formsCount;
-
-    // Only create diff if something changed
-    if (!titleChanged && !descriptionChanged && newHeadings.length === 0 &&
-        removedHeadings.length === 0 && linksCountDelta === 0 &&
-        formsCountDelta === 0 && !textPreviewChanged) {
-      return null;
-    }
-
-    return {
-      timestamp: Date.now(),
-      changes: {
-        titleChanged,
-        descriptionChanged,
-        newHeadings,
-        removedHeadings,
-        linksCountDelta,
-        formsCountDelta,
-        textPreviewChanged,
-      },
-    };
-  }
-
   /** List all known domains */
   listSites(): { domain: string; lastVisit: number; visitCount: number }[] {
     try {
@@ -299,5 +240,74 @@ export class SiteMemoryManager {
     const site = this.loadSite(domain);
     if (!site || site.visitCount === 0) return 0;
     return Math.round(site.totalTimeMs / site.visitCount);
+  }
+
+  // === 7. Private helpers ===
+
+  /** Extract domain from URL */
+  private getDomain(url: string): string {
+    const parsedUrl = tryParseUrl(url);
+    if (!parsedUrl) {
+      return 'unknown';
+    }
+    return parsedUrl.hostname;
+  }
+
+  /** Sanitize domain for filesystem */
+  private domainToFilename(domain: string): string {
+    return domain.replace(/[^a-zA-Z0-9.-]/g, '_') + '.json';
+  }
+
+  /** Load site data from disk */
+  private loadSite(domain: string): SiteData | null {
+    const filePath = resolvePathWithinRoot(this.memoryDir, this.domainToFilename(domain));
+    if (!fs.existsSync(filePath)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch (e) {
+      log.warn('Site memory load failed for', domain + ':', e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  }
+
+  /** Save site data to disk */
+  private saveSite(data: SiteData): void {
+    const filePath = resolvePathWithinRoot(this.memoryDir, this.domainToFilename(data.domain));
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  }
+
+  /** Compute diff between two visits */
+  private computeDiff(prev: SiteVisit, curr: SiteVisit): SiteDiff | null {
+    const prevHeadingsSet = new Set(prev.headings);
+    const currHeadingsSet = new Set(curr.headings);
+
+    const newHeadings = curr.headings.filter(h => !prevHeadingsSet.has(h));
+    const removedHeadings = prev.headings.filter(h => !currHeadingsSet.has(h));
+
+    const titleChanged = prev.title !== curr.title;
+    const descriptionChanged = prev.description !== curr.description;
+    const textPreviewChanged = prev.textPreview !== curr.textPreview;
+    const linksCountDelta = curr.linksCount - prev.linksCount;
+    const formsCountDelta = curr.formsCount - prev.formsCount;
+
+    // Only create diff if something changed
+    if (!titleChanged && !descriptionChanged && newHeadings.length === 0 &&
+        removedHeadings.length === 0 && linksCountDelta === 0 &&
+        formsCountDelta === 0 && !textPreviewChanged) {
+      return null;
+    }
+
+    return {
+      timestamp: Date.now(),
+      changes: {
+        titleChanged,
+        descriptionChanged,
+        newHeadings,
+        removedHeadings,
+        linksCountDelta,
+        formsCountDelta,
+        textPreviewChanged,
+      },
+    };
   }
 }

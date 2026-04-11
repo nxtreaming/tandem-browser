@@ -8,6 +8,8 @@ const INTERACTIVE_ROLES = new Set([
   'combobox', 'menuitem', 'tab', 'searchbox',
 ]);
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface CDPAXValue {
   value?: string | number | boolean;
 }
@@ -53,6 +55,8 @@ interface RuntimeCallFunctionResponse {
   };
 }
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
 /**
  * SnapshotManager — Provides accessibility tree snapshots via CDP.
  *
@@ -64,40 +68,23 @@ interface RuntimeCallFunctionResponse {
  * attach the debugger directly.
  */
 export class SnapshotManager {
+
+  // === 1. Private state ===
+
   private refMap: RefMap = {};
   private refTargets: Map<string, RefTarget> = new Map();
   private refCounter = 0;
   private devtools: DevToolsManager;
   private subscribedToNavigation = false;
 
+  // === 2. Constructor ===
+
   constructor(devtools: DevToolsManager) {
     this.devtools = devtools;
     this.setupNavigationReset();
   }
 
-  /**
-   * Subscribe to Page.frameNavigated to reset refs on navigation.
-   */
-  private setupNavigationReset(): void {
-    if (this.subscribedToNavigation) return;
-    this.devtools.subscribe({
-      name: 'snapshot-nav-reset',
-      events: ['Page.frameNavigated'],
-      handler: (_method: string, params: Record<string, unknown>) => {
-        // Only reset on top-level navigation (not iframes)
-        const frame = params.frame as Record<string, unknown> | undefined;
-        if (!frame?.parentId) {
-          const targetWcId = this.devtools.getDispatchWebContents()?.id;
-          if (targetWcId) {
-            this.clearRefsForTab(targetWcId);
-          } else {
-            this.clearAllRefs();
-          }
-        }
-      },
-    });
-    this.subscribedToNavigation = true;
-  }
+  // === 4. Public methods ===
 
   /**
    * Get an accessibility tree snapshot of the current page.
@@ -379,6 +366,44 @@ export class SnapshotManager {
     return this.refMap;
   }
 
+  // === 6. Cleanup ===
+
+  /**
+   * Cleanup — called from will-quit handler.
+   */
+  destroy(): void {
+    this.refMap = {};
+    this.refTargets.clear();
+    this.refCounter = 0;
+    this.devtools.unsubscribe('snapshot-nav-reset');
+  }
+
+  // === 7. Private helpers ===
+
+  /**
+   * Subscribe to Page.frameNavigated to reset refs on navigation.
+   */
+  private setupNavigationReset(): void {
+    if (this.subscribedToNavigation) return;
+    this.devtools.subscribe({
+      name: 'snapshot-nav-reset',
+      events: ['Page.frameNavigated'],
+      handler: (_method: string, params: Record<string, unknown>) => {
+        // Only reset on top-level navigation (not iframes)
+        const frame = params.frame as Record<string, unknown> | undefined;
+        if (!frame?.parentId) {
+          const targetWcId = this.devtools.getDispatchWebContents()?.id;
+          if (targetWcId) {
+            this.clearRefsForTab(targetWcId);
+          } else {
+            this.clearAllRefs();
+          }
+        }
+      },
+    });
+    this.subscribedToNavigation = true;
+  }
+
   private clearAllRefs(): void {
     this.refMap = {};
     this.refTargets.clear();
@@ -422,9 +447,7 @@ export class SnapshotManager {
     return wc;
   }
 
-  // ═══════════════════════════════════════════════
-  // Private — Tree building
-  // ═══════════════════════════════════════════════
+  // ── Tree building ──
 
   /**
    * Build a tree structure from CDP's flat AXNode list.
@@ -476,9 +499,7 @@ export class SnapshotManager {
     return [root];
   }
 
-  // ═══════════════════════════════════════════════
-  // Private — Filters
-  // ═══════════════════════════════════════════════
+  // ── Filters ──
 
   /**
    * Filter tree to only include interactive elements and their ancestors.
@@ -598,9 +619,7 @@ export class SnapshotManager {
     return null;
   }
 
-  // ═══════════════════════════════════════════════
-  // Private — Property extraction from CDP AXNodes
-  // ═══════════════════════════════════════════════
+  // ── Property extraction from CDP AXNodes ──
 
   private extractProperty(raw: CDPAXNode, propName: string): string {
     if (propName === 'role' && raw.role) {
@@ -649,9 +668,7 @@ export class SnapshotManager {
     return undefined;
   }
 
-  // ═══════════════════════════════════════════════
-  // Private — Ref assignment & formatting
-  // ═══════════════════════════════════════════════
+  // ── Ref assignment & formatting ──
 
   /**
    * Assign @refs (@e1, @e2, ...) to all nodes in the tree.
@@ -721,9 +738,7 @@ export class SnapshotManager {
     return count;
   }
 
-  // ═══════════════════════════════════════════════
-  // Private — Input helpers
-  // ═══════════════════════════════════════════════
+  // ── Input helpers ──
 
   /**
    * Perform a humanized click at (x, y) using sendInputEvent (Event.isTrusted = true).
@@ -775,15 +790,5 @@ export class SnapshotManager {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Cleanup — called from will-quit handler.
-   */
-  destroy(): void {
-    this.refMap = {};
-    this.refTargets.clear();
-    this.refCounter = 0;
-    this.devtools.unsubscribe('snapshot-nav-reset');
   }
 }

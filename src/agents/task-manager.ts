@@ -16,9 +16,7 @@ import { EventEmitter } from 'events';
 import { tandemDir, ensureDir } from '../utils/paths';
 import { assertSinglePathSegment, hostnameMatches, resolvePathWithinRoot, tryParseUrl } from '../utils/security';
 
-// ═══════════════════════════════════════════════
-// Interfaces
-// ═══════════════════════════════════════════════
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export type RiskLevel = 'none' | 'low' | 'medium' | 'high';
 export type TaskStatus = 'pending' | 'running' | 'paused' | 'waiting-approval' | 'done' | 'failed' | 'cancelled';
@@ -70,9 +68,7 @@ export interface AutonomySettings {
   trustedSites: string[];
 }
 
-// ═══════════════════════════════════════════════
-// Risk assessment
-// ═══════════════════════════════════════════════
+// ── Risk assessment ──
 
 const ACTION_RISK: Record<string, RiskLevel> = {
   'read_page': 'none',
@@ -100,9 +96,7 @@ export function getRiskLevel(actionType: string): RiskLevel {
   return ACTION_RISK[actionType] || 'medium';
 }
 
-// ═══════════════════════════════════════════════
-// TaskManager
-// ═══════════════════════════════════════════════
+// ── Defaults & sanitizers ──
 
 const DEFAULT_AUTONOMY: AutonomySettings = {
   autoApproveRead: true,
@@ -142,11 +136,21 @@ function sanitizeAutonomySettings(raw: unknown, base: AutonomySettings = DEFAULT
   };
 }
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
+/**
+ * TaskManager — Manages AI tasks, approval workflow, risk assessment, and emergency stop.
+ */
 export class TaskManager extends EventEmitter {
+
+  // === 1. Private state ===
+
   private tasksDir: string;
   private activityLog: TaskActivityEntry[] = [];
   private emergencyStopped = false;
   private autonomy: AutonomySettings;
+
+  // === 2. Constructor ===
 
   constructor() {
     super();
@@ -155,25 +159,9 @@ export class TaskManager extends EventEmitter {
     this.activityLog = this.loadActivityLog();
   }
 
+  // === 4. Public methods ===
+
   // ── Autonomy Settings ──
-
-  private loadAutonomySettings(): AutonomySettings {
-    const settingsPath = tandemDir('autonomy-settings.json');
-    try {
-      if (fs.existsSync(settingsPath)) {
-        const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        return sanitizeAutonomySettings(raw);
-      }
-    } catch { /* use defaults */ }
-    return { ...DEFAULT_AUTONOMY };
-  }
-
-  private saveAutonomySettings(): void {
-    const settingsPath = tandemDir('autonomy-settings.json');
-    try {
-      fs.writeFileSync(settingsPath, JSON.stringify(this.autonomy, null, 2));
-    } catch { /* silent */ }
-  }
 
   getAutonomySettings(): AutonomySettings {
     return { ...this.autonomy };
@@ -183,15 +171,6 @@ export class TaskManager extends EventEmitter {
     this.autonomy = sanitizeAutonomySettings(patch, this.autonomy);
     this.saveAutonomySettings();
     return this.getAutonomySettings();
-  }
-
-  private getTaskFilePath(taskId: string): string {
-    const safeTaskId = assertSinglePathSegment(taskId, 'task id');
-    return resolvePathWithinRoot(this.tasksDir, `${safeTaskId}.json`);
-  }
-
-  private isValidStepIndex(task: AITask, stepIndex: number): boolean {
-    return Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < task.steps.length;
   }
 
   // ── Task CRUD ──
@@ -243,16 +222,6 @@ export class TaskManager extends EventEmitter {
       }
     } catch { /* empty */ }
     return tasks.sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  private saveTask(task: AITask): void {
-    task.updatedAt = Date.now();
-    try {
-      fs.writeFileSync(
-        this.getTaskFilePath(task.id),
-        JSON.stringify(task, null, 2)
-      );
-    } catch { /* silent */ }
   }
 
   // ── Approval Logic ──
@@ -474,6 +443,62 @@ export class TaskManager extends EventEmitter {
 
   // ── Activity Log ──
 
+  logActivity(entry: TaskActivityEntry): void {
+    this.activityLog.push(entry);
+    this.saveActivityLog();
+    this.emit('activity', entry);
+  }
+
+  getActivityLog(limit = 50): TaskActivityEntry[] {
+    return this.activityLog.slice(-limit);
+  }
+
+  // === 6. Cleanup ===
+
+  destroy(): void {
+    this.emergencyStop();
+    this.removeAllListeners();
+  }
+
+  // === 7. Private helpers ===
+
+  private loadAutonomySettings(): AutonomySettings {
+    const settingsPath = tandemDir('autonomy-settings.json');
+    try {
+      if (fs.existsSync(settingsPath)) {
+        const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        return sanitizeAutonomySettings(raw);
+      }
+    } catch { /* use defaults */ }
+    return { ...DEFAULT_AUTONOMY };
+  }
+
+  private saveAutonomySettings(): void {
+    const settingsPath = tandemDir('autonomy-settings.json');
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(this.autonomy, null, 2));
+    } catch { /* silent */ }
+  }
+
+  private getTaskFilePath(taskId: string): string {
+    const safeTaskId = assertSinglePathSegment(taskId, 'task id');
+    return resolvePathWithinRoot(this.tasksDir, `${safeTaskId}.json`);
+  }
+
+  private isValidStepIndex(task: AITask, stepIndex: number): boolean {
+    return Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < task.steps.length;
+  }
+
+  private saveTask(task: AITask): void {
+    task.updatedAt = Date.now();
+    try {
+      fs.writeFileSync(
+        this.getTaskFilePath(task.id),
+        JSON.stringify(task, null, 2)
+      );
+    } catch { /* silent */ }
+  }
+
   private loadActivityLog(): TaskActivityEntry[] {
     const logPath = tandemDir('activity-log.json');
     try {
@@ -493,22 +518,5 @@ export class TaskManager extends EventEmitter {
       const trimmed = this.activityLog.slice(-500);
       fs.writeFileSync(logPath, JSON.stringify(trimmed, null, 2));
     } catch { /* silent */ }
-  }
-
-  logActivity(entry: TaskActivityEntry): void {
-    this.activityLog.push(entry);
-    this.saveActivityLog();
-    this.emit('activity', entry);
-  }
-
-  getActivityLog(limit = 50): TaskActivityEntry[] {
-    return this.activityLog.slice(-limit);
-  }
-
-  // ── Cleanup ──
-
-  destroy(): void {
-    this.emergencyStop();
-    this.removeAllListeners();
   }
 }
