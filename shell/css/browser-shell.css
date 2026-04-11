@@ -332,6 +332,21 @@
       flex-shrink: 0;
     }
 
+    .tab .tab-emoji {
+      font-size: 12px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    .tab .tab-emoji.flash {
+      animation: emojiFlash 1s ease-in-out infinite;
+    }
+
+    @keyframes emojiFlash {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
     .tab .tab-favicon {
       width: 14px;
       height: 14px;

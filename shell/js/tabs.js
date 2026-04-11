@@ -89,6 +89,7 @@
       tabEl.innerHTML = `
         <span class="tab-source" title="You controlled">👤</span>
         <span class="group-dot" style="display:none"></span>
+        <span class="tab-emoji" style="display:none"></span>
         <img class="tab-favicon" src="" style="display:none">
         <span class="tab-title">New Tab</span>
         <button class="tab-close" title="Close tab">✕</button>
@@ -345,6 +346,22 @@
       focusTab(tabId) {
         focusRendererTab(tabId);
       },
+
+      setEmoji(tabId, emoji, flash) {
+        const entry = tabs.get(tabId);
+        if (!entry) return;
+        const emojiEl = entry.tabEl.querySelector('.tab-emoji');
+        if (!emojiEl) return;
+        if (emoji) {
+          emojiEl.textContent = emoji;
+          emojiEl.style.display = '';
+          emojiEl.classList.toggle('flash', !!flash);
+        } else {
+          emojiEl.textContent = '';
+          emojiEl.style.display = 'none';
+          emojiEl.classList.remove('flash');
+        }
+      },
     };
 
     window.__tandemRenderer = {
@@ -445,5 +462,11 @@
           }
         });
       }
+
+    if (window.tandem && window.tandem.onTabEmojiChanged) {
+      window.tandem.onTabEmojiChanged((data) => {
+        window.__tandemTabs.setEmoji(data.tabId, data.emoji, data.flash);
+      });
+    }
     })();
 })();

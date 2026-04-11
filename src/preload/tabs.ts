@@ -25,6 +25,11 @@ export function createTabsApi() {
       ipcRenderer.on(IpcChannels.TAB_SOURCE_CHANGED, handler);
       return () => ipcRenderer.removeListener(IpcChannels.TAB_SOURCE_CHANGED, handler);
     },
+    onTabEmojiChanged: (callback: (data: { tabId: string; emoji: string | null; flash: boolean }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { tabId: string; emoji: string | null; flash: boolean }) => callback(data);
+      ipcRenderer.on(IpcChannels.TAB_EMOJI_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IpcChannels.TAB_EMOJI_CHANGED, handler);
+    },
     onOpenUrlInNewTab: (callback: (url: string) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, url: string) => callback(url);
       ipcRenderer.on(IpcChannels.OPEN_URL_IN_NEW_TAB, handler);
