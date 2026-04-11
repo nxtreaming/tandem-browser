@@ -6,6 +6,8 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('LoginManager');
 
+// ─── Types ───
+
 interface LoginState {
   domain: string;
   status: 'logged-in' | 'logged-out' | 'unknown';
@@ -31,12 +33,19 @@ interface DomainConfig {
   loggedOutRules: LoginDetectionRule[];
 }
 
+// ─── Manager ───
+
+/**
+ * LoginManager — Detects and tracks login state across websites.
+ */
 export class LoginManager {
+  // === 1. Private state ===
   private statesFile: string;
   private configFile: string;
   private states: Map<string, LoginState> = new Map();
   private domainConfigs: Map<string, DomainConfig> = new Map();
 
+  // === 2. Constructor ===
   constructor() {
     const authDir = tandemDir('auth');
     if (!fs.existsSync(authDir)) {
@@ -45,11 +54,13 @@ export class LoginManager {
 
     this.statesFile = path.join(authDir, 'login-states.json');
     this.configFile = path.join(authDir, 'domain-configs.json');
-    
+
     this.loadStates();
     this.loadDomainConfigs();
     this.initializeDefaultConfigs();
   }
+
+  // === 4. Public methods ===
 
   /**
    * Get login state for a specific domain
@@ -88,12 +99,12 @@ export class LoginManager {
   async checkCurrentPage(webview: BrowserWindow): Promise<LoginState> {
     const url = webview.webContents.getURL();
     const domain = this.extractDomain(url);
-    
+
     const state = await this.detectLoginState(webview, domain);
-    
+
     this.states.set(domain, state);
     this.saveStates();
-    
+
     return state;
   }
 
@@ -119,32 +130,32 @@ export class LoginManager {
       (() => {
         const url = window.location.href.toLowerCase();
         const title = document.title.toLowerCase();
-        
+
         // URL patterns
         const loginPatterns = [
           '/login', '/signin', '/sign-in', '/auth', '/authenticate',
           '/log-in', '/logon', '/log_in', '/session', '/account/login',
           'login.', 'signin.', 'auth.', 'accounts.'
         ];
-        
+
         if (loginPatterns.some(pattern => url.includes(pattern))) {
           return true;
         }
-        
+
         // Title patterns
         const titlePatterns = ['login', 'sign in', 'log in', 'authenticate'];
         if (titlePatterns.some(pattern => title.includes(pattern))) {
           return true;
         }
-        
+
         // Form detection
         const passwordFields = document.querySelectorAll('input[type="password"]');
         const emailFields = document.querySelectorAll('input[type="email"], input[name*="email"], input[name*="username"], input[name*="user"]');
-        
+
         if (passwordFields.length > 0 && emailFields.length > 0) {
           return true;
         }
-        
+
         // Login form detection by common class names and IDs
         const loginSelectors = [
           'form[class*="login"]', 'form[id*="login"]',
@@ -153,13 +164,13 @@ export class LoginManager {
           '.login-form', '.signin-form', '.auth-form',
           '#login-form', '#signin-form', '#auth-form'
         ];
-        
+
         for (const selector of loginSelectors) {
           if (document.querySelector(selector)) {
             return true;
           }
         }
-        
+
         return false;
       })()
     `);
@@ -170,13 +181,13 @@ export class LoginManager {
    */
   async updateLoginState(domain: string, status: 'logged-in' | 'logged-out', username?: string): Promise<void> {
     const existing = this.states.get(domain) || await this.getLoginState(domain);
-    
+
     existing.status = status;
     existing.lastUpdated = new Date().toISOString();
     existing.username = username;
     existing.detectionMethod = 'manual';
     existing.confidence = 100;
-    
+
     this.states.set(domain, existing);
     this.saveStates();
   }
@@ -191,10 +202,12 @@ export class LoginManager {
     state.lastUpdated = new Date().toISOString();
     state.detectionMethod = 'cleared';
     state.confidence = 0;
-    
+
     this.states.set(domain, state);
     this.saveStates();
   }
+
+  // === 7. Private helpers ===
 
   private async detectLoginState(webview: BrowserWindow, domain: string): Promise<LoginState> {
     const config = this.domainConfigs.get(domain);
@@ -231,7 +244,7 @@ export class LoginManager {
             loggedIn: [],
             loggedOut: []
           };
-          
+
           // Common logged-in indicators
           const loggedInSelectors = [
             'button[class*="logout"]', 'a[href*="logout"]', '.logout',
@@ -241,14 +254,14 @@ export class LoginManager {
             '.account-menu', '.user-dropdown',
             '[class*="dashboard"]', '[href*="dashboard"]'
           ];
-          
+
           for (const selector of loggedInSelectors) {
             const elements = document.querySelectorAll(selector);
             if (elements.length > 0) {
               indicators.loggedIn.push(selector);
             }
           }
-          
+
           // Common logged-out indicators
           const loggedOutSelectors = [
             'button[class*="login"]', 'a[href*="login"]', '.login',
@@ -256,18 +269,18 @@ export class LoginManager {
             'button[class*="sign-in"]', 'a[href*="sign-in"]', '.sign-in',
             'input[type="password"]'
           ];
-          
+
           for (const selector of loggedOutSelectors) {
             const elements = document.querySelectorAll(selector);
             if (elements.length > 0) {
               indicators.loggedOut.push(selector);
             }
           }
-          
+
           // Check for username/email display
           const userNameElements = document.querySelectorAll('[class*="username"], [class*="user-name"], [class*="email"]');
           let username = null;
-          
+
           for (const el of userNameElements) {
             const text = el.textContent?.trim();
             if (text && text.includes('@') && text.length > 5 && text.length < 50) {
@@ -276,7 +289,7 @@ export class LoginManager {
               break;
             }
           }
-          
+
           return {
             loggedIn: indicators.loggedIn,
             loggedOut: indicators.loggedOut,
@@ -295,7 +308,7 @@ export class LoginManager {
       // Determine status
       let status: 'logged-in' | 'logged-out' | 'unknown';
       let confidence: number;
-      
+
       if (loggedInScore > loggedOutScore && loggedInScore >= 20) {
         status = 'logged-in';
         confidence = Math.min(100, (loggedInScore / Math.max(loggedOutScore + loggedInScore, 1)) * 100);
@@ -319,7 +332,7 @@ export class LoginManager {
 
     } catch (error) {
       log.error('Error detecting login state:', error);
-      
+
       return {
         domain,
         status: 'unknown',
@@ -339,16 +352,16 @@ export class LoginManager {
             (() => {
               const elements = document.querySelectorAll('${rule.pattern}');
               const exists = elements.length > 0;
-              
+
               if ('${rule.condition}' === 'exists') return exists;
               if ('${rule.condition}' === 'not-exists') return !exists;
-              
+
               if ('${rule.value}' && elements.length > 0) {
                 const text = Array.from(elements).map(el => el.textContent || el.value || '').join(' ');
                 if ('${rule.condition}' === 'contains') return text.includes('${rule.value}');
                 if ('${rule.condition}' === 'not-contains') return !text.includes('${rule.value}');
               }
-              
+
               return false;
             })()
           `);
@@ -367,10 +380,10 @@ export class LoginManager {
             (() => {
               const text = document.body.textContent || '';
               const contains = text.includes('${rule.pattern}');
-              
+
               if ('${rule.condition}' === 'contains') return contains;
               if ('${rule.condition}' === 'not-contains') return !contains;
-              
+
               return false;
             })()
           `);
@@ -416,7 +429,7 @@ export class LoginManager {
       if (fs.existsSync(this.statesFile)) {
         const data = fs.readFileSync(this.statesFile, 'utf8');
         const states = JSON.parse(data) as LoginState[];
-        
+
         this.states.clear();
         for (const state of states) {
           this.states.set(state.domain, state);
@@ -441,7 +454,7 @@ export class LoginManager {
       if (fs.existsSync(this.configFile)) {
         const data = fs.readFileSync(this.configFile, 'utf8');
         const configs = JSON.parse(data) as DomainConfig[];
-        
+
         this.domainConfigs.clear();
         for (const config of configs) {
           this.domainConfigs.set(config.domain, config);

@@ -7,6 +7,8 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('NetworkInspector');
 
+// ─── Types ───
+
 export interface NetworkRequest {
   id: number;
   url: string;
@@ -93,6 +95,8 @@ export interface HarExport {
   };
 }
 
+// ─── Manager ───
+
 /**
  * NetworkInspector — Logs and analyzes network traffic via RequestDispatcher.
  *
@@ -100,6 +104,7 @@ export interface HarExport {
  * Stores last 1000 requests in memory, flushes per-domain data to ~/.tandem/network/.
  */
 export class NetworkInspector {
+  // === 1. Private state ===
   private requests: NetworkRequest[] = [];
   private pendingRequests: Map<string, Partial<NetworkRequest>> = new Map();
   private counter = 0;
@@ -107,12 +112,15 @@ export class NetworkInspector {
   private networkDir: string;
   private domainStats: Map<string, DomainData> = new Map();
 
+  // === 2. Constructor ===
   constructor() {
     this.networkDir = tandemDir('network');
     if (!fs.existsSync(this.networkDir)) {
       fs.mkdirSync(this.networkDir, { recursive: true });
     }
   }
+
+  // === 3. Dependency setters ===
 
   /** Register as a dispatcher consumer (late registration supported) */
   registerWith(dispatcher: RequestDispatcher): void {
@@ -207,71 +215,7 @@ export class NetworkInspector {
     });
   }
 
-  /** Add a completed request to the log */
-  private addRequest(req: NetworkRequest): void {
-    this.requests.push(req);
-    if (this.requests.length > this.maxRequests) {
-      this.requests = this.requests.slice(-this.maxRequests);
-    }
-
-    // Update domain stats
-    let domainData = this.domainStats.get(req.domain);
-    if (!domainData) {
-      domainData = { domain: req.domain, requests: 0, apis: [], lastSeen: 0 };
-      this.domainStats.set(req.domain, domainData);
-    }
-    domainData.requests++;
-    domainData.lastSeen = req.timestamp;
-
-    // Auto-discover API endpoints
-    if (this.isApiEndpoint(req)) {
-      const apiPath = this.extractApiPath(req.url);
-      if (apiPath && !domainData.apis.includes(apiPath)) {
-        domainData.apis.push(apiPath);
-      }
-    }
-  }
-
-  /** Check if a request looks like an API call */
-  private isApiEndpoint(req: NetworkRequest): boolean {
-    const ct = req.contentType.toLowerCase();
-    const url = req.url.toLowerCase();
-
-    // JSON responses
-    if (ct.includes('application/json')) return true;
-    // Known API path patterns
-    if (url.includes('/api/') || url.includes('/v1/') || url.includes('/v2/') || url.includes('/v3/')) return true;
-    if (url.includes('/graphql')) return true;
-    if (url.includes('/rest/')) return true;
-    // XHR-like endpoints
-    if (ct.includes('application/xml') && !url.endsWith('.xml')) return true;
-
-    return false;
-  }
-
-  /** Extract a normalized API path from a URL */
-  private extractApiPath(url: string): string {
-    try {
-      const parsed = new URL(url);
-      // Remove query params, normalize
-      let p = parsed.pathname;
-      // Replace UUIDs and numeric IDs with placeholders
-      p = p.replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/{uuid}');
-      p = p.replace(/\/\d+/g, '/{id}');
-      return p;
-    } catch {
-      return '';
-    }
-  }
-
-  /** Extract domain from URL */
-  private extractDomain(url: string): string {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return '';
-    }
-  }
+  // === 4. Public methods ===
 
   /** Flush domain data to disk (call on navigation away) */
   flushDomain(domain: string): void {
@@ -371,10 +315,80 @@ export class NetworkInspector {
     this.domainStats.clear();
   }
 
+  // === 6. Cleanup ===
+
   /** Destroy — flush all domains */
   destroy(): void {
     for (const domain of this.domainStats.keys()) {
       this.flushDomain(domain);
+    }
+  }
+
+  // === 7. Private helpers ===
+
+  /** Add a completed request to the log */
+  private addRequest(req: NetworkRequest): void {
+    this.requests.push(req);
+    if (this.requests.length > this.maxRequests) {
+      this.requests = this.requests.slice(-this.maxRequests);
+    }
+
+    // Update domain stats
+    let domainData = this.domainStats.get(req.domain);
+    if (!domainData) {
+      domainData = { domain: req.domain, requests: 0, apis: [], lastSeen: 0 };
+      this.domainStats.set(req.domain, domainData);
+    }
+    domainData.requests++;
+    domainData.lastSeen = req.timestamp;
+
+    // Auto-discover API endpoints
+    if (this.isApiEndpoint(req)) {
+      const apiPath = this.extractApiPath(req.url);
+      if (apiPath && !domainData.apis.includes(apiPath)) {
+        domainData.apis.push(apiPath);
+      }
+    }
+  }
+
+  /** Check if a request looks like an API call */
+  private isApiEndpoint(req: NetworkRequest): boolean {
+    const ct = req.contentType.toLowerCase();
+    const url = req.url.toLowerCase();
+
+    // JSON responses
+    if (ct.includes('application/json')) return true;
+    // Known API path patterns
+    if (url.includes('/api/') || url.includes('/v1/') || url.includes('/v2/') || url.includes('/v3/')) return true;
+    if (url.includes('/graphql')) return true;
+    if (url.includes('/rest/')) return true;
+    // XHR-like endpoints
+    if (ct.includes('application/xml') && !url.endsWith('.xml')) return true;
+
+    return false;
+  }
+
+  /** Extract a normalized API path from a URL */
+  private extractApiPath(url: string): string {
+    try {
+      const parsed = new URL(url);
+      // Remove query params, normalize
+      let p = parsed.pathname;
+      // Replace UUIDs and numeric IDs with placeholders
+      p = p.replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/{uuid}');
+      p = p.replace(/\/\d+/g, '/{id}');
+      return p;
+    } catch {
+      return '';
+    }
+  }
+
+  /** Extract domain from URL */
+  private extractDomain(url: string): string {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return '';
     }
   }
 

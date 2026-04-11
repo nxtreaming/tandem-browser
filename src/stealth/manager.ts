@@ -6,9 +6,11 @@ import { isGoogleAuthUrl } from '../utils/security';
 
 const log = createLogger('StealthManager');
 
+// ─── Manager ───
+
 /**
  * StealthManager — Makes Tandem Browser look like a regular human browser.
- * 
+ *
  * Anti-detection measures:
  * 1. Realistic User-Agent (matches real Chrome)
  * 2. Remove automation indicators
@@ -17,12 +19,14 @@ const log = createLogger('StealthManager');
  * 5. Realistic request headers
  */
 export class StealthManager {
+  // === 1. Private state ===
   private session: Session;
   private partitionSeed: string;
   private readonly originalUserAgent: string;
   private readonly USER_AGENT: string;
   private readonly chromeMajor: string;
 
+  // === 2. Constructor ===
   constructor(session: Session, partition: string = 'persist:tandem') {
     this.session = session;
     // Store the real Electron UA before overwriting — needed for Google auth
@@ -36,6 +40,8 @@ export class StealthManager {
     this.USER_AGENT =
       `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
   }
+
+  // === 4. Public methods ===
 
   /** Apply stealth patches to the Electron session (User-Agent override). */
   async apply(): Promise<void> {
@@ -307,7 +313,7 @@ export class StealthManager {
 
       // Hide webdriver flag
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
-      
+
       // Hide Electron from plugins
       Object.defineProperty(navigator, 'plugins', {
         get: () => [
