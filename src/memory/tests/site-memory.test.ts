@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { WebContents } from 'electron';
 
 vi.mock('fs', async () => {
-  const actual = await vi.importActual('fs') as any;
+  const actual = await vi.importActual('fs') as Record<string, unknown>;
   return {
     ...actual,
     default: {
@@ -210,7 +210,7 @@ describe('SiteMemoryManager', () => {
 
     it('returns domain summaries from disk', () => {
       const siteData = { domain: 'example.com', lastVisit: 3000, visitCount: 5 };
-      vi.mocked(fs.readdirSync).mockReturnValue(['example.com.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['example.com.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(siteData));
 
       const sites = smm.listSites();
@@ -220,7 +220,7 @@ describe('SiteMemoryManager', () => {
     });
 
     it('skips corrupt files', () => {
-      vi.mocked(fs.readdirSync).mockReturnValue(['bad.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['bad.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue('not json');
 
       const sites = smm.listSites();
@@ -271,7 +271,7 @@ describe('SiteMemoryManager', () => {
         }],
         diffs: [],
       };
-      vi.mocked(fs.readdirSync).mockReturnValue(['example.com.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['example.com.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(siteData));
 
       const results = smm.search('searchterm');

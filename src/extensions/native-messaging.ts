@@ -212,8 +212,7 @@ export class NativeMessagingSetup {
 
       try {
         // Try the API at runtime — it may exist even if not in TypeScript defs
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ses = session as any;
+        const ses = session as unknown as Record<string, unknown> & { setNativeMessagingHostDirectory?: (path: string) => void };
         if (typeof ses.setNativeMessagingHostDirectory === 'function') {
           ses.setNativeMessagingHostDirectory(dir.path);
           configured.push(dir.path);

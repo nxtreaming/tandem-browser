@@ -170,7 +170,7 @@ describe('TaskManager', () => {
 
       // Mock getTask to return running task
       const storedJson = JSON.stringify({ ...task, status: 'running', steps: [{ ...task.steps[0], status: 'running' }] });
-      vi.mocked(fs.readdirSync).mockReturnValue([`${task.id}.json`] as any);
+      vi.mocked(fs.readdirSync).mockReturnValue([`${task.id}.json`] as unknown as fs.Dirent[]);
       vi.mocked(fs.readFileSync).mockReturnValue(storedJson);
       vi.mocked(fs.existsSync).mockReturnValue(true);
 

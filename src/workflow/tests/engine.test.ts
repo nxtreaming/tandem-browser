@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { BrowserWindow } from 'electron';
 
 vi.mock('fs', async () => {
-  const actual = await vi.importActual('fs') as any;
+  const actual = await vi.importActual('fs') as Record<string, unknown>;
   return {
     ...actual,
     existsSync: vi.fn().mockReturnValue(false),
@@ -85,7 +85,7 @@ describe('WorkflowEngine', () => {
 
     it('reads and parses workflow JSON files', async () => {
       const workflow = { id: 'w1', name: 'Test', steps: [], createdAt: '2024-01-01', updatedAt: '2024-01-01' };
-      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(workflow));
 
       const workflows = await engine.getWorkflows();
@@ -94,7 +94,7 @@ describe('WorkflowEngine', () => {
     });
 
     it('skips non-json files', async () => {
-      vi.mocked(fs.readdirSync).mockReturnValue(['readme.md' as any, 'w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['readme.md' as unknown as fs.Dirent, 'w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ id: 'w1', name: 'Test', steps: [] }));
 
       const workflows = await engine.getWorkflows();
@@ -145,7 +145,7 @@ describe('WorkflowEngine', () => {
           { id: 's1', type: 'wait', params: { duration: 60000 } }, // long wait
         ], createdAt: '2024-01-01', updatedAt: '2024-01-01',
       };
-      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(workflow));
 
       const webview = createMockWebview();
@@ -181,7 +181,7 @@ describe('WorkflowEngine', () => {
       const workflow = {
         id: 'w1', name: 'Simple', steps: [], createdAt: '2024-01-01', updatedAt: '2024-01-01',
       };
-      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(workflow));
 
       const webview = createMockWebview();
@@ -195,7 +195,7 @@ describe('WorkflowEngine', () => {
         variables: { a: 1 },
         createdAt: '2024-01-01', updatedAt: '2024-01-01',
       };
-      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(workflow));
 
       const webview = createMockWebview();
@@ -221,7 +221,7 @@ describe('WorkflowEngine', () => {
           { id: 'after', type: 'wait', params: { duration: 1 } },
         ], variables: { flag: true }, createdAt: '2024-01-01', updatedAt: '2024-01-01',
       };
-      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as any]);
+      vi.mocked(fs.readdirSync).mockReturnValue(['w1.json' as unknown as fs.Dirent]);
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(workflow));
 
       const webview = createMockWebview();

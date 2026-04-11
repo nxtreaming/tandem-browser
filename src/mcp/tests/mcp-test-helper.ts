@@ -10,8 +10,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 export interface RegisteredTool {
   name: string;
   description: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (params: any) => Promise<any>;
+  handler: (params: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }>;
 }
 
 /**
@@ -43,8 +42,7 @@ export function getHandler(tools: Map<string, RegisteredTool>, name: string) {
 
 /** Assert the standard MCP text response shape. */
 export function expectTextContent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  result: any,
+  result: { content: Array<{ type: string; text?: string }> },
   substring?: string,
 ) {
   expect(result).toHaveProperty('content');
@@ -59,8 +57,7 @@ export function expectTextContent(
 
 /** Assert the standard MCP image response shape. */
 export function expectImageContent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  result: any,
+  result: { content: Array<{ type: string; data?: string; mimeType?: string }> },
   mimeType = 'image/png',
 ) {
   expect(result).toHaveProperty('content');

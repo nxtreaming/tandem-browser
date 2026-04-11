@@ -17,7 +17,7 @@ vi.mock('better-sqlite3', () => {
 });
 
 vi.mock('fs', async () => {
-  const actual = await vi.importActual('fs') as any;
+  const actual = await vi.importActual('fs') as Record<string, unknown>;
   return {
     ...actual,
     default: {
