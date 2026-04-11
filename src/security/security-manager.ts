@@ -21,6 +21,8 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('SecurityManager');
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface SecurityTabState {
   cdpAttached: boolean;
   monitorsInjected: boolean;
@@ -50,7 +52,15 @@ export interface SecurityContainmentIncident {
   evidence: ContainmentEvidence;
 }
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
+/**
+ * SecurityManager — Orchestrates all security subsystems (network shield, guardian, script/content/behavior analysis).
+ */
 export class SecurityManager {
+
+  // === 1. Private state ===
+
   private db: SecurityDB;
   private shield: NetworkShield;
   private guardian: Guardian;
@@ -88,6 +98,8 @@ export class SecurityManager {
   private blocklistUpdateQueued: boolean = false;
   private tabStates: Map<number, SecurityTabState> = new Map();
   onContainmentIncident: ((incident: SecurityContainmentIncident) => void) | null = null;
+
+  // === 2. Constructor ===
 
   constructor() {
     this.db = new SecurityDB();
@@ -164,6 +176,8 @@ export class SecurityManager {
     log.info('Initialized (Phase 1-7)');
   }
 
+  // === 3. Dependency setters ===
+
   /**
    * Initialize SecurityManager with all external dependencies.
    * Consolidates the previously scattered init steps into one call.
@@ -232,6 +246,21 @@ export class SecurityManager {
   }
 
   /**
+   * Initialize the Gatekeeper WebSocket server on the existing HTTP server.
+   * Must be called after the Express server has started listening.
+   */
+  initGatekeeper(httpServer: HttpServer): void {
+    this.gatekeeperWs = new GatekeeperWebSocket(httpServer, this.guardian, this.db);
+    this.guardian.setGatekeeper(this.gatekeeperWs);
+
+    log.info('Phase 4: GatekeeperWebSocket initialized');
+  }
+
+  // === 4. Public methods ===
+
+  // ── Tab lifecycle ──
+
+  /**
    * Called when a tab is attached/focused in DevToolsManager.
    * Enables security CDP domains, injects monitors, starts resource monitoring.
    */
@@ -268,17 +297,6 @@ export class SecurityManager {
     this.devToolsManager?.detachFromTab(wcId);
     this.guardian.releaseWebContentsQuarantine(wcId);
     this.tabStates.delete(wcId);
-  }
-
-  /**
-   * Initialize the Gatekeeper WebSocket server on the existing HTTP server.
-   * Must be called after the Express server has started listening.
-   */
-  initGatekeeper(httpServer: HttpServer): void {
-    this.gatekeeperWs = new GatekeeperWebSocket(httpServer, this.guardian, this.db);
-    this.guardian.setGatekeeper(this.gatekeeperWs);
-
-    log.info('Phase 4: GatekeeperWebSocket initialized');
   }
 
   /**
@@ -365,6 +383,53 @@ export class SecurityManager {
     }
   }
 
+  // ── Public accessors for route handlers (src/security/routes.ts) ──
+
+  /** Get the security event/domain database. */
+  getDb(): SecurityDB { return this.db; }
+  /** Get the domain/URL blocklist shield. */
+  getShield(): NetworkShield { return this.shield; }
+  /** Get the request guardian (mode enforcement, blocking). */
+  getGuardian(): Guardian { return this.guardian; }
+  /** Get the outbound data exfiltration guard. */
+  getOutboundGuard(): OutboundGuard { return this.outboundGuard; }
+  /** Get the CDP-based script analysis guard (null until DevTools attached). */
+  getScriptGuard(): ScriptGuard | null { return this.scriptGuard; }
+  /** Get the page content analyzer (null until DevTools attached). */
+  getContentAnalyzer(): ContentAnalyzer | null { return this.contentAnalyzer; }
+  /** Get the runtime behavior monitor (null until DevTools attached). */
+  getBehaviorMonitor(): BehaviorMonitor | null { return this.behaviorMonitor; }
+  /** Get the DevTools CDP manager reference. */
+  getDevToolsManager(): DevToolsManager | null { return this.devToolsManager; }
+  /** Get the Gatekeeper WebSocket server (null until HTTP server starts). */
+  getGatekeeperWs(): GatekeeperWebSocket | null { return this.gatekeeperWs; }
+  /** Get the threat intelligence correlation engine. */
+  getThreatIntel(): ThreatIntel { return this.threatIntel; }
+  /** Get the blocklist source updater. */
+  getBlocklistUpdater(): BlocklistUpdater { return this.blocklistUpdater; }
+  /** Get the analyzer plugin manager. */
+  getAnalyzerManager(): AnalyzerManager { return this.analyzerManager; }
+  /** Get a snapshot of all containment incidents (most recent first). */
+  getContainmentIncidents(): SecurityContainmentIncident[] { return [...this.containmentIncidents]; }
+
+  // === 6. Cleanup ===
+
+  /** Tear down all security subsystems, clear timers, and close the database. */
+  destroy(): void {
+    if (this.correlationInterval) clearInterval(this.correlationInterval);
+    if (this.blocklistInterval) clearInterval(this.blocklistInterval);
+    this.analyzerManager.destroy().catch(e => log.warn('analyzerManager.destroy failed:', e instanceof Error ? e.message : e));
+    this.gatekeeperWs?.destroy();
+    this.scriptGuard?.destroy();
+    this.behaviorMonitor?.destroy();
+    this.containmentIncidents = [];
+    this.tabStates.clear();
+    this.db.close();
+    log.info('Destroyed');
+  }
+
+  // === 7. Private helpers ===
+
   /**
    * Run event correlation and log any detected threats.
    */
@@ -446,49 +511,6 @@ export class SecurityManager {
         void this.runBlocklistUpdate();
       }
     }
-  }
-
-  // --- Public accessors for route handlers (src/security/routes.ts) ---
-
-  /** Get the security event/domain database. */
-  getDb(): SecurityDB { return this.db; }
-  /** Get the domain/URL blocklist shield. */
-  getShield(): NetworkShield { return this.shield; }
-  /** Get the request guardian (mode enforcement, blocking). */
-  getGuardian(): Guardian { return this.guardian; }
-  /** Get the outbound data exfiltration guard. */
-  getOutboundGuard(): OutboundGuard { return this.outboundGuard; }
-  /** Get the CDP-based script analysis guard (null until DevTools attached). */
-  getScriptGuard(): ScriptGuard | null { return this.scriptGuard; }
-  /** Get the page content analyzer (null until DevTools attached). */
-  getContentAnalyzer(): ContentAnalyzer | null { return this.contentAnalyzer; }
-  /** Get the runtime behavior monitor (null until DevTools attached). */
-  getBehaviorMonitor(): BehaviorMonitor | null { return this.behaviorMonitor; }
-  /** Get the DevTools CDP manager reference. */
-  getDevToolsManager(): DevToolsManager | null { return this.devToolsManager; }
-  /** Get the Gatekeeper WebSocket server (null until HTTP server starts). */
-  getGatekeeperWs(): GatekeeperWebSocket | null { return this.gatekeeperWs; }
-  /** Get the threat intelligence correlation engine. */
-  getThreatIntel(): ThreatIntel { return this.threatIntel; }
-  /** Get the blocklist source updater. */
-  getBlocklistUpdater(): BlocklistUpdater { return this.blocklistUpdater; }
-  /** Get the analyzer plugin manager. */
-  getAnalyzerManager(): AnalyzerManager { return this.analyzerManager; }
-  /** Get a snapshot of all containment incidents (most recent first). */
-  getContainmentIncidents(): SecurityContainmentIncident[] { return [...this.containmentIncidents]; }
-
-  /** Tear down all security subsystems, clear timers, and close the database. */
-  destroy(): void {
-    if (this.correlationInterval) clearInterval(this.correlationInterval);
-    if (this.blocklistInterval) clearInterval(this.blocklistInterval);
-    this.analyzerManager.destroy().catch(e => log.warn('analyzerManager.destroy failed:', e instanceof Error ? e.message : e));
-    this.gatekeeperWs?.destroy();
-    this.scriptGuard?.destroy();
-    this.behaviorMonitor?.destroy();
-    this.containmentIncidents = [];
-    this.tabStates.clear();
-    this.db.close();
-    log.info('Destroyed');
   }
 
   private async handleScriptCriticalDetection(detection: ScriptCriticalDetection): Promise<void> {

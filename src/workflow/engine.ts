@@ -9,6 +9,8 @@ import { assertSinglePathSegment, resolvePathWithinRoot } from '../utils/securit
 
 const log = createLogger('WorkflowEngine');
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type WorkflowVariables = Record<string, unknown>;
 type WorkflowStepResult = unknown;
 
@@ -136,9 +138,19 @@ interface WorkflowExecution {
   }>;
 }
 
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
+/**
+ * WorkflowEngine — Runs multi-step browser automation workflows.
+ */
 export class WorkflowEngine {
+
+  // === 1. Private state ===
+
   private workflowsDir: string;
   private executions: Map<string, WorkflowExecution> = new Map();
+
+  // === 2. Constructor ===
 
   constructor() {
     this.workflowsDir = tandemDir('workflows');
@@ -146,20 +158,7 @@ export class WorkflowEngine {
     this.loadWorkflows();
   }
 
-  private ensureDirectories(): void {
-    if (!fs.existsSync(this.workflowsDir)) {
-      fs.mkdirSync(this.workflowsDir, { recursive: true });
-    }
-  }
-
-  private loadWorkflows(): void {
-    // Load any saved executions if needed
-  }
-
-  private getWorkflowPath(id: string): string {
-    const safeId = assertSinglePathSegment(id, 'workflow id');
-    return resolvePathWithinRoot(this.workflowsDir, `${safeId}.json`);
-  }
+  // === 4. Public methods ===
 
   /**
    * Get all workflow templates
@@ -191,7 +190,7 @@ export class WorkflowEngine {
   async saveWorkflow(workflow: Omit<WorkflowDefinition, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     const id = this.generateId();
     const now = new Date().toISOString();
-    
+
     const workflowDef: WorkflowDefinition = {
       ...workflow,
       id,
@@ -200,9 +199,9 @@ export class WorkflowEngine {
     };
 
     const filepath = this.getWorkflowPath(id);
-    
+
     fs.writeFileSync(filepath, JSON.stringify(workflowDef, null, 2));
-    
+
     return id;
   }
 
@@ -222,7 +221,7 @@ export class WorkflowEngine {
   async runWorkflow(workflowId: string, webview: BrowserWindow, initialVariables: WorkflowVariables = {}): Promise<string> {
     const workflows = await this.getWorkflows();
     const workflow = workflows.find(w => w.id === workflowId);
-    
+
     if (!workflow) {
       throw new Error(`Workflow ${workflowId} not found`);
     }
@@ -275,6 +274,23 @@ export class WorkflowEngine {
     return Array.from(this.executions.values()).filter(e => e.status === 'running');
   }
 
+  // === 7. Private helpers ===
+
+  private ensureDirectories(): void {
+    if (!fs.existsSync(this.workflowsDir)) {
+      fs.mkdirSync(this.workflowsDir, { recursive: true });
+    }
+  }
+
+  private loadWorkflows(): void {
+    // Load any saved executions if needed
+  }
+
+  private getWorkflowPath(id: string): string {
+    const safeId = assertSinglePathSegment(id, 'workflow id');
+    return resolvePathWithinRoot(this.workflowsDir, `${safeId}.json`);
+  }
+
   private async executeWorkflow(execution: WorkflowExecution, workflow: WorkflowDefinition, webview: BrowserWindow): Promise<void> {
     try {
       let stepIndex = execution.currentStep;
@@ -287,7 +303,7 @@ export class WorkflowEngine {
 
         try {
           const result = await this.executeStep(step, execution, webview);
-          
+
           execution.stepResults.push({
             stepId: step.id,
             status: 'completed',
@@ -298,7 +314,7 @@ export class WorkflowEngine {
           // Handle condition step results
           if (step.type === 'condition' && result) {
             const conditionResult = result as ConditionExecutionResult;
-            
+
             if (conditionResult.action === 'goto' && conditionResult.gotoStep) {
               const gotoIndex = workflow.steps.findIndex(s => s.id === conditionResult.gotoStep);
               if (gotoIndex !== -1) {
@@ -401,16 +417,16 @@ export class WorkflowEngine {
 
   private async executeNavigate(step: NavigateStep, webview: BrowserWindow): Promise<void> {
     await webview.webContents.loadURL(step.params.url);
-    
+
     if (step.params.waitForLoad !== false) {
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Navigation timeout')), DEFAULT_TIMEOUT_MS);
-        
+
         webview.webContents.once('did-finish-load', () => {
           clearTimeout(timeout);
           resolve(void 0);
         });
-        
+
         webview.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
           clearTimeout(timeout);
           reject(new Error(`Navigation failed: ${errorDescription}`));
@@ -424,7 +440,7 @@ export class WorkflowEngine {
       // Wait for condition
       const startTime = Date.now();
       const maxWait = step.params.duration || 10000;
-      
+
       while (Date.now() - startTime < maxWait) {
         const conditionMet = await this.checkCondition(step.params, webview);
         if (conditionMet) {
@@ -432,7 +448,7 @@ export class WorkflowEngine {
         }
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
+
       throw new Error(`Wait condition not met within ${maxWait}ms`);
     } else {
       // Simple wait
@@ -469,7 +485,7 @@ export class WorkflowEngine {
 
     // Use humanizedClick for isTrusted: true events via sendInputEvent
     await humanizedClick(webview.webContents, step.params.selector);
-    
+
     if (step.params.waitAfter) {
       await new Promise(resolve => setTimeout(resolve, step.params.waitAfter));
     }
@@ -491,10 +507,10 @@ export class WorkflowEngine {
       (() => {
         const selector = ${JSON.stringify(step.params.selector || 'body')};
         const attribute = ${JSON.stringify(step.params.attribute || '')};
-        
+
         const element = document.querySelector(selector);
         if (!element) return null;
-        
+
         if (attribute) {
           return element.getAttribute(attribute);
         } else {
@@ -511,21 +527,21 @@ export class WorkflowEngine {
   private async executeScreenshot(step: ScreenshotStep, webview: BrowserWindow): Promise<string> {
     const image = await webview.webContents.capturePage();
     const buffer = image.toPNG();
-    
+
     const filename = step.params.filename || `workflow-${Date.now()}.png`;
     const screenshotsDir = tandemDir('screenshots');
-    
+
     if (!fs.existsSync(screenshotsDir)) {
       fs.mkdirSync(screenshotsDir, { recursive: true });
     }
-    
+
     const filepath = path.join(screenshotsDir, filename);
     fs.writeFileSync(filepath, buffer);
-    
+
     if (step.params.saveAs) {
       // Store path in variables
     }
-    
+
     return filepath;
   }
 
@@ -533,7 +549,7 @@ export class WorkflowEngine {
     await webview.webContents.executeJavaScript(`
       const direction = ${JSON.stringify(step.params.direction)};
       const amount = ${JSON.stringify(step.params.amount || 300)};
-      
+
       switch (direction) {
         case 'up':
           window.scrollBy(0, -amount);
@@ -574,7 +590,7 @@ export class WorkflowEngine {
     }
 
     const action = conditionResult ? step.params.onTrue : step.params.onFalse;
-    
+
     return {
       condition: conditionResult,
       action,

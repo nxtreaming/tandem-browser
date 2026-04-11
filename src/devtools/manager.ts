@@ -15,10 +15,14 @@ const log = createLogger('CDP');
 
 export type { CDPSubscriber };
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface AttachedSession {
   messageHandler: (_event: Electron.Event, method: string, params: Record<string, unknown>) => void;
   detachHandler: (_event: Electron.Event, reason: string) => void;
 }
+
+// ─── Manager ─────────────────────────────────────────────────────────────────
 
 /**
  * DevToolsManager — Provides CDP (Chrome DevTools Protocol) access to webview tabs.
@@ -38,6 +42,9 @@ interface AttachedSession {
  *   and our attach() will fail — we handle this gracefully
  */
 export class DevToolsManager {
+
+  // === 1. Private state ===
+
   private tabManager: TabManager;
   private wingmanStream?: WingmanStream;
   private activityTracker?: ActivityTracker;
@@ -55,12 +62,16 @@ export class DevToolsManager {
   // CDP subscriber system (Phase 3: security modules subscribe to events)
   private subscribers: CDPSubscriber[] = [];
 
+  // === 2. Constructor ===
+
   constructor(tabManager: TabManager) {
     this.tabManager = tabManager;
     this.consoleCapture = new ConsoleCapture();
     this.networkCapture = new NetworkCapture(() => this.ensureAttached());
     this.pageInspector = new PageInspector(() => this.ensureAttached());
   }
+
+  // === 3. Dependency setters ===
 
   setWingmanStream(stream: WingmanStream): void {
     this.wingmanStream = stream;
@@ -70,7 +81,9 @@ export class DevToolsManager {
     this.activityTracker = tracker;
   }
 
-  // ═══ CDP Subscriber System (Phase 3) ═══
+  // === 4. Public methods ===
+
+  // ── CDP Subscriber System (Phase 3) ──
 
   /** Register a subscriber to receive specific CDP events */
   subscribe(subscriber: CDPSubscriber): void {
@@ -118,7 +131,7 @@ export class DevToolsManager {
     return this.getAttachedWebContents(this.dispatchWcId);
   }
 
-  // ═══ Lifecycle ═══
+  // ── Lifecycle ──
 
   /**
    * Ensure the debugger is attached to the active tab.
@@ -143,6 +156,188 @@ export class DevToolsManager {
 
     return this.attach(wc, { makePrimary: opts?.makePrimary ?? true });
   }
+
+  detachFromTab(wcId: number, opts?: { skipDebuggerDetach?: boolean }): void {
+    const session = this.attachedSessions.get(wcId);
+    if (!session) return;
+    try {
+      const wc = webContents.fromId(wcId);
+      if (wc && !wc.isDestroyed()) {
+        wc.debugger.removeListener('message', session.messageHandler);
+        wc.debugger.removeListener('detach', session.detachHandler);
+      }
+      if (!opts?.skipDebuggerDetach && wc && !wc.isDestroyed() && wc.debugger.isAttached()) {
+        wc.debugger.detach();
+      }
+    } catch (e) {
+      log.warn('CDP detach error (harmless):', e instanceof Error ? e.message : e);
+    }
+    this.attachedSessions.delete(wcId);
+    if (this.primaryWcId === wcId) {
+      this.primaryWcId = null;
+    }
+  }
+
+  // ── Delegated: Console (→ ConsoleCapture) ──
+
+  getConsoleEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string }): ConsoleEntry[] {
+    return this.consoleCapture.getEntries(opts);
+  }
+
+  getConsoleErrors(limit?: number): ConsoleEntry[] {
+    return this.consoleCapture.getErrors(limit);
+  }
+
+  getConsoleCounts(): Record<string, number> {
+    return this.consoleCapture.getCounts();
+  }
+
+  clearConsole(): void {
+    this.consoleCapture.clear();
+  }
+
+  // ── Delegated: Network (→ NetworkCapture) ──
+
+  getNetworkEntries(opts?: {
+    limit?: number;
+    domain?: string;
+    type?: string;
+    statusMin?: number;
+    statusMax?: number;
+    failed?: boolean;
+    search?: string;
+  }): CDPNetworkEntry[] {
+    return this.networkCapture.getEntries(opts);
+  }
+
+  async getResponseBody(requestId: string): Promise<{ body: string; base64Encoded: boolean } | null> {
+    return this.networkCapture.getResponseBody(requestId);
+  }
+
+  clearNetwork(): void {
+    this.networkCapture.clear();
+  }
+
+  // ── Delegated: Page Inspection (→ PageInspector) ──
+
+  async queryDOM(selector: string, maxResults = 10): Promise<DOMNodeInfo[]> {
+    return this.pageInspector.queryDOM(selector, maxResults);
+  }
+
+  async queryXPath(expression: string, maxResults = 10): Promise<DOMNodeInfo[]> {
+    return this.pageInspector.queryXPath(expression, maxResults);
+  }
+
+  async getStorage(): Promise<StorageData> {
+    return this.pageInspector.getStorage();
+  }
+
+  async getPerformanceMetrics(): Promise<PerformanceMetrics | null> {
+    return this.pageInspector.getPerformanceMetrics();
+  }
+
+  async screenshotElement(selector: string): Promise<Buffer | null> {
+    return this.pageInspector.screenshotElement(selector);
+  }
+
+  // ── Raw CDP ──
+
+  /** Send an arbitrary CDP command (for advanced use) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CDP command payloads are heterogeneous and caller-defined
+  async sendCommand(method: string, params?: Record<string, any>): Promise<any> {
+    const wc = await this.ensureAttached();
+    if (!wc) throw new Error('No active tab or CDP attach failed');
+
+    return wc.debugger.sendCommand(method, params || {});
+  }
+
+  /** Send a CDP command to a specific attached tab without switching the primary target. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CDP command payloads are heterogeneous and caller-defined
+  async sendCommandToTab(wcId: number, method: string, params?: Record<string, any>): Promise<any> {
+    const wc = await this.attachToTab(wcId, { makePrimary: false });
+    if (!wc) throw new Error(`No tab for webContents ${wcId} or CDP attach failed`);
+
+    return wc.debugger.sendCommand(method, params || {});
+  }
+
+  // ── Evaluate ──
+
+  /** Evaluate JavaScript in the page context via CDP (more powerful than executeJS) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime.evaluate returns arbitrary page values
+  async evaluate(expression: string, opts?: { returnByValue?: boolean; awaitPromise?: boolean }): Promise<any> {
+    const wc = await this.ensureAttached();
+    if (!wc) throw new Error('No active tab or CDP attach failed');
+
+    const result = await wc.debugger.sendCommand('Runtime.evaluate', {
+      expression,
+      returnByValue: opts?.returnByValue ?? true,
+      awaitPromise: opts?.awaitPromise ?? true,
+      generatePreview: true,
+    });
+
+    if (result.exceptionDetails) {
+      throw new Error(result.exceptionDetails.text || 'Evaluation failed');
+    }
+
+    return result.result?.value ?? result.result;
+  }
+
+  /** Evaluate JavaScript in a specific tab without switching the primary target. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime.evaluate returns arbitrary page values
+  async evaluateInTab(wcId: number, expression: string, opts?: { returnByValue?: boolean; awaitPromise?: boolean }): Promise<any> {
+    const wc = await this.attachToTab(wcId, { makePrimary: false });
+    if (!wc) throw new Error(`No tab for webContents ${wcId} or CDP attach failed`);
+
+    const result = await wc.debugger.sendCommand('Runtime.evaluate', {
+      expression,
+      returnByValue: opts?.returnByValue ?? true,
+      awaitPromise: opts?.awaitPromise ?? true,
+      generatePreview: true,
+    });
+
+    if (result.exceptionDetails) {
+      throw new Error(result.exceptionDetails.text || 'Evaluation failed');
+    }
+
+    return result.result?.value ?? result.result;
+  }
+
+  // ── Status ──
+
+  getStatus(): {
+    attached: boolean;
+    tabId: string | null;
+    wcId: number | null;
+    console: { entries: number; errors: number; lastId: number };
+    network: { entries: number };
+  } {
+    const tabId = this.primaryWcId ? this.findTabIdByWcId(this.primaryWcId) || null : null;
+    return {
+      attached: this.primaryWcId !== null,
+      tabId,
+      wcId: this.primaryWcId,
+      console: {
+        entries: this.consoleCapture.entryCount,
+        errors: this.consoleCapture.getErrors().length,
+        lastId: this.consoleCapture.lastEntryId,
+      },
+      network: {
+        entries: this.networkCapture.entryCount,
+      },
+    };
+  }
+
+  // === 6. Cleanup ===
+
+  destroy(): void {
+    for (const wcId of Array.from(this.attachedSessions.keys())) {
+      this.detachFromTab(wcId);
+    }
+    this.consoleCapture.clear();
+    this.networkCapture.clear();
+  }
+
+  // === 7. Private helpers ===
 
   private async attach(wc: WebContents, opts?: { makePrimary?: boolean }): Promise<WebContents | null> {
     if (this.attachedSessions.has(wc.id)) {
@@ -287,27 +482,6 @@ export class DevToolsManager {
     }
   }
 
-  detachFromTab(wcId: number, opts?: { skipDebuggerDetach?: boolean }): void {
-    const session = this.attachedSessions.get(wcId);
-    if (!session) return;
-    try {
-      const wc = webContents.fromId(wcId);
-      if (wc && !wc.isDestroyed()) {
-        wc.debugger.removeListener('message', session.messageHandler);
-        wc.debugger.removeListener('detach', session.detachHandler);
-      }
-      if (!opts?.skipDebuggerDetach && wc && !wc.isDestroyed() && wc.debugger.isAttached()) {
-        wc.debugger.detach();
-      }
-    } catch (e) {
-      log.warn('CDP detach error (harmless):', e instanceof Error ? e.message : e);
-    }
-    this.attachedSessions.delete(wcId);
-    if (this.primaryWcId === wcId) {
-      this.primaryWcId = null;
-    }
-  }
-
   /** Route CDP events to sub-captures and subscribers */
   private handleCDPEvent(wcId: number, method: string, params: Record<string, unknown>): void {
     const previousDispatchWcId = this.dispatchWcId;
@@ -349,157 +523,6 @@ export class DevToolsManager {
       this.dispatchWcId = previousDispatchWcId;
     }
   }
-
-  // === Delegated: Console (→ ConsoleCapture) ===
-
-  getConsoleEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string }): ConsoleEntry[] {
-    return this.consoleCapture.getEntries(opts);
-  }
-
-  getConsoleErrors(limit?: number): ConsoleEntry[] {
-    return this.consoleCapture.getErrors(limit);
-  }
-
-  getConsoleCounts(): Record<string, number> {
-    return this.consoleCapture.getCounts();
-  }
-
-  clearConsole(): void {
-    this.consoleCapture.clear();
-  }
-
-  // === Delegated: Network (→ NetworkCapture) ===
-
-  getNetworkEntries(opts?: {
-    limit?: number;
-    domain?: string;
-    type?: string;
-    statusMin?: number;
-    statusMax?: number;
-    failed?: boolean;
-    search?: string;
-  }): CDPNetworkEntry[] {
-    return this.networkCapture.getEntries(opts);
-  }
-
-  async getResponseBody(requestId: string): Promise<{ body: string; base64Encoded: boolean } | null> {
-    return this.networkCapture.getResponseBody(requestId);
-  }
-
-  clearNetwork(): void {
-    this.networkCapture.clear();
-  }
-
-  // === Delegated: Page Inspection (→ PageInspector) ===
-
-  async queryDOM(selector: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    return this.pageInspector.queryDOM(selector, maxResults);
-  }
-
-  async queryXPath(expression: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    return this.pageInspector.queryXPath(expression, maxResults);
-  }
-
-  async getStorage(): Promise<StorageData> {
-    return this.pageInspector.getStorage();
-  }
-
-  async getPerformanceMetrics(): Promise<PerformanceMetrics | null> {
-    return this.pageInspector.getPerformanceMetrics();
-  }
-
-  async screenshotElement(selector: string): Promise<Buffer | null> {
-    return this.pageInspector.screenshotElement(selector);
-  }
-
-  // ═══ Raw CDP ═══
-
-  /** Send an arbitrary CDP command (for advanced use) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CDP command payloads are heterogeneous and caller-defined
-  async sendCommand(method: string, params?: Record<string, any>): Promise<any> {
-    const wc = await this.ensureAttached();
-    if (!wc) throw new Error('No active tab or CDP attach failed');
-
-    return wc.debugger.sendCommand(method, params || {});
-  }
-
-  /** Send a CDP command to a specific attached tab without switching the primary target. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CDP command payloads are heterogeneous and caller-defined
-  async sendCommandToTab(wcId: number, method: string, params?: Record<string, any>): Promise<any> {
-    const wc = await this.attachToTab(wcId, { makePrimary: false });
-    if (!wc) throw new Error(`No tab for webContents ${wcId} or CDP attach failed`);
-
-    return wc.debugger.sendCommand(method, params || {});
-  }
-
-  // ═══ Evaluate ═══
-
-  /** Evaluate JavaScript in the page context via CDP (more powerful than executeJS) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime.evaluate returns arbitrary page values
-  async evaluate(expression: string, opts?: { returnByValue?: boolean; awaitPromise?: boolean }): Promise<any> {
-    const wc = await this.ensureAttached();
-    if (!wc) throw new Error('No active tab or CDP attach failed');
-
-    const result = await wc.debugger.sendCommand('Runtime.evaluate', {
-      expression,
-      returnByValue: opts?.returnByValue ?? true,
-      awaitPromise: opts?.awaitPromise ?? true,
-      generatePreview: true,
-    });
-
-    if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.text || 'Evaluation failed');
-    }
-
-    return result.result?.value ?? result.result;
-  }
-
-  /** Evaluate JavaScript in a specific tab without switching the primary target. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Runtime.evaluate returns arbitrary page values
-  async evaluateInTab(wcId: number, expression: string, opts?: { returnByValue?: boolean; awaitPromise?: boolean }): Promise<any> {
-    const wc = await this.attachToTab(wcId, { makePrimary: false });
-    if (!wc) throw new Error(`No tab for webContents ${wcId} or CDP attach failed`);
-
-    const result = await wc.debugger.sendCommand('Runtime.evaluate', {
-      expression,
-      returnByValue: opts?.returnByValue ?? true,
-      awaitPromise: opts?.awaitPromise ?? true,
-      generatePreview: true,
-    });
-
-    if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.text || 'Evaluation failed');
-    }
-
-    return result.result?.value ?? result.result;
-  }
-
-  // ═══ Status ═══
-
-  getStatus(): {
-    attached: boolean;
-    tabId: string | null;
-    wcId: number | null;
-    console: { entries: number; errors: number; lastId: number };
-    network: { entries: number };
-  } {
-    const tabId = this.primaryWcId ? this.findTabIdByWcId(this.primaryWcId) || null : null;
-    return {
-      attached: this.primaryWcId !== null,
-      tabId,
-      wcId: this.primaryWcId,
-      console: {
-        entries: this.consoleCapture.entryCount,
-        errors: this.consoleCapture.getErrors().length,
-        lastId: this.consoleCapture.lastEntryId,
-      },
-      network: {
-        entries: this.networkCapture.entryCount,
-      },
-    };
-  }
-
-  // ═══ Wingman Vision ═══
 
   private onWingmanBinding(params: { name: string; payload: string }, tabId?: string, wcId?: number): void {
     if (!this.wingmanStream) return;
@@ -554,8 +577,6 @@ export class DevToolsManager {
     }
   }
 
-  // ═══ Helpers ═══
-
   private findTabId(wc: WebContents): string | undefined {
     return this.findTabIdByWcId(wc.id);
   }
@@ -563,15 +584,5 @@ export class DevToolsManager {
   private findTabIdByWcId(wcId: number): string | undefined {
     const tabs = this.tabManager.listTabs();
     return tabs.find(t => t.webContentsId === wcId)?.id;
-  }
-
-  // ═══ Cleanup ═══
-
-  destroy(): void {
-    for (const wcId of Array.from(this.attachedSessions.keys())) {
-      this.detachFromTab(wcId);
-    }
-    this.consoleCapture.clear();
-    this.networkCapture.clear();
   }
 }
