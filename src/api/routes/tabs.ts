@@ -129,7 +129,7 @@ export function registerTabRoutes(router: Router, ctx: RouteContext): void {
   // Set or flash emoji on a tab
   router.post('/tabs/:id/emoji', (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { emoji, flash } = req.body;
       if (!emoji) {
         res.status(400).json({ error: 'emoji required' });
@@ -151,7 +151,7 @@ export function registerTabRoutes(router: Router, ctx: RouteContext): void {
   // Remove emoji from a tab
   router.delete('/tabs/:id/emoji', (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const ok = ctx.tabManager.clearEmoji(id);
       if (!ok) {
         res.status(404).json({ error: 'Tab not found' });
