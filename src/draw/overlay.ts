@@ -11,15 +11,18 @@ import { IpcChannels } from '../shared/ipc-channels';
 
 const log = createLogger('DrawOverlay');
 
+// ─── Manager ───
+
 /**
  * DrawOverlayManager — Manages the transparent annotation canvas overlay.
- * 
+ *
  * CRITICAL: The canvas overlay exists in the Electron SHELL layer,
  * NOT inside the webview. Websites cannot detect it.
- * 
+ *
  * Screenshots are composited: webview capture + canvas annotations → PNG.
  */
 export class DrawOverlayManager {
+  // === 1. Private state ===
   private win: BrowserWindow;
   private configManager: ConfigManager | null;
   private googlePhotosManager: GooglePhotosManager | null;
@@ -28,6 +31,7 @@ export class DrawOverlayManager {
   private picturesDir: string;
   private lastScreenshotPath: string | null = null;
 
+  // === 2. Constructor ===
   constructor(win: BrowserWindow, configManager?: ConfigManager, googlePhotosManager?: GooglePhotosManager) {
     this.win = win;
     this.configManager = configManager ?? null;
@@ -41,6 +45,8 @@ export class DrawOverlayManager {
       fs.mkdirSync(this.picturesDir, { recursive: true });
     }
   }
+
+  // === 4. Public methods ===
 
   /** Toggle draw mode on/off */
   toggleDrawMode(enabled?: boolean): boolean {
@@ -97,50 +103,6 @@ export class DrawOverlayManager {
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
-  }
-
-  /**
-   * URL to slug for filenames.
-   */
-  private urlToSlug(url: string): string {
-    try {
-      const u = new URL(url);
-      return (u.hostname + u.pathname)
-        .replace(/[^a-zA-Z0-9]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '')
-        .substring(0, 60);
-    } catch {
-      return 'unknown';
-    }
-  }
-
-  private persistScreenshotBuffer(
-    buffer: Buffer,
-    currentUrl: string,
-  ): { picturesPath: string; appPath: string; filename: string; base64: string } {
-    const image = nativeImage.createFromBuffer(buffer);
-    clipboard.writeImage(image);
-
-    const slug = this.urlToSlug(currentUrl);
-    const timestamp = Date.now();
-    const filename = `tandem-${slug}-${timestamp}.png`;
-    const picturesPath = path.join(this.picturesDir, filename);
-    fs.writeFileSync(picturesPath, buffer);
-
-    const appPath = path.join(this.screenshotDir, filename);
-    fs.writeFileSync(appPath, buffer);
-    this.lastScreenshotPath = appPath;
-
-    this.importToApplePhotos(picturesPath);
-    void this.importToGooglePhotos(picturesPath);
-
-    return {
-      picturesPath,
-      appPath,
-      filename,
-      base64: buffer.toString('base64'),
-    };
   }
 
   /**
@@ -293,6 +255,76 @@ export class DrawOverlayManager {
     }
   }
 
+  /** Get last annotated screenshot as PNG buffer */
+  getLastScreenshot(): Buffer | null {
+    if (!this.lastScreenshotPath || !fs.existsSync(this.lastScreenshotPath)) {
+      return null;
+    }
+    return fs.readFileSync(this.lastScreenshotPath);
+  }
+
+  /** Get screenshot directory */
+  getScreenshotDir(): string {
+    return this.screenshotDir;
+  }
+
+  /** List recent screenshots */
+  listScreenshots(limit: number = 10): string[] {
+    if (!fs.existsSync(this.screenshotDir)) return [];
+    const files = fs.readdirSync(this.screenshotDir)
+      .filter(f => f.endsWith('.png'))
+      .sort()
+      .reverse()
+      .slice(0, limit);
+    return files.map(f => path.join(this.screenshotDir, f));
+  }
+
+  // === 7. Private helpers ===
+
+  /**
+   * URL to slug for filenames.
+   */
+  private urlToSlug(url: string): string {
+    try {
+      const u = new URL(url);
+      return (u.hostname + u.pathname)
+        .replace(/[^a-zA-Z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 60);
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  private persistScreenshotBuffer(
+    buffer: Buffer,
+    currentUrl: string,
+  ): { picturesPath: string; appPath: string; filename: string; base64: string } {
+    const image = nativeImage.createFromBuffer(buffer);
+    clipboard.writeImage(image);
+
+    const slug = this.urlToSlug(currentUrl);
+    const timestamp = Date.now();
+    const filename = `tandem-${slug}-${timestamp}.png`;
+    const picturesPath = path.join(this.picturesDir, filename);
+    fs.writeFileSync(picturesPath, buffer);
+
+    const appPath = path.join(this.screenshotDir, filename);
+    fs.writeFileSync(appPath, buffer);
+    this.lastScreenshotPath = appPath;
+
+    this.importToApplePhotos(picturesPath);
+    void this.importToGooglePhotos(picturesPath);
+
+    return {
+      picturesPath,
+      appPath,
+      filename,
+      base64: buffer.toString('base64'),
+    };
+  }
+
   /**
    * Import screenshot into Apple Photos via osascript.
    * Runs async in background — never blocks the screenshot flow.
@@ -348,29 +380,5 @@ export class DrawOverlayManager {
     } catch (error) {
       log.warn('📸 Google Photos upload failed:', error instanceof Error ? error.message : String(error));
     }
-  }
-
-  /** Get last annotated screenshot as PNG buffer */
-  getLastScreenshot(): Buffer | null {
-    if (!this.lastScreenshotPath || !fs.existsSync(this.lastScreenshotPath)) {
-      return null;
-    }
-    return fs.readFileSync(this.lastScreenshotPath);
-  }
-
-  /** Get screenshot directory */
-  getScreenshotDir(): string {
-    return this.screenshotDir;
-  }
-
-  /** List recent screenshots */
-  listScreenshots(limit: number = 10): string[] {
-    if (!fs.existsSync(this.screenshotDir)) return [];
-    const files = fs.readdirSync(this.screenshotDir)
-      .filter(f => f.endsWith('.png'))
-      .sort()
-      .reverse()
-      .slice(0, limit);
-    return files.map(f => path.join(this.screenshotDir, f));
   }
 }

@@ -5,6 +5,8 @@ import { hostnameMatches, isSearchEngineResultsUrl, pathnameMatchesPrefix, tryPa
 
 const log = createLogger('ContentExtractor');
 
+// ─── Types ───
+
 interface PageContent {
   url: string;
   title: string;
@@ -72,9 +74,16 @@ interface GenericContent {
   }>;
 }
 
+// ─── Manager ───
+
+/**
+ * ContentExtractor — Extracts structured content from web pages.
+ */
 export class ContentExtractor {
+  // === 1. Private state ===
   private turndown: TurndownService;
 
+  // === 2. Constructor ===
   constructor() {
     this.turndown = new TurndownService({
       headingStyle: 'atx',
@@ -91,17 +100,19 @@ export class ContentExtractor {
     });
   }
 
+  // === 4. Public methods ===
+
   /**
    * Extract structured content from the current page
    */
   async extractCurrentPage(webview: BrowserWindow): Promise<PageContent> {
     const url = webview.webContents.getURL();
     const title = webview.webContents.getTitle();
-    
+
     // Get page content
     const html = await this.getPageHTML(webview);
     const pageType = this.detectPageType(url, html);
-    
+
     let content: ArticleContent | ProfileContent | ProductContent | SearchContent | GenericContent;
     switch (pageType) {
       case 'article':
@@ -135,11 +146,11 @@ export class ContentExtractor {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- HeadlessManager API mismatch (legacy dead code)
   async extractFromURL(url: string, headlessManager: any): Promise<PageContent> {
     const headlessWindow = await headlessManager.openHeadless(url);
-    
+
     try {
       // Wait for page to load
       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
       const result = await this.extractCurrentPage(headlessWindow);
       return result;
     } finally {
@@ -148,6 +159,8 @@ export class ContentExtractor {
       }
     }
   }
+
+  // === 7. Private helpers ===
 
   private async getPageHTML(webview: BrowserWindow): Promise<string> {
     return await webview.webContents.executeJavaScript(`
@@ -202,7 +215,7 @@ export class ContentExtractor {
         const titleEl = document.querySelector('h1') || document.querySelector('.title') || document.querySelector('[class*="title"]');
         const authorEl = document.querySelector('[class*="author"]') || document.querySelector('.byline') || document.querySelector('[rel="author"]');
         const dateEl = document.querySelector('time') || document.querySelector('[class*="date"]') || document.querySelector('[class*="published"]');
-        
+
         // Extract images
         const images = Array.from(document.querySelectorAll('img'))
           .map(img => img.src)
@@ -212,7 +225,7 @@ export class ContentExtractor {
         // Get main content
         const contentEl = article || document.querySelector('.content') || document.querySelector('#content') || document.body;
         let bodyText = '';
-        
+
         if (contentEl) {
           // Remove unwanted elements
           const unwanted = contentEl.querySelectorAll('script, style, nav, header, footer, aside, .advertisement, .ads, .social-share');
@@ -238,7 +251,7 @@ export class ContentExtractor {
           (() => {
             const article = document.querySelector('article') || document.querySelector('[role="main"]') || document.querySelector('main');
             const contentEl = article || document.querySelector('.content') || document.querySelector('#content');
-            
+
             if (contentEl) {
               // Clean up
               const unwanted = contentEl.cloneNode(true).querySelectorAll('script, style, nav, header, footer, aside, .advertisement, .ads, .social-share');
@@ -328,14 +341,14 @@ export class ContentExtractor {
         // Product images
         const images = Array.from(document.querySelectorAll('img'))
           .map(img => img.src)
-          .filter(src => src && !src.includes('data:image') && 
+          .filter(src => src && !src.includes('data:image') &&
                   (src.includes('product') || src.includes('item') || img.alt?.toLowerCase().includes(name?.toLowerCase().split(' ')[0] || '')))
           .slice(0, 5);
 
         // Reviews summary
         const rating = document.querySelector('[class*="rating"]')?.textContent?.trim() ||
                       document.querySelector('.stars')?.textContent?.trim();
-        
+
         const reviewCountEl = document.querySelector('[class*="review-count"], [class*="reviews"]');
         const reviewCount = reviewCountEl ? parseInt(reviewCountEl.textContent.replace(/D/g, '')) : undefined;
 
@@ -387,10 +400,10 @@ export class ContentExtractor {
               const title = titleEl?.textContent?.trim() || '';
               const url = titleEl?.href || '';
               const snippet = el.querySelector('.snippet, [class*="snippet"], [class*="description"]')?.textContent?.trim() || '';
-              
+
               return { title, url, snippet };
             }).filter(result => result.title && result.url);
-            
+
             if (results.length > 0) break;
           }
         }
@@ -408,9 +421,9 @@ export class ContentExtractor {
       (() => {
         const title = document.title;
         const description = document.querySelector('meta[name="description"]')?.getAttribute('content');
-        
+
         // Get main content
-        const main = document.querySelector('main') || document.querySelector('[role="main"]') || 
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') ||
                      document.querySelector('.content') || document.querySelector('#content') ||
                      document.body;
 
@@ -428,8 +441,8 @@ export class ContentExtractor {
 
         // Extract important links
         const links = Array.from(document.querySelectorAll('a'))
-          .filter(a => a.href && a.textContent?.trim() && 
-                      !a.href.startsWith('javascript:') && 
+          .filter(a => a.href && a.textContent?.trim() &&
+                      !a.href.startsWith('javascript:') &&
                       !a.href.startsWith('#'))
           .slice(0, 10)
           .map(a => ({

@@ -13,6 +13,8 @@ const GOOGLE_PHOTOS_UPLOAD_URL = 'https://photoslibrary.googleapis.com/v1/upload
 const GOOGLE_PHOTOS_BATCH_CREATE_URL = 'https://photoslibrary.googleapis.com/v1/mediaItems:batchCreate';
 const GOOGLE_PHOTOS_SCOPE = 'https://www.googleapis.com/auth/photoslibrary.appendonly';
 
+// ─── Types ───
+
 interface GooglePhotosAuth {
   accessToken: string;
   refreshToken?: string;
@@ -68,12 +70,19 @@ function parseJsonFile<T>(filePath: string): T | null {
   }
 }
 
+// ─── Manager ───
+
+/**
+ * GooglePhotosManager — Handles Google Photos OAuth and screenshot uploads.
+ */
 export class GooglePhotosManager {
+  // === 1. Private state ===
   private configManager: ConfigManager;
   private configPath: string;
   private authPath: string;
   private pendingAuth: PendingAuth | null = null;
 
+  // === 2. Constructor ===
   constructor(configManager: ConfigManager) {
     this.configManager = configManager;
     const baseDir = tandemDir();
@@ -83,6 +92,8 @@ export class GooglePhotosManager {
     this.configPath = path.join(baseDir, 'google-photos.json');
     this.authPath = path.join(baseDir, 'google-photos-auth.json');
   }
+
+  // === 4. Public methods ===
 
   /** Get the current connection and configuration status. */
   getStatus(): GooglePhotosStatus {
@@ -272,6 +283,8 @@ export class GooglePhotosManager {
       productUrl: result.mediaItem.productUrl,
     };
   }
+
+  // === 7. Private helpers ===
 
   private getRedirectUri(): string {
     return `http://127.0.0.1:${API_PORT}/google-photos/oauth/callback`;
