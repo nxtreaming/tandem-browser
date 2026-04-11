@@ -207,8 +207,15 @@
           if (id === data.tabId) {
             const sourceEl = entry.tabEl.querySelector('.tab-source');
             if (sourceEl) {
-              sourceEl.textContent = data.source === 'kees' ? '🤖' : '👤';
-              sourceEl.title = data.source === 'kees' ? 'AI controlled — click to take over' : 'You controlled';
+              if (data.source === 'kees') {
+                sourceEl.textContent = '🤖';
+                sourceEl.title = 'AI controlled — click to take over';
+                sourceEl.style.display = '';
+              } else {
+                sourceEl.textContent = '';
+                sourceEl.title = '';
+                sourceEl.style.display = 'none';
+              }
             }
             // Visual indicator: purple bottom border for AI tabs
             if (data.source === 'kees') {

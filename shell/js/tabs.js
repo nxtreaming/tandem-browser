@@ -87,7 +87,7 @@
       tabEl.dataset.tabId = tabId;
       tabEl.draggable = true;
       tabEl.innerHTML = `
-        <span class="tab-source" title="You controlled">👤</span>
+        <span class="tab-source" style="display:none"></span>
         <span class="group-dot" style="display:none"></span>
         <span class="tab-emoji" style="display:none"></span>
         <img class="tab-favicon" src="" style="display:none">
