@@ -89,6 +89,56 @@ describe('PanelManager reply notifications', () => {
     expect(lastTyping[1]).toEqual({ typing: false });
   });
 
+  it('does not fire webhook for wingman messages', async () => {
+    const win = createWindowStub();
+    const manager = new PanelManager(win as never);
+
+    const mockConfigManager = {
+      getConfig: vi.fn().mockReturnValue({
+        webhook: { enabled: true, url: 'http://localhost:9999', notifyOnRobinChat: true },
+      }),
+    };
+    (manager as any).configManager = mockConfigManager;
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response);
+
+    manager.addChatMessage('wingman', 'AI response');
+
+    // Give the async fireWebhook a tick to run
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('fires webhook for user messages when configured', async () => {
+    const win = createWindowStub();
+    const manager = new PanelManager(win as never);
+
+    const mockConfigManager = {
+      getConfig: vi.fn().mockReturnValue({
+        webhook: { enabled: true, url: 'http://localhost:9999', notifyOnRobinChat: true },
+      }),
+    };
+    (manager as any).configManager = mockConfigManager;
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response);
+
+    manager.addChatMessage('user', 'Hello from user');
+
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:9999/hooks/wake',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('Hello from user'),
+      }),
+    );
+    fetchSpy.mockRestore();
+  });
+
   it('falls back to an image message when there is no text', () => {
     const win = createWindowStub();
     const manager = new PanelManager(win as never);
