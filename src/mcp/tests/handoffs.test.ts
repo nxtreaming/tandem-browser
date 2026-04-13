@@ -57,6 +57,34 @@ describe('MCP handoff tools', () => {
     expect(mockApiCall).toHaveBeenCalledWith('GET', '/handoffs?openOnly=true');
   });
 
+  it('lists handoffs with explicit filters and openOnly disabled', async () => {
+    const handler = getHandler(tools, 'tandem_handoff_list');
+    mockApiCall.mockResolvedValueOnce({ handoffs: [{ id: 'handoff-2' }] });
+
+    const result = await handler({
+      openOnly: false,
+      status: 'blocked',
+      workspaceId: 'ws-1',
+      tabId: 'tab-1',
+    });
+
+    expectTextContent(result, 'handoff-2');
+    expect(mockApiCall).toHaveBeenCalledWith(
+      'GET',
+      '/handoffs?status=blocked&workspaceId=ws-1&tabId=tab-1',
+    );
+  });
+
+  it('fetches a single handoff', async () => {
+    const handler = getHandler(tools, 'tandem_handoff_get');
+    mockApiCall.mockResolvedValueOnce({ id: 'handoff-1', status: 'needs_human' });
+
+    const result = await handler({ id: 'handoff-1' });
+
+    expectTextContent(result, '"id": "handoff-1"');
+    expect(mockApiCall).toHaveBeenCalledWith('GET', '/handoffs/handoff-1');
+  });
+
   it('updates a handoff', async () => {
     const handler = getHandler(tools, 'tandem_handoff_update');
     mockApiCall.mockResolvedValueOnce({ id: 'handoff-1', status: 'ready_to_resume' });
@@ -69,6 +97,7 @@ describe('MCP handoff tools', () => {
       status: 'ready_to_resume',
       open: true,
     });
+    expect(mockLogActivity).toHaveBeenCalledWith('handoff_update', 'handoff-1: ready_to_resume');
   });
 
   it('resolves a handoff', async () => {
@@ -80,5 +109,27 @@ describe('MCP handoff tools', () => {
 
     expectTextContent(result, 'Handoff resolved: handoff-1');
     expect(mockApiCall).toHaveBeenCalledWith('POST', '/handoffs/handoff-1/resolve');
+  });
+
+  it('passes notify and action hints through on create', async () => {
+    const handler = getHandler(tools, 'tandem_handoff_create');
+    mockApiCall.mockResolvedValueOnce({ id: 'handoff-9', status: 'waiting_approval', title: 'Need approval' });
+    mockLogActivity.mockResolvedValueOnce(undefined);
+
+    await handler({
+      status: 'waiting_approval',
+      title: 'Need approval',
+      actionLabel: 'Approve action',
+      notify: true,
+      agentId: 'agent-7',
+      workspaceId: 'ws-7',
+    });
+
+    expect(mockApiCall).toHaveBeenCalledWith('POST', '/handoffs', expect.objectContaining({
+      actionLabel: 'Approve action',
+      notify: true,
+      agentId: 'agent-7',
+      workspaceId: 'ws-7',
+    }));
   });
 });

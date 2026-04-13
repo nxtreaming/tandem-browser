@@ -19,6 +19,7 @@ All notable changes to Tandem Browser will be documented in this file.
 - `POST /wingman-alert` now acts as a compatibility wrapper over the handoff system, preserving the old alert behavior while also creating a durable `needs_human` handoff
 - Task approval requests now also appear as structured handoffs instead of only transient approval cards, keeping human attention requests visible in one place
 - Wingman Activity logging now records handoff lifecycle updates so the user can see when a handoff was created, updated, or resolved
+- Handoff metadata normalization now treats blank titles/reasons as defaults, and focused route/MCP/manager tests cover the new handoff lifecycle more thoroughly so coverage matches the added product surface
 
 ## [v0.71.4] - 2026-04-13
 

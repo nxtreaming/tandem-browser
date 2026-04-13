@@ -79,6 +79,11 @@ function trimText(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
+function textOrFallback(value: unknown, fallback: string): string {
+  const trimmed = trimText(value);
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 function nullableText(value: unknown): string | null {
   const trimmed = trimText(value);
   return trimmed.length > 0 ? trimmed : null;
@@ -103,7 +108,7 @@ function sanitizeHandoff(raw: unknown): Handoff | null {
   }
 
   const id = trimText(value.id);
-  const title = trimText(value.title);
+  const title = textOrFallback(value.title, 'Agent handoff');
   if (!id || !title) {
     return null;
   }
@@ -118,7 +123,7 @@ function sanitizeHandoff(raw: unknown): Handoff | null {
     status,
     title,
     body: trimText(value.body),
-    reason: trimText(value.reason, 'human_help'),
+    reason: textOrFallback(value.reason, 'human_help'),
     workspaceId: nullableText(value.workspaceId),
     tabId: nullableText(value.tabId),
     agentId: nullableText(value.agentId),
@@ -203,9 +208,9 @@ export class HandoffManager extends EventEmitter {
     const handoff: Handoff = {
       id: `handoff-${now}-${Math.random().toString(36).slice(2, 8)}`,
       status,
-      title: trimText(input.title, 'Agent handoff'),
+      title: textOrFallback(input.title, 'Agent handoff'),
       body: trimText(input.body),
-      reason: trimText(input.reason, 'human_help'),
+      reason: textOrFallback(input.reason, 'human_help'),
       workspaceId: nullableText(input.workspaceId),
       tabId: nullableText(input.tabId),
       agentId: nullableText(input.agentId),
@@ -241,9 +246,9 @@ export class HandoffManager extends EventEmitter {
     const updated: Handoff = {
       ...existing,
       status: nextStatus,
-      title: patch.title !== undefined ? trimText(patch.title, existing.title) : existing.title,
+      title: patch.title !== undefined ? textOrFallback(patch.title, existing.title) : existing.title,
       body: patch.body !== undefined ? trimText(patch.body) : existing.body,
-      reason: patch.reason !== undefined ? trimText(patch.reason, existing.reason) : existing.reason,
+      reason: patch.reason !== undefined ? textOrFallback(patch.reason, existing.reason) : existing.reason,
       workspaceId: patch.workspaceId !== undefined ? nullableText(patch.workspaceId) : existing.workspaceId,
       tabId: patch.tabId !== undefined ? nullableText(patch.tabId) : existing.tabId,
       agentId: patch.agentId !== undefined ? nullableText(patch.agentId) : existing.agentId,
