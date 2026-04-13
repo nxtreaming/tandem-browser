@@ -167,6 +167,35 @@ describe('misc routes', () => {
   // ═══════════════════════════════════════════════
 
   describe('GET /active-tab/context', () => {
+    it('returns enriched no-tab response with activeWorkspace when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+      vi.mocked(ctx.workspaceManager.getActive).mockReturnValue({
+        id: 'ws-default',
+        name: 'Default',
+        icon: 'home',
+        color: '#4285f4',
+        order: 0,
+        isDefault: true,
+        tabIds: [],
+      } as any);
+      vi.mocked(ctx.workspaceManager.getActiveSource).mockReturnValue('selection');
+
+      const res = await request(app).get('/active-tab/context');
+
+      expect(res.status).toBe(200);
+      expect(res.body.ready).toBe(false);
+      expect(res.body.activeTab).toBeNull();
+      expect(res.body.tabs).toEqual([]);
+      expect(res.body.scope).toEqual({ activeTab: 'tab', tabs: 'global' });
+      expect(res.body.activeWorkspace).toEqual({
+        id: 'ws-default',
+        name: 'Default',
+        derivedFrom: 'selection',
+      });
+      expect(ctx.workspaceManager.reconcileTabState).toHaveBeenCalledWith([], null);
+    });
+
     it('includes workspace and actor context for the focused tab and the global tab list', async () => {
       const activeTab = {
         id: 'tab-1',
