@@ -80,6 +80,22 @@ describe('MCP snapshot tools', () => {
       expectTextContent(result, 'Clicked element @e1 (tab tab-1; confirmed)');
       expect(mockApiCall).toHaveBeenCalledWith('POST', '/snapshot/click', { ref: '@e1' }, undefined);
     });
+
+    it('passes tabId as header when provided', async () => {
+      mockApiCall.mockResolvedValueOnce({ scope: { tabId: 'tab-2' }, completion: { mode: 'confirmed' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      await handler({ ref: '@e1', tabId: 'tab-2' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-2');
+    });
+
+    it('reports dispatched mode when scope has no tabId', async () => {
+      mockApiCall.mockResolvedValueOnce({ scope: {}, completion: { mode: 'dispatched' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      const result = await handler({ ref: '@e5' });
+      expectTextContent(result, 'active scope; dispatched');
+    });
   });
 
   // ── tandem_snapshot_fill ──────────────────────────────────────────
@@ -94,6 +110,14 @@ describe('MCP snapshot tools', () => {
       expectTextContent(result, 'Filled element @e3 with "hello" (tab tab-1; confirmed)');
       expect(mockApiCall).toHaveBeenCalledWith('POST', '/snapshot/fill', { ref: '@e3', value: 'hello' }, undefined);
     });
+
+    it('passes tabId as header when provided', async () => {
+      mockApiCall.mockResolvedValueOnce({ scope: { tabId: 'tab-3' }, completion: { mode: 'confirmed' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      await handler({ ref: '@e3', value: 'data', tabId: 'tab-3' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-3');
+    });
   });
 
   // ── tandem_snapshot_text ──────────────────────────────────────────
@@ -106,6 +130,23 @@ describe('MCP snapshot tools', () => {
 
       const result = await handler({ ref: '@e1' });
       expectTextContent(result, 'Hello World');
+    });
+
+    it('returns empty string when text is null', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      const result = await handler({ ref: '@e1' });
+      const text = expectTextContent(result);
+      expect(text).toBe('');
+    });
+
+    it('passes tabId as header when provided', async () => {
+      mockApiCall.mockResolvedValueOnce({ text: 'Some text' });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      await handler({ ref: '@e1', tabId: 'tab-5' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-5');
     });
   });
 

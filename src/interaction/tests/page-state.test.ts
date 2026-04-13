@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   captureNavigationState,
   confirmSelectorValue,
+  readPageState,
+  readSelectorState,
 } from '../page-state';
 
 function createMockWebContents() {
@@ -12,6 +14,137 @@ function createMockWebContents() {
     getURL: vi.fn().mockReturnValue('https://example.com/start'),
   };
 }
+
+describe('readPageState', () => {
+  it('returns empty state when webContents is destroyed', async () => {
+    const wc = {
+      executeJavaScript: vi.fn(),
+      isDestroyed: vi.fn().mockReturnValue(true),
+      isLoading: vi.fn().mockReturnValue(false),
+      getURL: vi.fn().mockReturnValue('https://example.com'),
+    };
+
+    const state = await readPageState(wc as any);
+
+    expect(state).toEqual({
+      url: '',
+      title: '',
+      loading: false,
+      activeElement: { tagName: null, id: null, name: null, type: null, value: null },
+    });
+    expect(wc.executeJavaScript).not.toHaveBeenCalled();
+  });
+
+  it('returns page state from executeJavaScript result', async () => {
+    const wc = {
+      executeJavaScript: vi.fn().mockResolvedValue({
+        title: 'My Page',
+        activeElement: { tagName: 'INPUT', id: 'email', name: 'email', type: 'text', value: 'test@example.com' },
+      }),
+      isDestroyed: vi.fn().mockReturnValue(false),
+      isLoading: vi.fn().mockReturnValue(false),
+      getURL: vi.fn().mockReturnValue('https://example.com/page'),
+    };
+
+    const state = await readPageState(wc as any);
+
+    expect(state.url).toBe('https://example.com/page');
+    expect(state.title).toBe('My Page');
+    expect(state.loading).toBe(false);
+    expect(state.activeElement.tagName).toBe('INPUT');
+    expect(state.activeElement.value).toBe('test@example.com');
+  });
+
+  it('returns safe fallback state when executeJavaScript throws', async () => {
+    const wc = {
+      executeJavaScript: vi.fn().mockRejectedValue(new Error('renderer crashed')),
+      isDestroyed: vi.fn().mockReturnValue(false),
+      isLoading: vi.fn().mockReturnValue(true),
+      getURL: vi.fn().mockReturnValue('https://example.com/loading'),
+    };
+
+    const state = await readPageState(wc as any);
+
+    expect(state.url).toBe('https://example.com/loading');
+    expect(state.title).toBe('');
+    expect(state.loading).toBe(true);
+    expect(state.activeElement).toEqual({ tagName: null, id: null, name: null, type: null, value: null });
+  });
+
+  it('truncates long active element values to 200 chars', async () => {
+    const longValue = 'x'.repeat(300);
+    const wc = {
+      executeJavaScript: vi.fn().mockResolvedValue({
+        title: 'Test',
+        activeElement: { tagName: 'TEXTAREA', id: 'bio', name: 'bio', type: null, value: longValue },
+      }),
+      isDestroyed: vi.fn().mockReturnValue(false),
+      isLoading: vi.fn().mockReturnValue(false),
+      getURL: vi.fn().mockReturnValue('https://example.com'),
+    };
+
+    const state = await readPageState(wc as any);
+
+    expect(state.activeElement.value).toBe(`${'x'.repeat(200)}...`);
+  });
+});
+
+describe('readSelectorState', () => {
+  it('returns null when webContents is destroyed', async () => {
+    const wc = {
+      executeJavaScript: vi.fn(),
+      isDestroyed: vi.fn().mockReturnValue(true),
+    };
+
+    const result = await readSelectorState(wc as any, '#input');
+
+    expect(result).toBeNull();
+    expect(wc.executeJavaScript).not.toHaveBeenCalled();
+  });
+
+  it('returns element state for a found element', async () => {
+    const elementState = {
+      found: true,
+      tagName: 'INPUT',
+      text: '',
+      value: 'hello',
+      focused: true,
+      connected: true,
+      checked: null,
+      disabled: false,
+    };
+    const wc = {
+      executeJavaScript: vi.fn().mockResolvedValue(elementState),
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const result = await readSelectorState(wc as any, '#input');
+
+    expect(result).toEqual(elementState);
+  });
+
+  it('returns null when element is not found (JS returns null)', async () => {
+    const wc = {
+      executeJavaScript: vi.fn().mockResolvedValue(null),
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const result = await readSelectorState(wc as any, '#missing');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when executeJavaScript throws', async () => {
+    const wc = {
+      executeJavaScript: vi.fn().mockRejectedValue(new Error('crash')),
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const result = await readSelectorState(wc as any, '#input');
+
+    expect(result).toBeNull();
+  });
+});
 
 describe('interaction page-state helpers', () => {
   it('confirmSelectorValue waits for the requested value to appear', async () => {

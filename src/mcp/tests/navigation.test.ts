@@ -180,5 +180,53 @@ describe('MCP navigation tools', () => {
       const result = await handler({ timeout: 5000 });
       expectTextContent(result, 'timed out');
     });
+
+    it('passes tabId header when provided', async () => {
+      mockApiCall.mockResolvedValueOnce({ timeout: false, scope: { tabId: 't9' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      await handler({ tabId: 't9' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('t9');
+    });
+  });
+
+  // ── tandem_press_key_combo ────────────────────────────────────────
+  describe('tandem_press_key_combo', () => {
+    const handler = getHandler(tools, 'tandem_press_key_combo');
+
+    it('sends a key sequence and summarizes result', async () => {
+      mockApiCall.mockResolvedValueOnce({ scope: { tabId: 'tab-10' }, completion: { mode: 'dispatched' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      const result = await handler({ keys: ['Tab', 'Tab', 'Enter'] });
+      expectTextContent(result, 'Pressed keys Tab → Tab → Enter');
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/press-key-combo', { keys: ['Tab', 'Tab', 'Enter'] }, undefined);
+    });
+
+    it('passes tabId header when provided', async () => {
+      mockApiCall.mockResolvedValueOnce({ scope: { tabId: 'tab-11' }, completion: { mode: 'confirmed' } });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      await handler({ keys: ['Enter'], tabId: 'tab-11' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-11');
+    });
+  });
+
+  // ── summarizeActionResult caveat ──────────────────────────────────
+  describe('summarizeActionResult caveat handling', () => {
+    it('includes caveat in the click result summary when present', async () => {
+      mockApiCall.mockResolvedValueOnce({
+        scope: { tabId: 'tab-c' },
+        completion: {
+          mode: 'dispatched',
+          caveat: 'Key dispatch finished, but no immediate focus, value, or navigation change was observable.',
+        },
+      });
+      mockLogActivity.mockResolvedValueOnce(undefined);
+
+      const handler = getHandler(tools, 'tandem_click');
+      const result = await handler({ selector: '#btn' });
+      expectTextContent(result, 'Caveat:');
+    });
   });
 });

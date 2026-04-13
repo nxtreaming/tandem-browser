@@ -418,6 +418,55 @@ describe('Browser Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('No active tab');
     });
+
+    it('returns 404 with scope and completion when humanizedClick reports selector not found', async () => {
+      vi.mocked(humanizedClick).mockResolvedValueOnce({
+        ok: false,
+        completion: { dispatchCompleted: false, effectConfirmed: false, mode: 'dispatched' },
+        error: 'Element not found: #ghost',
+      } as any);
+
+      const res = await request(app)
+        .post('/click')
+        .send({ selector: '#ghost' });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(expect.objectContaining({
+        ok: false,
+        action: 'click',
+        scope: expect.objectContaining({ kind: 'tab' }),
+        target: expect.objectContaining({
+          kind: 'selector',
+          selector: '#ghost',
+          resolved: false,
+        }),
+        error: 'Element not found: #ghost',
+      }));
+    });
+
+    it('passes confirm and waitForNavigation options to humanizedClick', async () => {
+      const res = await request(app)
+        .post('/click')
+        .send({
+          selector: '#btn',
+          confirm: true,
+          waitForNavigation: true,
+          navigationTimeoutMs: 5000,
+          confirmTimeoutMs: 1000,
+        });
+
+      expect(res.status).toBe(200);
+      expect(humanizedClick).toHaveBeenCalledWith(
+        expect.anything(),
+        '#btn',
+        {
+          confirm: true,
+          waitForNavigation: true,
+          timeoutMs: 5000,
+          confirmTimeoutMs: 1000,
+        },
+      );
+    });
   });
 
   // ═══════════════════════════════════════════════
@@ -511,6 +560,31 @@ describe('Browser Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('No active tab');
+    });
+
+    it('returns 404 with scope and completion when humanizedType reports selector not found', async () => {
+      vi.mocked(humanizedType).mockResolvedValueOnce({
+        ok: false,
+        completion: { dispatchCompleted: false, effectConfirmed: false, mode: 'dispatched' },
+        error: 'Element not found: #ghost-input',
+      } as any);
+
+      const res = await request(app)
+        .post('/type')
+        .send({ selector: '#ghost-input', text: 'hello' });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(expect.objectContaining({
+        ok: false,
+        action: 'type',
+        scope: expect.objectContaining({ kind: 'tab' }),
+        target: expect.objectContaining({
+          kind: 'selector',
+          selector: '#ghost-input',
+          resolved: false,
+        }),
+        error: 'Element not found: #ghost-input',
+      }));
     });
   });
 
@@ -942,6 +1016,75 @@ describe('Browser Routes', () => {
         }),
       }));
     });
+
+    it('returns 400 when key is missing', async () => {
+      const res = await request(app).post('/press-key').send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('key required');
+    });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/press-key')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ key: 'Enter' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
+    });
+
+    it('returns 500 when no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValueOnce(null as any);
+
+      const res = await request(app)
+        .post('/press-key')
+        .send({ key: 'Enter' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('No active tab');
+    });
+
+    it('reports dispatched mode when no observable effect', async () => {
+      const mockWC = await ctx.tabManager.getActiveWebContents();
+      const sameState = {
+        title: 'Example',
+        activeElement: { tagName: 'BODY', id: null, name: null, type: null, value: null },
+      };
+      vi.mocked(mockWC!.executeJavaScript)
+        .mockResolvedValueOnce(sameState)
+        .mockResolvedValueOnce(sameState);
+
+      const res = await request(app)
+        .post('/press-key')
+        .send({ key: 'PageDown' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.completion.effectConfirmed).toBe(false);
+      expect(res.body.completion.mode).toBe('dispatched');
+      expect(res.body.completion.caveat).toContain('no immediate');
+    });
+
+    it('includes modifiers in target and calls sendInputEvent', async () => {
+      const mockWC = await ctx.tabManager.getActiveWebContents();
+      const state = {
+        title: 'Example',
+        activeElement: { tagName: 'BODY', id: null, name: null, type: null, value: null },
+      };
+      vi.mocked(mockWC!.executeJavaScript)
+        .mockResolvedValueOnce(state)
+        .mockResolvedValueOnce(state);
+
+      const res = await request(app)
+        .post('/press-key')
+        .send({ key: 'c', modifiers: ['control'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.target.modifiers).toEqual(['control']);
+      expect(mockWC!.sendInputEvent).toHaveBeenCalled();
+    });
   });
 
   describe('POST /press-key-combo', () => {
@@ -980,6 +1123,43 @@ describe('Browser Routes', () => {
           mode: 'confirmed',
         }),
       }));
+    });
+
+    it('returns 400 when keys array is missing', async () => {
+      const res = await request(app).post('/press-key-combo').send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('keys array required');
+    });
+
+    it('returns 400 when keys array is empty', async () => {
+      const res = await request(app).post('/press-key-combo').send({ keys: [] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('keys array required');
+    });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/press-key-combo')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ keys: ['Tab', 'Enter'] });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
+    });
+
+    it('returns 500 when no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValueOnce(null as any);
+
+      const res = await request(app)
+        .post('/press-key-combo')
+        .send({ keys: ['Tab'] });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('No active tab');
     });
   });
 

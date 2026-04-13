@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
 import { registerSnapshotRoutes } from '../../routes/snapshots';
 import { createMockContext, createTestApp } from '../helpers';
 import type { RouteContext } from '../../context';
+import { InteractionTargetNotFoundError } from '../../../interaction/errors';
 
 describe('Snapshot Routes', () => {
   let ctx: RouteContext;
@@ -138,6 +139,18 @@ describe('Snapshot Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('snapshot failed');
     });
+
+    it('returns 404 with ok:false when getSnapshot throws InteractionTargetNotFoundError', async () => {
+      vi.mocked(ctx.snapshotManager.getSnapshot).mockRejectedValueOnce(
+        new InteractionTargetNotFoundError('selector #missing not found'),
+      );
+
+      const res = await request(app).get('/snapshot');
+
+      expect(res.status).toBe(404);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.error).toBe('selector #missing not found');
+    });
   });
 
   // ─── POST /snapshot/click ───────────────────────
@@ -195,6 +208,36 @@ describe('Snapshot Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('click failed');
+    });
+
+    it('returns 404 with ok:false when clickRef throws InteractionTargetNotFoundError', async () => {
+      vi.mocked(ctx.snapshotManager.clickRef).mockRejectedValueOnce(
+        new InteractionTargetNotFoundError('ref @e99 not found'),
+      );
+
+      const res = await request(app)
+        .post('/snapshot/click')
+        .send({ ref: '@e99' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.action).toBe('snapshot.click');
+      expect(res.body.target).toEqual({ kind: 'ref', ref: '@e99', resolved: false });
+      expect(res.body.error).toBe('ref @e99 not found');
+    });
+
+    it('passes confirm and navigation options to clickRef', async () => {
+      const res = await request(app)
+        .post('/snapshot/click')
+        .send({ ref: '@e1', confirm: true, waitForNavigation: true, navigationTimeoutMs: 3000, confirmTimeoutMs: 500 });
+
+      expect(res.status).toBe(200);
+      expect(ctx.snapshotManager.clickRef).toHaveBeenCalledWith('@e1', {
+        confirm: true,
+        waitForNavigation: true,
+        timeoutMs: 3000,
+        confirmTimeoutMs: 500,
+      });
     });
   });
 
@@ -275,6 +318,34 @@ describe('Snapshot Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('fill failed');
     });
+
+    it('returns 404 with ok:false when fillRef throws InteractionTargetNotFoundError', async () => {
+      vi.mocked(ctx.snapshotManager.fillRef).mockRejectedValueOnce(
+        new InteractionTargetNotFoundError('ref @e99 not found'),
+      );
+
+      const res = await request(app)
+        .post('/snapshot/fill')
+        .send({ ref: '@e99', value: 'data' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.action).toBe('snapshot.fill');
+      expect(res.body.target).toEqual({ kind: 'ref', ref: '@e99', resolved: false });
+      expect(res.body.error).toBe('ref @e99 not found');
+    });
+
+    it('passes confirm and confirmTimeoutMs options to fillRef', async () => {
+      const res = await request(app)
+        .post('/snapshot/fill')
+        .send({ ref: '@e2', value: 'hello', confirm: true, confirmTimeoutMs: 800 });
+
+      expect(res.status).toBe(200);
+      expect(ctx.snapshotManager.fillRef).toHaveBeenCalledWith('@e2', 'hello', {
+        confirm: true,
+        confirmTimeoutMs: 800,
+      });
+    });
   });
 
   // ─── GET /snapshot/text ─────────────────────────
@@ -308,6 +379,20 @@ describe('Snapshot Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('text failed');
+    });
+
+    it('returns 404 when getTextRef throws InteractionTargetNotFoundError', async () => {
+      vi.mocked(ctx.snapshotManager.getTextRef).mockRejectedValueOnce(
+        new InteractionTargetNotFoundError('ref @e99 not found'),
+      );
+
+      const res = await request(app)
+        .get('/snapshot/text')
+        .query({ ref: '@e99' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.error).toBe('ref @e99 not found');
     });
   });
 
@@ -380,6 +465,18 @@ describe('Snapshot Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('"by" and "value" required');
+    });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/find')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ by: 'role', value: 'button' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
     });
 
     it('returns 500 when locatorFinder.find throws', async () => {
@@ -485,6 +582,39 @@ describe('Snapshot Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('click boom');
     });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/find/click')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ by: 'text', value: 'Submit' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
+    });
+
+    it('includes role, text, tagName in target when available', async () => {
+      vi.mocked(ctx.locatorFinder.find).mockResolvedValue({
+        found: true,
+        ref: '@e6',
+        role: 'button',
+        text: 'Submit',
+        tagName: 'BUTTON',
+      });
+
+      const res = await request(app)
+        .post('/find/click')
+        .send({ by: 'text', value: 'Submit' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.target).toEqual(expect.objectContaining({
+        role: 'button',
+        text: 'Submit',
+        tagName: 'BUTTON',
+      }));
+    });
   });
 
   // ─── POST /find/fill ───────────────────────────
@@ -576,6 +706,39 @@ describe('Snapshot Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('fill boom');
     });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/find/fill')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ by: 'label', value: 'Email', fillValue: 'test@example.com' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
+    });
+
+    it('includes role, text, tagName in target when available', async () => {
+      vi.mocked(ctx.locatorFinder.find).mockResolvedValue({
+        found: true,
+        ref: '@e8',
+        role: 'textbox',
+        text: 'Email',
+        tagName: 'INPUT',
+      });
+
+      const res = await request(app)
+        .post('/find/fill')
+        .send({ by: 'label', value: 'Email', fillValue: 'user@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.target).toEqual(expect.objectContaining({
+        role: 'textbox',
+        text: 'Email',
+        tagName: 'INPUT',
+      }));
+    });
   });
 
   // ─── POST /find/all ────────────────────────────
@@ -645,6 +808,18 @@ describe('Snapshot Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('findAll failed');
+    });
+
+    it('returns 404 when X-Tab-Id does not match a tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/find/all')
+        .set('X-Tab-Id', 'tab-missing')
+        .send({ by: 'role', value: 'button' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
     });
   });
 });
