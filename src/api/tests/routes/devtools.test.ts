@@ -67,6 +67,44 @@ describe('Devtools Routes', () => {
       expect(ctx.devToolsManager.getStatus).toHaveBeenNthCalledWith(2, { tabId: 'tab-1', wcId: 100 });
     });
 
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/status').set('X-Tab-Id', 'tab-missing');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-missing not found');
+    });
+
+    it('returns scoped status when valid X-Tab-Id header is provided', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([
+        { id: 'tab-2', webContentsId: 202, url: 'https://two.example', title: 'Two', active: false, source: 'wingman', partition: 'persist:tandem' } as any,
+      ]);
+      const managerStatus = { attached: true, tabId: 'tab-2', wcId: 202 };
+      const scopedStatus = { attached: true, tabId: 'tab-2', wcId: 202, console: { entries: 1, errors: 0, lastId: 1 }, network: { entries: 0 } };
+      vi.mocked(ctx.devToolsManager.getStatus)
+        .mockReturnValueOnce(managerStatus as any)
+        .mockReturnValueOnce(scopedStatus as any);
+
+      const res = await request(app).get('/devtools/status').set('X-Tab-Id', 'tab-2');
+
+      expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-2', wcId: 202, source: 'header' });
+    });
+
+    it('returns default empty scoped status when no active tab exists', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+      const managerStatus = { attached: false, tabId: null, wcId: null };
+      vi.mocked(ctx.devToolsManager.getStatus).mockReturnValue(managerStatus as any);
+
+      const res = await request(app).get('/devtools/status');
+
+      expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: null, wcId: null, source: 'active' });
+      expect(res.body.attached).toBe(false);
+      expect(res.body.console).toEqual({ entries: 0, errors: 0, lastId: 0 });
+    });
+
     it('returns 500 when getStatus throws', async () => {
       vi.mocked(ctx.devToolsManager.getStatus).mockImplementation(() => {
         throw new Error('CDP failed');
@@ -139,6 +177,27 @@ describe('Devtools Routes', () => {
       expect(ctx.devToolsManager.getConsoleEntries).toHaveBeenCalledWith(expect.objectContaining({ tabId: 'tab-2' }));
       expect(ctx.devToolsManager.getConsoleCounts).toHaveBeenCalledWith('tab-2');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/console').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns empty entries and zero counts when no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/console');
+
+      expect(res.status).toBe(200);
+      expect(res.body.entries).toEqual([]);
+      expect(res.body.counts).toEqual({ log: 0, info: 0, warn: 0, error: 0, debug: 0 });
+      expect(res.body.total).toBe(0);
+      expect(ctx.devToolsManager.getConsoleEntries).not.toHaveBeenCalled();
+    });
   });
 
   // ─── GET /devtools/console/errors ──────────────────
@@ -167,6 +226,26 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(200);
       expect(ctx.devToolsManager.getConsoleErrors).toHaveBeenCalledWith(10, 'tab-1');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/console/errors').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns empty errors array when no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/console/errors');
+
+      expect(res.status).toBe(200);
+      expect(res.body.errors).toEqual([]);
+      expect(res.body.total).toBe(0);
+      expect(ctx.devToolsManager.getConsoleErrors).not.toHaveBeenCalled();
+    });
   });
 
   // ─── POST /devtools/console/clear ──────────────────
@@ -181,6 +260,36 @@ describe('Devtools Routes', () => {
         scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
       });
       expect(ctx.devToolsManager.clearConsole).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).post('/devtools/console/clear').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).post('/devtools/console/clear');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
+    });
+
+    it('clears a specific background tab when tabId is in body', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([
+        { id: 'tab-2', webContentsId: 202, url: 'https://two.example', title: 'Two', active: false, source: 'wingman', partition: 'persist:tandem' } as any,
+      ]);
+
+      const res = await request(app).post('/devtools/console/clear').send({ tabId: 'tab-2' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-2', wcId: 202, source: 'body' });
+      expect(ctx.devToolsManager.clearConsole).toHaveBeenCalledWith('tab-2');
     });
   });
 
@@ -248,6 +357,26 @@ describe('Devtools Routes', () => {
         expect.objectContaining({ failed: false, tabId: 'tab-1', wcId: 100 }),
       );
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/network').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns empty entries when no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/network');
+
+      expect(res.status).toBe(200);
+      expect(res.body.entries).toEqual([]);
+      expect(res.body.total).toBe(0);
+      expect(ctx.devToolsManager.getNetworkEntries).not.toHaveBeenCalled();
+    });
   });
 
   // ─── GET /devtools/network/:requestId/body ─────────
@@ -276,6 +405,24 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('Response body not available (evicted or streamed)');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/network/req-123/body').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/network/req-123/body');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
+    });
   });
 
   // ─── POST /devtools/network/clear ──────────────────
@@ -290,6 +437,24 @@ describe('Devtools Routes', () => {
         scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
       });
       expect(ctx.devToolsManager.clearNetwork).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).post('/devtools/network/clear').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).post('/devtools/network/clear');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
     });
   });
 
@@ -329,6 +494,29 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('selector required');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/devtools/dom/query')
+        .set('X-Tab-Id', 'tab-gone')
+        .send({ selector: 'div' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app)
+        .post('/devtools/dom/query')
+        .send({ selector: 'div' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
+    });
   });
 
   // ─── POST /devtools/dom/xpath ──────────────────────
@@ -367,6 +555,29 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('expression required');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/devtools/dom/xpath')
+        .set('X-Tab-Id', 'tab-gone')
+        .send({ expression: '//div' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app)
+        .post('/devtools/dom/xpath')
+        .send({ expression: '//div' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
+    });
   });
 
   // ─── GET /devtools/storage ─────────────────────────
@@ -384,6 +595,24 @@ describe('Devtools Routes', () => {
         scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
       });
       expect(ctx.devToolsManager.getStorage).toHaveBeenCalledWith(100);
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/storage').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/storage');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
     });
   });
 
@@ -411,6 +640,24 @@ describe('Devtools Routes', () => {
 
       expect(res.status).toBe(503);
       expect(res.body.error).toBe('No targeted tab or CDP not attached');
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app).get('/devtools/performance').set('X-Tab-Id', 'tab-gone');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app).get('/devtools/performance');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
     });
   });
 
@@ -455,6 +702,29 @@ describe('Devtools Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('expression required');
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/devtools/evaluate')
+        .set('X-Tab-Id', 'tab-gone')
+        .send({ expression: '1+1' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app)
+        .post('/devtools/evaluate')
+        .send({ expression: '1+1' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
     });
 
     it('returns 413 when expression exceeds 1MB', async () => {
@@ -532,6 +802,29 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('method required');
     });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/devtools/cdp')
+        .set('X-Tab-Id', 'tab-gone')
+        .send({ method: 'Page.reload' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app)
+        .post('/devtools/cdp')
+        .send({ method: 'Page.reload' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
+    });
   });
 
   // ─── POST /devtools/screenshot/element ─────────────
@@ -571,6 +864,29 @@ describe('Devtools Routes', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('Element not found or screenshot failed');
+    });
+
+    it('returns 404 when X-Tab-Id header refers to unknown tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([]);
+
+      const res = await request(app)
+        .post('/devtools/screenshot/element')
+        .set('X-Tab-Id', 'tab-gone')
+        .send({ selector: '#hero' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tab tab-gone not found');
+    });
+
+    it('returns 404 when there is no active tab', async () => {
+      vi.mocked(ctx.tabManager.getActiveTab).mockReturnValue(null as any);
+
+      const res = await request(app)
+        .post('/devtools/screenshot/element')
+        .send({ selector: '#hero' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('No active tab');
     });
   });
 

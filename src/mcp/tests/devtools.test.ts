@@ -79,6 +79,77 @@ describe('MCP devtools tools', () => {
       expectTextContent(result);
       expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/console/clear', undefined, undefined);
     });
+
+    it('forwards tabId as X-Tab-Id header', async () => {
+      mockApiCall.mockResolvedValueOnce({ ok: true });
+      await handler({ tabId: 'tab-3' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-3');
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/console/clear', undefined, { 'X-Tab-Id': 'tab-3' });
+    });
+  });
+
+  // ── tandem_devtools_network ───────────────────────────────────────
+  describe('tandem_devtools_network', () => {
+    const handler = getHandler(tools, 'tandem_devtools_network');
+
+    it('returns network entries as JSON', async () => {
+      const data = { entries: [{ url: 'https://api.com/data', method: 'GET' }] };
+      mockApiCall.mockResolvedValueOnce(data);
+
+      const result = await handler({});
+      const text = expectTextContent(result);
+      expect(JSON.parse(text)).toEqual(data);
+      expect(mockApiCall).toHaveBeenCalledWith('GET', '/devtools/network', undefined, undefined);
+    });
+
+    it('builds query string with filters', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+
+      await handler({ domain: 'api.com', type: 'XHR', limit: 50, failed: true });
+      const endpoint = mockApiCall.mock.calls[0][1] as string;
+      expect(endpoint).toContain('domain=api.com');
+      expect(endpoint).toContain('type=XHR');
+      expect(endpoint).toContain('limit=50');
+      expect(endpoint).toContain('failed=true');
+    });
+
+    it('forwards tabId as X-Tab-Id header', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+      await handler({ tabId: 'tab-5' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-5');
+    });
+  });
+
+  // ── tandem_devtools_network_body ──────────────────────────────────
+  describe('tandem_devtools_network_body', () => {
+    const handler = getHandler(tools, 'tandem_devtools_network_body');
+
+    it('returns body for a specific request', async () => {
+      mockApiCall.mockResolvedValueOnce({ body: '{"data": true}' });
+
+      const result = await handler({ requestId: 'req-42' });
+      expectTextContent(result);
+      expect(mockApiCall).toHaveBeenCalledWith('GET', '/devtools/network/req-42/body', undefined, undefined);
+    });
+  });
+
+  // ── tandem_devtools_network_clear ─────────────────────────────────
+  describe('tandem_devtools_network_clear', () => {
+    const handler = getHandler(tools, 'tandem_devtools_network_clear');
+
+    it('clears network log', async () => {
+      mockApiCall.mockResolvedValueOnce({ ok: true });
+      const result = await handler({});
+      expectTextContent(result);
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/network/clear', undefined, undefined);
+    });
+
+    it('forwards tabId as X-Tab-Id header', async () => {
+      mockApiCall.mockResolvedValueOnce({ ok: true });
+      await handler({ tabId: 'tab-4' });
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-4');
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/network/clear', undefined, { 'X-Tab-Id': 'tab-4' });
+    });
   });
 
   // ── tandem_devtools_evaluate ──────────────────────────────────────

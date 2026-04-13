@@ -77,6 +77,23 @@ describe('NetworkInspector', () => {
     expect(har.log.pages[0].title).toContain('api.example.com');
   });
 
+  it('HAR page title includes tab scope label when tabId is provided', () => {
+    mut.requests = [createRequest({ tabId: 'tab-1' })];
+    const har = inspector.toHar({ tabId: 'tab-1' });
+    expect(har.log.pages[0].title).toContain('tab tab-1');
+  });
+
+  it('HAR page title includes webContents scope when only wcId is provided', () => {
+    mut.requests = [createRequest({ wcId: 42 })];
+    const har = inspector.toHar({ wcId: 42 });
+    expect(har.log.pages[0].title).toContain('webContents 42');
+  });
+
+  it('HAR page title says active tab when no scope is provided', () => {
+    const har = inspector.toHar();
+    expect(har.log.pages[0].title).toContain('active tab');
+  });
+
   it('HAR export with empty requests returns empty entries', () => {
     const har = inspector.toHar();
     expect(har.log.entries).toHaveLength(0);
@@ -135,6 +152,19 @@ describe('NetworkInspector', () => {
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0].id).toBe(1);
+  });
+
+  it('getLog filters by wcId', () => {
+    mut.requests = [
+      createRequest({ id: 1, domain: 'a.com', wcId: 101 }),
+      createRequest({ id: 2, domain: 'a.com', wcId: 202 }),
+      createRequest({ id: 3, domain: 'b.com', wcId: 101 }),
+    ];
+
+    const filtered = inspector.getLog({ limit: 100, wcId: 101 });
+
+    expect(filtered).toHaveLength(2);
+    expect(filtered.every(r => r.wcId === 101)).toBe(true);
   });
 
   // ─── getDomains ───
@@ -216,6 +246,18 @@ describe('NetworkInspector', () => {
     expect(inspector.getDomains()).toEqual([
       expect.objectContaining({ domain: 'b.com', requests: 1 }),
     ]);
+  });
+
+  // ─── setTabIdResolver ───
+
+  it('setTabIdResolver stores a resolver that can be invoked', () => {
+    const resolver = (wcId: number) => wcId === 99 ? 'tab-99' : null;
+    inspector.setTabIdResolver(resolver);
+    // Verify the resolver is stored by accessing internal state
+    const internal = inspector as unknown as { tabIdResolver?: (wcId: number) => string | null };
+    expect(internal.tabIdResolver).toBe(resolver);
+    expect(internal.tabIdResolver!(99)).toBe('tab-99');
+    expect(internal.tabIdResolver!(1)).toBeNull();
   });
 
   // ─── addRequest & sliding window ───
