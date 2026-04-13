@@ -168,6 +168,7 @@ describe('WorkspaceManager', () => {
       const result = wm.switch(ws.id);
       expect(result.id).toBe(ws.id);
       expect(wm.getActiveId()).toBe(ws.id);
+      expect(wm.getActiveSource()).toBe('selection');
     });
 
     it('throws for nonexistent workspace', () => {
@@ -270,6 +271,67 @@ describe('WorkspaceManager', () => {
     });
   });
 
+  describe('reconcileTabState', () => {
+    it('removes stale and duplicate tab IDs, assigns unowned tabs to default, and syncs active workspace to the focused tab', () => {
+      const wm = createManager();
+      const wsA = wm.create({ name: 'Agent A' });
+      const wsB = wm.create({ name: 'Agent B' });
+      const workspaces = (wm as any).workspaces as Map<string, { tabIds: number[] }>;
+      const defaultWs = wm.list().find(w => w.isDefault)!;
+
+      workspaces.get(defaultWs.id)!.tabIds = [1, 1, 999];
+      workspaces.get(wsA.id)!.tabIds = [1, 2];
+      workspaces.get(wsB.id)!.tabIds = [];
+
+      const result = wm.reconcileTabState([1, 2, 3], 2);
+
+      expect(result).toEqual({ changed: true, activeId: wsA.id });
+      expect(workspaces.get(defaultWs.id)!.tabIds).toEqual([1, 3]);
+      expect(workspaces.get(wsA.id)!.tabIds).toEqual([2]);
+      expect(workspaces.get(wsB.id)!.tabIds).toEqual([]);
+      expect(wm.getActiveId()).toBe(wsA.id);
+    });
+
+    it('does not emit workspace-switched notifications for read-path reconciliation unless explicitly requested', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Agent A' });
+      const mockSend = vi.fn();
+      const mockWin = {
+        isDestroyed: vi.fn().mockReturnValue(false),
+        webContents: { send: mockSend, isDestroyed: vi.fn().mockReturnValue(false) },
+      } as any;
+      wm.setMainWindow(mockWin);
+
+      const workspaces = (wm as any).workspaces as Map<string, { tabIds: number[] }>;
+      const defaultWs = wm.list().find(w => w.isDefault)!;
+      workspaces.get(defaultWs.id)!.tabIds = [1];
+      workspaces.get(ws.id)!.tabIds = [2];
+
+      wm.reconcileTabState([1, 2], 2);
+      expect(mockSend).not.toHaveBeenCalled();
+
+      wm.reconcileTabState([1, 2], 1, { notify: true });
+      expect(mockSend).toHaveBeenCalledWith('workspace-switched', expect.objectContaining({ id: defaultWs.id }));
+    });
+
+    it('preserves an explicitly selected empty workspace until focus actually changes', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Empty' });
+
+      wm.switch(ws.id);
+      expect(wm.getActiveId()).toBe(ws.id);
+      expect(wm.getActiveSource()).toBe('selection');
+
+      wm.reconcileTabState([1], 1);
+      expect(wm.getActiveId()).toBe(ws.id);
+      expect(wm.getActiveSource()).toBe('selection');
+
+      wm.reconcileTabState([1], 1, { followFocusedTab: true });
+      expect(wm.getActiveId()).toBe(wm.list().find(workspace => workspace.isDefault)!.id);
+      expect(wm.getActiveSource()).toBe('focused-tab');
+    });
+  });
+
   describe('list', () => {
     it('returns workspaces sorted by order', () => {
       const wm = createManager();
@@ -279,6 +341,142 @@ describe('WorkspaceManager', () => {
       expect(list[0].name).toBe('Default');
       expect(list[1].name).toBe('B');
       expect(list[2].name).toBe('A');
+    });
+  });
+
+  describe('setTabStateResolvers', () => {
+    it('reconciles immediately using the provided resolvers', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Agent' });
+      const defaultWs = wm.list().find(w => w.isDefault)!;
+
+      // Pre-assign tabs manually
+      const workspaces = (wm as any).workspaces as Map<string, { tabIds: number[] }>;
+      workspaces.get(defaultWs.id)!.tabIds = [];
+      workspaces.get(ws.id)!.tabIds = [10];
+
+      wm.setTabStateResolvers({
+        listTrackedTabIds: () => [10, 20],
+        getActiveTabId: () => 10,
+      });
+
+      // Tab 20 was unowned, should now be assigned to default workspace
+      expect(defaultWs.tabIds).toContain(20);
+      // Active workspace should follow the focused tab (tab 10 is in ws)
+      expect(wm.getActiveId()).toBe(ws.id);
+    });
+
+    it('handles null resolvers gracefully', () => {
+      const wm = createManager();
+      expect(() => wm.setTabStateResolvers({
+        listTrackedTabIds: null,
+        getActiveTabId: null,
+      })).not.toThrow();
+    });
+  });
+
+  describe('reconcileWithRuntimeState', () => {
+    it('uses runtime resolvers when set', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Work' });
+      const workspaces = (wm as any).workspaces as Map<string, { tabIds: number[] }>;
+      workspaces.get(ws.id)!.tabIds = [5];
+
+      wm.setTabStateResolvers({
+        listTrackedTabIds: () => [5],
+        getActiveTabId: () => 5,
+      });
+
+      const result = wm.reconcileWithRuntimeState();
+      expect(result.activeId).toBe(ws.id);
+    });
+
+    it('is a no-op (returns false/current id) when called during an active reconciliation (reentrancy guard)', () => {
+      const wm = createManager();
+      let innerResult: { changed: boolean; activeId: string } | undefined;
+
+      // Simulate reentrancy by calling reconcileWithRuntimeState inside the listTrackedTabIds resolver
+      wm.setTabStateResolvers({
+        listTrackedTabIds: () => {
+          // This inner call should hit the reentrancy guard
+          innerResult = (wm as any).reconcileWithRuntimeState();
+          return [];
+        },
+        getActiveTabId: () => null,
+      });
+
+      wm.reconcileWithRuntimeState();
+      // The inner call should have returned early without changing anything
+      expect(innerResult).toEqual({ changed: false, activeId: expect.any(String) });
+    });
+
+    it('returns focused-tab as active source when selectionPinned is false', () => {
+      const wm = createManager();
+      expect(wm.getActiveSource()).toBe('focused-tab');
+    });
+
+    it('returns selection as active source after an explicit switch', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Pinned' });
+      wm.switch(ws.id);
+      expect(wm.getActiveSource()).toBe('selection');
+    });
+  });
+
+  describe('assignTab duplicate prevention', () => {
+    it('does not add duplicate tab IDs to a workspace', () => {
+      const wm = createManager();
+      wm.assignTab(55);
+      wm.assignTab(55); // second call should be a no-op
+      const active = wm.getActive();
+      expect(active.tabIds.filter(id => id === 55)).toHaveLength(1);
+    });
+  });
+
+  describe('moveTab duplicate prevention', () => {
+    it('does not add a tab ID to the target workspace if it is already there', () => {
+      const wm = createManager();
+      wm.assignTab(66);
+      const ws2 = wm.create({ name: 'Target' });
+      wm.moveTab(66, ws2.id);
+      wm.moveTab(66, ws2.id); // second move should be idempotent
+      expect(ws2.tabIds.filter(id => id === 66)).toHaveLength(1);
+    });
+  });
+
+  describe('reconcileTabState — additional edge cases', () => {
+    it('returns changed:false when nothing needs reconciliation', () => {
+      const wm = createManager();
+      wm.assignTab(77);
+      const defaultWs = wm.list().find(w => w.isDefault)!;
+
+      const result = wm.reconcileTabState([77], 77);
+      expect(result.changed).toBe(false);
+      expect(result.activeId).toBe(defaultWs.id);
+    });
+
+    it('handles null tabIds gracefully (no membership change)', () => {
+      const wm = createManager();
+      wm.assignTab(88);
+      const before = wm.getActiveId();
+
+      const result = wm.reconcileTabState(null, null);
+      expect(result.activeId).toBe(before);
+    });
+
+    it('resolveActiveWorkspaceId falls back to default when activeId workspace no longer exists', () => {
+      const wm = createManager();
+      const ws = wm.create({ name: 'Transient' });
+      wm.switch(ws.id);
+
+      // Manually remove the workspace without going through remove() to bypass guards
+      const workspacesMap = (wm as any).workspaces as Map<string, unknown>;
+      workspacesMap.delete(ws.id);
+
+      // Reconcile should detect the invalid activeId and fall back to default
+      const result = wm.reconcileTabState([], null);
+      const defaultWs = Array.from(workspacesMap.values()).find((w: any) => w.isDefault) as any;
+      expect(result.activeId).toBe(defaultWs.id);
     });
   });
 });
