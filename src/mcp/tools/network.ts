@@ -6,7 +6,7 @@ import { coerceShape } from '../coerce.js';
 export function registerNetworkTools(server: McpServer): void {
   server.tool(
     'tandem_network_log',
-    'Get the network request log captured via Electron webRequest API. Lighter-weight than DevTools network — shows URL, method, status, and timing for recent requests. Supports targeting a background tab by ID.',
+    'Get the webRequest-based network log for the active tab by default, or for a specific background tab when tabId is provided. Lighter-weight than DevTools network and useful for recent request inspection.',
     coerceShape({
       domain: z.string().optional().describe('Filter by domain'),
       type: z.string().optional().describe('Filter by resource type'),
@@ -27,27 +27,36 @@ export function registerNetworkTools(server: McpServer): void {
 
   server.tool(
     'tandem_network_apis',
-    'Get a summary of detected API endpoints from network traffic. Shows unique API paths grouped by domain, useful for understanding what services the page communicates with.',
-    async () => {
-      const data = await apiCall('GET', '/network/apis');
+    'Get a summary of detected API endpoints for the active tab by default, or for a specific background tab when tabId is provided.',
+    {
+      tabId: z.string().optional().describe('Optional tab ID to target a specific tab instead of the active tab'),
+    },
+    async ({ tabId }) => {
+      const data = await apiCall('GET', '/network/apis', undefined, tabHeaders(tabId));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
 
   server.tool(
     'tandem_network_domains',
-    'Get a list of all domains that the page has made requests to, with request counts. Useful for understanding third-party dependencies and data flows.',
-    async () => {
-      const data = await apiCall('GET', '/network/domains');
+    'Get a list of request domains for the active tab by default, or for a specific background tab when tabId is provided.',
+    {
+      tabId: z.string().optional().describe('Optional tab ID to target a specific tab instead of the active tab'),
+    },
+    async ({ tabId }) => {
+      const data = await apiCall('GET', '/network/domains', undefined, tabHeaders(tabId));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
 
   server.tool(
     'tandem_network_har',
-    'Export the network log as a HAR (HTTP Archive) file. Returns a full HAR 1.2 JSON object that can be imported into browser DevTools or other analysis tools.',
-    async () => {
-      const data = await apiCall('GET', '/network/har');
+    'Export the active tab network log as a HAR (HTTP Archive) by default, or export a specific background tab when tabId is provided.',
+    {
+      tabId: z.string().optional().describe('Optional tab ID to target a specific tab instead of the active tab'),
+    },
+    async ({ tabId }) => {
+      const data = await apiCall('GET', '/network/har', undefined, tabHeaders(tabId));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );
@@ -101,9 +110,12 @@ export function registerNetworkTools(server: McpServer): void {
 
   server.tool(
     'tandem_network_clear',
-    'Clear the network request log. Removes all captured webRequest-level network entries.',
-    async () => {
-      const data = await apiCall('DELETE', '/network/clear');
+    'Clear the webRequest-level network log for the active tab by default, or for a specific background tab when tabId is provided.',
+    {
+      tabId: z.string().optional().describe('Optional tab ID to clear a specific tab instead of the active tab'),
+    },
+    async ({ tabId }) => {
+      const data = await apiCall('DELETE', '/network/clear', undefined, tabHeaders(tabId));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
   );

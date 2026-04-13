@@ -89,6 +89,7 @@ Last updated: April 13, 2026
 
 ## Recently Completed
 
+- [x] DevTools and network inspection tab scoping: `/devtools/*` and `/network/*` retrieval routes now default to active-tab scope, honor explicit tab targeting, and keep MCP descriptions aligned with the real behavior
 - [x] Awareness tools: activity digest and real-time focus detection for shared human-AI context
 - [x] URL bar autocomplete from browsing history (Chrome-style dropdown with inline completion)
 - [x] MCP bookmark management: list, add, delete, update, folders, move, check (7 tools)

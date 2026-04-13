@@ -22,35 +22,60 @@ export class NetworkCapture {
   private networkEntries: Map<string, CDPNetworkEntry> = new Map();
   private networkOrder: string[] = []; // insertion order for ring buffer
   private ensureAttached: () => Promise<WebContents | null>;
+  private ensureAttachedToTab?: (wcId: number) => Promise<WebContents | null>;
 
-  constructor(ensureAttached: () => Promise<WebContents | null>) {
+  constructor(
+    ensureAttached: () => Promise<WebContents | null>,
+    ensureAttachedToTab?: (wcId: number) => Promise<WebContents | null>,
+  ) {
     this.ensureAttached = ensureAttached;
+    this.ensureAttachedToTab = ensureAttachedToTab;
   }
 
   /**
    * Handle a CDP network event. Called by DevToolsManager's message router.
    * Returns true if this capture handled the event.
    */
-  handleEvent(method: string, params: Record<string, unknown>, tabId?: string): boolean {
+  handleEvent(method: string, params: Record<string, unknown>, tabId?: string, wcId?: number): boolean {
     switch (method) {
       case 'Network.requestWillBeSent':
-        this.onNetworkRequest(params as unknown as CDPRequestWillBeSentParams, tabId);
+        this.onNetworkRequest(params as unknown as CDPRequestWillBeSentParams, tabId, wcId);
         return true;
       case 'Network.responseReceived':
-        this.onNetworkResponse(params as unknown as CDPResponseReceivedParams);
+        this.onNetworkResponse(params as unknown as CDPResponseReceivedParams, wcId);
         return true;
       case 'Network.loadingFinished':
-        this.onNetworkLoadingFinished(params as unknown as CDPLoadingFinishedParams);
+        this.onNetworkLoadingFinished(params as unknown as CDPLoadingFinishedParams, wcId);
         return true;
       case 'Network.loadingFailed':
-        this.onNetworkFailed(params as unknown as CDPLoadingFailedParams);
+        this.onNetworkFailed(params as unknown as CDPLoadingFailedParams, wcId);
         return true;
       default:
         return false;
     }
   }
 
-  private onNetworkRequest(params: CDPRequestWillBeSentParams, tabId?: string): void {
+  private buildRequestKey(requestId: string, wcId?: number): string {
+    return `${wcId ?? 'active'}:${requestId}`;
+  }
+
+  private removeEntry(requestKey: string): void {
+    this.networkEntries.delete(requestKey);
+    this.networkOrder = this.networkOrder.filter(key => key !== requestKey);
+  }
+
+  private resolveEntries(requestId: string, opts?: { tabId?: string; wcId?: number }): CDPNetworkEntry[] {
+    let entries = Array.from(this.networkEntries.values()).filter(entry => entry.request.id === requestId);
+    if (opts?.wcId !== undefined) {
+      entries = entries.filter(entry => entry.request.wcId === opts.wcId);
+    }
+    if (opts?.tabId) {
+      entries = entries.filter(entry => entry.request.tabId === opts.tabId);
+    }
+    return entries;
+  }
+
+  private onNetworkRequest(params: CDPRequestWillBeSentParams, tabId?: string, wcId?: number): void {
     const req: CDPNetworkRequest = {
       id: params.requestId,
       url: params.request.url,
@@ -60,10 +85,12 @@ export class NetworkCapture {
       resourceType: params.type || 'Other',
       timestamp: Date.now(),
       tabId,
+      wcId,
     };
 
-    this.networkEntries.set(params.requestId, { request: req });
-    this.networkOrder.push(params.requestId);
+    const requestKey = this.buildRequestKey(params.requestId, wcId);
+    this.networkEntries.set(requestKey, { request: req });
+    this.networkOrder.push(requestKey);
 
     // Ring buffer
     while (this.networkOrder.length > MAX_NETWORK_ENTRIES) {
@@ -72,8 +99,8 @@ export class NetworkCapture {
     }
   }
 
-  private onNetworkResponse(params: CDPResponseReceivedParams): void {
-    const entry = this.networkEntries.get(params.requestId);
+  private onNetworkResponse(params: CDPResponseReceivedParams, wcId?: number): void {
+    const entry = this.networkEntries.get(this.buildRequestKey(params.requestId, wcId));
     if (!entry) return;
 
     entry.response = {
@@ -92,15 +119,15 @@ export class NetworkCapture {
     }
   }
 
-  private onNetworkLoadingFinished(params: CDPLoadingFinishedParams): void {
-    const entry = this.networkEntries.get(params.requestId);
+  private onNetworkLoadingFinished(params: CDPLoadingFinishedParams, wcId?: number): void {
+    const entry = this.networkEntries.get(this.buildRequestKey(params.requestId, wcId));
     if (entry?.response) {
       entry.response.size = params.encodedDataLength || entry.response.size;
     }
   }
 
-  private onNetworkFailed(params: CDPLoadingFailedParams): void {
-    const entry = this.networkEntries.get(params.requestId);
+  private onNetworkFailed(params: CDPLoadingFailedParams, wcId?: number): void {
+    const entry = this.networkEntries.get(this.buildRequestKey(params.requestId, wcId));
     if (entry) {
       entry.failed = true;
       entry.errorText = params.errorText || 'Unknown error';
@@ -116,8 +143,17 @@ export class NetworkCapture {
     statusMax?: number;
     failed?: boolean;
     search?: string;
+    tabId?: string;
+    wcId?: number;
   }): CDPNetworkEntry[] {
     let entries = Array.from(this.networkEntries.values());
+
+    if (opts?.wcId !== undefined) {
+      entries = entries.filter(e => e.request.wcId === opts.wcId);
+    }
+    if (opts?.tabId) {
+      entries = entries.filter(e => e.request.tabId === opts.tabId);
+    }
 
     if (opts?.domain) {
       const d = opts.domain.toLowerCase();
@@ -148,8 +184,22 @@ export class NetworkCapture {
   }
 
   /** Get response body for a specific request (fetches from CDP on demand) */
-  async getResponseBody(requestId: string): Promise<{ body: string; base64Encoded: boolean } | null> {
-    const wc = await this.ensureAttached();
+  async getResponseBody(
+    requestId: string,
+    opts?: { tabId?: string; wcId?: number },
+  ): Promise<{ body: string; base64Encoded: boolean } | null> {
+    const matches = this.resolveEntries(requestId, opts);
+    if (matches.length === 0) {
+      return null;
+    }
+    if (matches.length > 1 && !opts?.tabId && opts?.wcId === undefined) {
+      return null;
+    }
+
+    const targetEntry = matches[matches.length - 1];
+    const wc = targetEntry.request.wcId !== undefined && this.ensureAttachedToTab
+      ? await this.ensureAttachedToTab(targetEntry.request.wcId)
+      : await this.ensureAttached();
     if (!wc) return null;
 
     try {
@@ -168,12 +218,24 @@ export class NetworkCapture {
     }
   }
 
-  clear(): void {
+  clear(tabId?: string): void {
+    if (tabId) {
+      for (const [requestKey, entry] of Array.from(this.networkEntries.entries())) {
+        if (entry.request.tabId === tabId) {
+          this.removeEntry(requestKey);
+        }
+      }
+      return;
+    }
     this.networkEntries.clear();
     this.networkOrder = [];
   }
 
   get entryCount(): number {
     return this.networkEntries.size;
+  }
+
+  getEntryCount(opts?: { tabId?: string; wcId?: number }): number {
+    return this.getEntries({ ...opts, limit: Number.MAX_SAFE_INTEGER }).length;
   }
 }

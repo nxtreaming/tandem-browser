@@ -1,6 +1,53 @@
 import type { Router, Request, Response } from 'express';
 import type { RouteContext } from '../context';
+import { resolveRequestedTab } from '../context';
+import type { Tab } from '../../tabs/manager';
 import { handleRouteError } from '../../utils/errors';
+
+interface EffectiveTabTarget {
+  requestedTabId: string | null;
+  tab: Tab | null;
+  source: 'header' | 'body' | 'query' | 'session' | 'active';
+}
+
+function sendRequestedTabNotFound(res: Response, tabId: string): void {
+  res.status(404).json({ error: `Tab ${tabId} not found` });
+}
+
+function resolveEffectiveTabTarget(
+  ctx: RouteContext,
+  req: Request,
+  opts?: { allowBody?: boolean; allowQuery?: boolean },
+): EffectiveTabTarget {
+  const requestedTab = resolveRequestedTab(ctx, req, opts);
+  if (requestedTab.requestedTabId) {
+    return {
+      requestedTabId: requestedTab.requestedTabId,
+      tab: requestedTab.tab,
+      source: requestedTab.source ?? 'header',
+    };
+  }
+
+  return {
+    requestedTabId: null,
+    tab: ctx.tabManager.getActiveTab(),
+    source: 'active',
+  };
+}
+
+function buildTabScope(target: EffectiveTabTarget): {
+  kind: 'tab';
+  tabId: string | null;
+  wcId: number | null;
+  source: EffectiveTabTarget['source'];
+} {
+  return {
+    kind: 'tab',
+    tabId: target.tab?.id ?? target.requestedTabId ?? null,
+    wcId: target.tab?.webContentsId ?? null,
+    source: target.source,
+  };
+}
 
 /**
  * Register network inspector and mock/intercept routes.
@@ -14,28 +61,50 @@ export function registerNetworkRoutes(router: Router, ctx: RouteContext): void {
 
   router.get('/network/log', (req: Request, res: Response) => {
     try {
+      const target = resolveEffectiveTabTarget(ctx, req, { allowQuery: true });
+      if (target.requestedTabId && !target.tab) {
+        sendRequestedTabNotFound(res, target.requestedTabId);
+        return;
+      }
       const limit = parseInt(req.query.limit as string) || 100;
       const domain = req.query.domain as string | undefined;
-      const entries = ctx.networkInspector.getLog(limit, domain);
-      res.json({ entries, count: entries.length });
+      const type = req.query.type as string | undefined;
+      const entries = target.tab
+        ? ctx.networkInspector.getLog({ limit, domain, type, tabId: target.tab.id, wcId: target.tab.webContentsId })
+        : [];
+      res.json({ scope: buildTabScope(target), entries, count: entries.length });
     } catch (e) {
       handleRouteError(res, e);
     }
   });
 
-  router.get('/network/apis', (_req: Request, res: Response) => {
+  router.get('/network/apis', (req: Request, res: Response) => {
     try {
-      const apis = ctx.networkInspector.getApis();
-      res.json({ apis });
+      const target = resolveEffectiveTabTarget(ctx, req, { allowQuery: true });
+      if (target.requestedTabId && !target.tab) {
+        sendRequestedTabNotFound(res, target.requestedTabId);
+        return;
+      }
+      const apis = target.tab
+        ? ctx.networkInspector.getApis({ tabId: target.tab.id, wcId: target.tab.webContentsId })
+        : {};
+      res.json({ scope: buildTabScope(target), apis });
     } catch (e) {
       handleRouteError(res, e);
     }
   });
 
-  router.get('/network/domains', (_req: Request, res: Response) => {
+  router.get('/network/domains', (req: Request, res: Response) => {
     try {
-      const domains = ctx.networkInspector.getDomains();
-      res.json({ domains });
+      const target = resolveEffectiveTabTarget(ctx, req, { allowQuery: true });
+      if (target.requestedTabId && !target.tab) {
+        sendRequestedTabNotFound(res, target.requestedTabId);
+        return;
+      }
+      const domains = target.tab
+        ? ctx.networkInspector.getDomains({ tabId: target.tab.id, wcId: target.tab.webContentsId })
+        : [];
+      res.json({ scope: buildTabScope(target), domains });
     } catch (e) {
       handleRouteError(res, e);
     }
@@ -43,23 +112,40 @@ export function registerNetworkRoutes(router: Router, ctx: RouteContext): void {
 
   router.get('/network/har', (req: Request, res: Response) => {
     try {
+      const target = resolveEffectiveTabTarget(ctx, req, { allowQuery: true });
+      if (target.requestedTabId && !target.tab) {
+        sendRequestedTabNotFound(res, target.requestedTabId);
+        return;
+      }
       const limit = parseInt(req.query.limit as string) || 100;
       const domain = req.query.domain as string | undefined;
-      const har = ctx.networkInspector.toHar(limit, domain);
+      const har = target.tab
+        ? ctx.networkInspector.toHar({ limit, domain, tabId: target.tab.id, wcId: target.tab.webContentsId })
+        : ctx.networkInspector.toHar({ limit: 0, domain });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const suffix = domain ? `-${domain.replace(/[^a-zA-Z0-9.-]/g, '_')}` : '';
+      const tabSuffix = target.tab?.id ? `-tab-${target.tab.id.replace(/[^a-zA-Z0-9.-]/g, '_')}` : '-tab-none';
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="tandem-network${suffix}-${stamp}.har"`);
+      res.setHeader('Content-Disposition', `attachment; filename="tandem-network${tabSuffix}${suffix}-${stamp}.har"`);
       res.json(har);
     } catch (e) {
       handleRouteError(res, e);
     }
   });
 
-  router.delete('/network/clear', (_req: Request, res: Response) => {
+  router.delete('/network/clear', (req: Request, res: Response) => {
     try {
-      ctx.networkInspector.clear();
-      res.json({ ok: true });
+      const target = resolveEffectiveTabTarget(ctx, req, { allowBody: true, allowQuery: true });
+      if (target.requestedTabId && !target.tab) {
+        sendRequestedTabNotFound(res, target.requestedTabId);
+        return;
+      }
+      if (!target.tab) {
+        res.status(404).json({ error: 'No active tab' });
+        return;
+      }
+      ctx.networkInspector.clear(target.tab.id);
+      res.json({ ok: true, scope: buildTabScope(target) });
     } catch (e) {
       handleRouteError(res, e);
     }

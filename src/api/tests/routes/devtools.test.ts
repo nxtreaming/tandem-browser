@@ -48,15 +48,23 @@ describe('Devtools Routes', () => {
   // ─── GET /devtools/status ──────────────────────────
 
   describe('GET /devtools/status', () => {
-    it('returns devtools status', async () => {
-      const status = { attached: true, tabId: 'tab-1' };
-      vi.mocked(ctx.devToolsManager.getStatus).mockReturnValue(status as any);
+    it('returns devtools status for the active tab with scope metadata', async () => {
+      const managerStatus = { attached: true, tabId: 'tab-2', wcId: 200, console: { entries: 4, errors: 1, lastId: 9 }, network: { entries: 7 } };
+      const scopedStatus = { attached: true, tabId: 'tab-1', wcId: 100, console: { entries: 2, errors: 1, lastId: 5 }, network: { entries: 3 } };
+      vi.mocked(ctx.devToolsManager.getStatus)
+        .mockReturnValueOnce(managerStatus as any)
+        .mockReturnValueOnce(scopedStatus as any);
 
       const res = await request(app).get('/devtools/status');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(status);
-      expect(ctx.devToolsManager.getStatus).toHaveBeenCalled();
+      expect(res.body).toEqual({
+        ...scopedStatus,
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+        managerPrimary: { attached: true, tabId: 'tab-2', wcId: 200 },
+      });
+      expect(ctx.devToolsManager.getStatus).toHaveBeenNthCalledWith(1);
+      expect(ctx.devToolsManager.getStatus).toHaveBeenNthCalledWith(2, { tabId: 'tab-1', wcId: 100 });
     });
 
     it('returns 500 when getStatus throws', async () => {
@@ -83,6 +91,7 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/console');
 
       expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
       expect(res.body.entries).toEqual(entries);
       expect(res.body.counts).toEqual(counts);
       expect(res.body.total).toBe(1);
@@ -91,7 +100,9 @@ describe('Devtools Routes', () => {
         sinceId: undefined,
         limit: 100,
         search: undefined,
+        tabId: 'tab-1',
       });
+      expect(ctx.devToolsManager.getConsoleCounts).toHaveBeenCalledWith('tab-1');
     });
 
     it('parses level, since_id, limit, and search query params', async () => {
@@ -108,7 +119,25 @@ describe('Devtools Routes', () => {
         sinceId: 5,
         limit: 20,
         search: 'foo',
+        tabId: 'tab-1',
       });
+    });
+
+    it('uses X-Tab-Id to scope console retrieval to a background tab', async () => {
+      vi.mocked(ctx.tabManager.listTabs).mockReturnValue([
+        { id: 'tab-2', webContentsId: 202, url: 'https://two.example', title: 'Two', active: false, source: 'wingman', partition: 'persist:tandem' } as any,
+      ]);
+      vi.mocked(ctx.devToolsManager.getConsoleEntries).mockReturnValue([] as any);
+      vi.mocked(ctx.devToolsManager.getConsoleCounts).mockReturnValue({} as any);
+
+      const res = await request(app)
+        .get('/devtools/console')
+        .set('X-Tab-Id', 'tab-2');
+
+      expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-2', wcId: 202, source: 'header' });
+      expect(ctx.devToolsManager.getConsoleEntries).toHaveBeenCalledWith(expect.objectContaining({ tabId: 'tab-2' }));
+      expect(ctx.devToolsManager.getConsoleCounts).toHaveBeenCalledWith('tab-2');
     });
   });
 
@@ -124,7 +153,8 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.errors).toEqual(errors);
       expect(res.body.total).toBe(1);
-      expect(ctx.devToolsManager.getConsoleErrors).toHaveBeenCalledWith(50);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
+      expect(ctx.devToolsManager.getConsoleErrors).toHaveBeenCalledWith(50, 'tab-1');
     });
 
     it('parses limit query param', async () => {
@@ -135,7 +165,7 @@ describe('Devtools Routes', () => {
         .query({ limit: '10' });
 
       expect(res.status).toBe(200);
-      expect(ctx.devToolsManager.getConsoleErrors).toHaveBeenCalledWith(10);
+      expect(ctx.devToolsManager.getConsoleErrors).toHaveBeenCalledWith(10, 'tab-1');
     });
   });
 
@@ -146,8 +176,11 @@ describe('Devtools Routes', () => {
       const res = await request(app).post('/devtools/console/clear');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true });
-      expect(ctx.devToolsManager.clearConsole).toHaveBeenCalled();
+      expect(res.body).toEqual({
+        ok: true,
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+      });
+      expect(ctx.devToolsManager.clearConsole).toHaveBeenCalledWith('tab-1');
     });
   });
 
@@ -161,6 +194,7 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/network');
 
       expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
       expect(res.body.entries).toEqual(entries);
       expect(res.body.total).toBe(1);
       expect(ctx.devToolsManager.getNetworkEntries).toHaveBeenCalledWith({
@@ -171,6 +205,8 @@ describe('Devtools Routes', () => {
         search: undefined,
         statusMin: undefined,
         statusMax: undefined,
+        tabId: 'tab-1',
+        wcId: 100,
       });
     });
 
@@ -198,6 +234,8 @@ describe('Devtools Routes', () => {
         search: 'users',
         statusMin: 400,
         statusMax: 500,
+        tabId: 'tab-1',
+        wcId: 100,
       });
     });
 
@@ -207,7 +245,7 @@ describe('Devtools Routes', () => {
       await request(app).get('/devtools/network').query({ failed: 'false' });
 
       expect(ctx.devToolsManager.getNetworkEntries).toHaveBeenCalledWith(
-        expect.objectContaining({ failed: false }),
+        expect.objectContaining({ failed: false, tabId: 'tab-1', wcId: 100 }),
       );
     });
   });
@@ -222,8 +260,12 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/network/req-123/body');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(body);
-      expect(ctx.devToolsManager.getResponseBody).toHaveBeenCalledWith('req-123');
+      expect(res.body).toEqual({
+        ...body,
+        requestId: 'req-123',
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+      });
+      expect(ctx.devToolsManager.getResponseBody).toHaveBeenCalledWith('req-123', { tabId: 'tab-1', wcId: 100 });
     });
 
     it('returns 404 when body is null', async () => {
@@ -243,8 +285,11 @@ describe('Devtools Routes', () => {
       const res = await request(app).post('/devtools/network/clear');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true });
-      expect(ctx.devToolsManager.clearNetwork).toHaveBeenCalled();
+      expect(res.body).toEqual({
+        ok: true,
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+      });
+      expect(ctx.devToolsManager.clearNetwork).toHaveBeenCalledWith('tab-1');
     });
   });
 
@@ -260,9 +305,10 @@ describe('Devtools Routes', () => {
         .send({ selector: '.main', maxResults: 5 });
 
       expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
       expect(res.body.nodes).toEqual(nodes);
       expect(res.body.total).toBe(1);
-      expect(ctx.devToolsManager.queryDOM).toHaveBeenCalledWith('.main', 5);
+      expect(ctx.devToolsManager.queryDOM).toHaveBeenCalledWith('.main', 5, 100);
     });
 
     it('uses default maxResults of 10', async () => {
@@ -272,7 +318,7 @@ describe('Devtools Routes', () => {
         .post('/devtools/dom/query')
         .send({ selector: 'div' });
 
-      expect(ctx.devToolsManager.queryDOM).toHaveBeenCalledWith('div', 10);
+      expect(ctx.devToolsManager.queryDOM).toHaveBeenCalledWith('div', 10, 100);
     });
 
     it('returns 400 when selector is missing', async () => {
@@ -297,9 +343,10 @@ describe('Devtools Routes', () => {
         .send({ expression: '//div[@class="main"]', maxResults: 3 });
 
       expect(res.status).toBe(200);
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
       expect(res.body.nodes).toEqual(nodes);
       expect(res.body.total).toBe(1);
-      expect(ctx.devToolsManager.queryXPath).toHaveBeenCalledWith('//div[@class="main"]', 3);
+      expect(ctx.devToolsManager.queryXPath).toHaveBeenCalledWith('//div[@class="main"]', 3, 100);
     });
 
     it('uses default maxResults of 10', async () => {
@@ -309,7 +356,7 @@ describe('Devtools Routes', () => {
         .post('/devtools/dom/xpath')
         .send({ expression: '//h1' });
 
-      expect(ctx.devToolsManager.queryXPath).toHaveBeenCalledWith('//h1', 10);
+      expect(ctx.devToolsManager.queryXPath).toHaveBeenCalledWith('//h1', 10, 100);
     });
 
     it('returns 400 when expression is missing', async () => {
@@ -332,8 +379,11 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/storage');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(data);
-      expect(ctx.devToolsManager.getStorage).toHaveBeenCalled();
+      expect(res.body).toEqual({
+        ...data,
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+      });
+      expect(ctx.devToolsManager.getStorage).toHaveBeenCalledWith(100);
     });
   });
 
@@ -347,7 +397,11 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/performance');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(metrics);
+      expect(res.body).toEqual({
+        ...metrics,
+        scope: { kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' },
+      });
+      expect(ctx.devToolsManager.getPerformanceMetrics).toHaveBeenCalledWith(100);
     });
 
     it('returns 503 when metrics are null', async () => {
@@ -356,7 +410,7 @@ describe('Devtools Routes', () => {
       const res = await request(app).get('/devtools/performance');
 
       expect(res.status).toBe(503);
-      expect(res.body.error).toBe('No active tab or CDP not attached');
+      expect(res.body.error).toBe('No targeted tab or CDP not attached');
     });
   });
 
@@ -365,7 +419,7 @@ describe('Devtools Routes', () => {
   describe('POST /devtools/evaluate', () => {
     it('evaluates an expression with defaults', async () => {
       const result = { type: 'number', value: 42 };
-      vi.mocked(ctx.devToolsManager.evaluate).mockResolvedValue(result as any);
+      vi.mocked(ctx.devToolsManager.evaluateInTab).mockResolvedValue(result as any);
 
       const res = await request(app)
         .post('/devtools/evaluate')
@@ -374,20 +428,21 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       expect(res.body.result).toEqual(result);
-      expect(ctx.devToolsManager.evaluate).toHaveBeenCalledWith('1 + 1', {
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
+      expect(ctx.devToolsManager.evaluateInTab).toHaveBeenCalledWith(100, '1 + 1', {
         returnByValue: true,
         awaitPromise: true,
       });
     });
 
     it('passes returnByValue and awaitPromise options', async () => {
-      vi.mocked(ctx.devToolsManager.evaluate).mockResolvedValue({} as any);
+      vi.mocked(ctx.devToolsManager.evaluateInTab).mockResolvedValue({} as any);
 
       await request(app)
         .post('/devtools/evaluate')
         .send({ expression: 'document', returnByValue: false, awaitPromise: false });
 
-      expect(ctx.devToolsManager.evaluate).toHaveBeenCalledWith('document', {
+      expect(ctx.devToolsManager.evaluateInTab).toHaveBeenCalledWith(100, 'document', {
         returnByValue: false,
         awaitPromise: false,
       });
@@ -417,7 +472,7 @@ describe('Devtools Routes', () => {
 
     it('returns 408 when evaluation times out', async () => {
       // evaluate returns a promise that never resolves
-      vi.mocked(ctx.devToolsManager.evaluate).mockReturnValue(new Promise(() => {}) as any);
+      vi.mocked(ctx.devToolsManager.evaluateInTab).mockReturnValue(new Promise(() => {}) as any);
 
       const res = await request(app)
         .post('/devtools/evaluate')
@@ -429,7 +484,7 @@ describe('Devtools Routes', () => {
     });
 
     it('returns 500 when evaluate throws', async () => {
-      vi.mocked(ctx.devToolsManager.evaluate).mockRejectedValue(new Error('CDP disconnected'));
+      vi.mocked(ctx.devToolsManager.evaluateInTab).mockRejectedValue(new Error('CDP disconnected'));
 
       const res = await request(app)
         .post('/devtools/evaluate')
@@ -445,7 +500,7 @@ describe('Devtools Routes', () => {
   describe('POST /devtools/cdp', () => {
     it('sends a raw CDP command', async () => {
       const result = { nodes: [] };
-      vi.mocked(ctx.devToolsManager.sendCommand).mockResolvedValue(result as any);
+      vi.mocked(ctx.devToolsManager.sendCommandToTab).mockResolvedValue(result as any);
 
       const res = await request(app)
         .post('/devtools/cdp')
@@ -454,18 +509,19 @@ describe('Devtools Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       expect(res.body.result).toEqual(result);
-      expect(ctx.devToolsManager.sendCommand).toHaveBeenCalledWith('DOM.getDocument', { depth: 1 });
+      expect(res.body.scope).toEqual({ kind: 'tab', tabId: 'tab-1', wcId: 100, source: 'active' });
+      expect(ctx.devToolsManager.sendCommandToTab).toHaveBeenCalledWith(100, 'DOM.getDocument', { depth: 1 });
     });
 
     it('sends a CDP command without params', async () => {
-      vi.mocked(ctx.devToolsManager.sendCommand).mockResolvedValue({} as any);
+      vi.mocked(ctx.devToolsManager.sendCommandToTab).mockResolvedValue({} as any);
 
       const res = await request(app)
         .post('/devtools/cdp')
         .send({ method: 'Page.reload' });
 
       expect(res.status).toBe(200);
-      expect(ctx.devToolsManager.sendCommand).toHaveBeenCalledWith('Page.reload', undefined);
+      expect(ctx.devToolsManager.sendCommandToTab).toHaveBeenCalledWith(100, 'Page.reload', undefined);
     });
 
     it('returns 400 when method is missing', async () => {
@@ -494,7 +550,7 @@ describe('Devtools Routes', () => {
       expect(res.headers['content-type']).toMatch(/image\/png/);
       expect(Buffer.isBuffer(res.body)).toBe(true);
       expect(res.body.toString()).toBe('fake-png-data');
-      expect(ctx.devToolsManager.screenshotElement).toHaveBeenCalledWith('#hero');
+      expect(ctx.devToolsManager.screenshotElement).toHaveBeenCalledWith('#hero', 100);
     });
 
     it('returns 400 when selector is missing', async () => {

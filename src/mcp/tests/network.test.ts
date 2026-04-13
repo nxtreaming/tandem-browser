@@ -63,7 +63,7 @@ describe('MCP network tools', () => {
 
       const result = await handler({});
       expectTextContent(result);
-      expect(mockApiCall).toHaveBeenCalledWith('GET', '/network/apis');
+      expect(mockApiCall).toHaveBeenCalledWith('GET', '/network/apis', undefined, undefined);
     });
   });
 
@@ -75,6 +75,7 @@ describe('MCP network tools', () => {
       mockApiCall.mockResolvedValueOnce({ domains: { 'api.com': 15 } });
       const result = await handler({});
       expectTextContent(result);
+      expect(mockApiCall).toHaveBeenCalledWith('GET', '/network/domains', undefined, undefined);
     });
   });
 
@@ -131,7 +132,7 @@ describe('MCP network tools', () => {
 
       const result = await handler({});
       expectTextContent(result);
-      expect(mockApiCall).toHaveBeenCalledWith('DELETE', '/network/clear');
+      expect(mockApiCall).toHaveBeenCalledWith('DELETE', '/network/clear', undefined, undefined);
     });
   });
 
@@ -154,6 +155,26 @@ describe('MCP network tools', () => {
       mockApiCall.mockRejectedValueOnce(new Error('server error'));
       const handler = getHandler(tools, 'tandem_network_har');
       await expect(handler({})).rejects.toThrow('server error');
+    });
+  });
+
+  describe('tab-aware forwarding', () => {
+    it('passes tabId to apis, domains, har, and clear', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+      mockApiCall.mockResolvedValueOnce({});
+      mockApiCall.mockResolvedValueOnce({});
+      mockApiCall.mockResolvedValueOnce({});
+
+      await getHandler(tools, 'tandem_network_apis')({ tabId: 'tab-9' });
+      await getHandler(tools, 'tandem_network_domains')({ tabId: 'tab-9' });
+      await getHandler(tools, 'tandem_network_har')({ tabId: 'tab-9' });
+      await getHandler(tools, 'tandem_network_clear')({ tabId: 'tab-9' });
+
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-9');
+      expect(mockApiCall).toHaveBeenNthCalledWith(1, 'GET', '/network/apis', undefined, { 'X-Tab-Id': 'tab-9' });
+      expect(mockApiCall).toHaveBeenNthCalledWith(2, 'GET', '/network/domains', undefined, { 'X-Tab-Id': 'tab-9' });
+      expect(mockApiCall).toHaveBeenNthCalledWith(3, 'GET', '/network/har', undefined, { 'X-Tab-Id': 'tab-9' });
+      expect(mockApiCall).toHaveBeenNthCalledWith(4, 'DELETE', '/network/clear', undefined, { 'X-Tab-Id': 'tab-9' });
     });
   });
 });

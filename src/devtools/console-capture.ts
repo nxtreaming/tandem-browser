@@ -135,9 +135,16 @@ export class ConsoleCapture {
     }
   }
 
+  private filterEntries(tabId?: string): ConsoleEntry[] {
+    if (!tabId) {
+      return this.entries;
+    }
+    return this.entries.filter(entry => entry.tabId === tabId);
+  }
+
   /** Get entries, optionally filtered by level and/or since an ID */
-  getEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string }): ConsoleEntry[] {
-    let result = this.entries;
+  getEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string; tabId?: string }): ConsoleEntry[] {
+    let result = this.filterEntries(opts?.tabId);
     if (opts?.sinceId) result = result.filter(e => e.id > opts.sinceId!);
     if (opts?.level) result = result.filter(e => e.level === opts.level);
     if (opts?.search) {
@@ -149,21 +156,25 @@ export class ConsoleCapture {
   }
 
   /** Get only errors (convenience) */
-  getErrors(limit = 50): ConsoleEntry[] {
-    return this.getEntries({ level: 'error', limit });
+  getErrors(limit = 50, tabId?: string): ConsoleEntry[] {
+    return this.getEntries({ level: 'error', limit, tabId });
   }
 
   /** Get entry count by level */
-  getCounts(): Record<string, number> {
+  getCounts(tabId?: string): Record<string, number> {
     const counts: Record<string, number> = { log: 0, info: 0, warn: 0, error: 0, debug: 0 };
-    for (const e of this.entries) {
+    for (const e of this.filterEntries(tabId)) {
       counts[e.level] = (counts[e.level] || 0) + 1;
     }
     return counts;
   }
 
   /** Clear all entries */
-  clear(): void {
+  clear(tabId?: string): void {
+    if (tabId) {
+      this.entries = this.entries.filter(entry => entry.tabId !== tabId);
+      return;
+    }
     this.entries = [];
   }
 
@@ -181,7 +192,16 @@ export class ConsoleCapture {
     return this.entries.length;
   }
 
+  getEntryCount(tabId?: string): number {
+    return this.filterEntries(tabId).length;
+  }
+
   get lastEntryId(): number {
     return this.entries.length > 0 ? this.entries[this.entries.length - 1].id : 0;
+  }
+
+  getLastEntryId(tabId?: string): number {
+    const entries = this.filterEntries(tabId);
+    return entries.length > 0 ? entries[entries.length - 1].id : 0;
   }
 }

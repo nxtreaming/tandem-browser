@@ -16,16 +16,28 @@ const log = createLogger('CDP:Inspector');
  */
 export class PageInspector {
   private ensureAttached: () => Promise<WebContents | null>;
+  private ensureAttachedToTab?: (wcId: number) => Promise<WebContents | null>;
 
-  constructor(ensureAttached: () => Promise<WebContents | null>) {
+  constructor(
+    ensureAttached: () => Promise<WebContents | null>,
+    ensureAttachedToTab?: (wcId: number) => Promise<WebContents | null>,
+  ) {
     this.ensureAttached = ensureAttached;
+    this.ensureAttachedToTab = ensureAttachedToTab;
+  }
+
+  private async getTargetWebContents(wcId?: number): Promise<WebContents | null> {
+    if (wcId !== undefined && this.ensureAttachedToTab) {
+      return this.ensureAttachedToTab(wcId);
+    }
+    return this.ensureAttached();
   }
 
   // ═══ DOM ═══
 
   /** Query DOM by CSS selector, return matching nodes */
-  async queryDOM(selector: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    const wc = await this.ensureAttached();
+  async queryDOM(selector: string, maxResults = 10, wcId?: number): Promise<DOMNodeInfo[]> {
+    const wc = await this.getTargetWebContents(wcId);
     if (!wc) return [];
 
     try {
@@ -48,8 +60,8 @@ export class PageInspector {
   }
 
   /** Query DOM by XPath */
-  async queryXPath(expression: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    const wc = await this.ensureAttached();
+  async queryXPath(expression: string, maxResults = 10, wcId?: number): Promise<DOMNodeInfo[]> {
+    const wc = await this.getTargetWebContents(wcId);
     if (!wc) return [];
 
     try {
@@ -163,8 +175,8 @@ export class PageInspector {
   // ═══ Storage ═══
 
   /** Get cookies, localStorage, sessionStorage for current page */
-  async getStorage(): Promise<StorageData> {
-    const wc = await this.ensureAttached();
+  async getStorage(wcId?: number): Promise<StorageData> {
+    const wc = await this.getTargetWebContents(wcId);
     const empty: StorageData = { cookies: [], localStorage: {}, sessionStorage: {} };
     if (!wc) return empty;
 
@@ -219,8 +231,8 @@ export class PageInspector {
 
   // ═══ Performance ═══
 
-  async getPerformanceMetrics(): Promise<PerformanceMetrics | null> {
-    const wc = await this.ensureAttached();
+  async getPerformanceMetrics(wcId?: number): Promise<PerformanceMetrics | null> {
+    const wc = await this.getTargetWebContents(wcId);
     if (!wc) return null;
 
     try {
@@ -239,8 +251,8 @@ export class PageInspector {
 
   // ═══ Element Screenshot ═══
 
-  async screenshotElement(selector: string): Promise<Buffer | null> {
-    const wc = await this.ensureAttached();
+  async screenshotElement(selector: string, wcId?: number): Promise<Buffer | null> {
+    const wc = await this.getTargetWebContents(wcId);
     if (!wc) return null;
 
     try {

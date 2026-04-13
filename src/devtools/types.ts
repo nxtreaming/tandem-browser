@@ -26,6 +26,7 @@ export interface CDPNetworkRequest {
   resourceType: string; // Document, Script, XHR, Fetch, etc.
   timestamp: number;
   tabId?: string;
+  wcId?: number;
 }
 
 /**

@@ -26,6 +26,7 @@ type MutableInspector = {
   isApiEndpoint: (req: NetworkRequest) => boolean;
   extractApiPath: (url: string) => string;
   extractDomain: (url: string) => string;
+  rebuildDomainStats: () => void;
 };
 
 describe('NetworkInspector', () => {
@@ -72,7 +73,7 @@ describe('NetworkInspector', () => {
 
   it('HAR page title includes domain when domain filter is provided', () => {
     mut.requests = [createRequest()];
-    const har = inspector.toHar(100, 'api.example.com');
+    const har = inspector.toHar({ limit: 100, domain: 'api.example.com' });
     expect(har.log.pages[0].title).toContain('api.example.com');
   });
 
@@ -103,7 +104,7 @@ describe('NetworkInspector', () => {
     mut.requests = Array.from({ length: 5 }, (_, i) =>
       createRequest({ id: i + 1, domain: 'example.com' }),
     );
-    expect(inspector.getLog(3)).toHaveLength(3);
+    expect(inspector.getLog({ limit: 3 })).toHaveLength(3);
     expect(inspector.getLog()).toHaveLength(5);
   });
 
@@ -113,28 +114,45 @@ describe('NetworkInspector', () => {
       createRequest({ id: 2, domain: 'b.com' }),
       createRequest({ id: 3, domain: 'a.com' }),
     ];
-    const filtered = inspector.getLog(100, 'a.com');
+    const filtered = inspector.getLog({ limit: 100, domain: 'a.com' });
     expect(filtered).toHaveLength(2);
     expect(filtered.every(r => r.domain === 'a.com')).toBe(true);
   });
 
   it('getLog returns empty for non-existent domain', () => {
     mut.requests = [createRequest({ domain: 'a.com' })];
-    expect(inspector.getLog(100, 'nonexistent.com')).toHaveLength(0);
+    expect(inspector.getLog({ limit: 100, domain: 'nonexistent.com' })).toHaveLength(0);
+  });
+
+  it('getLog filters by tabId and resource type', () => {
+    mut.requests = [
+      createRequest({ id: 1, domain: 'a.com', tabId: 'tab-1', resourceType: 'xhr' }),
+      createRequest({ id: 2, domain: 'a.com', tabId: 'tab-2', resourceType: 'xhr' }),
+      createRequest({ id: 3, domain: 'a.com', tabId: 'tab-1', resourceType: 'script' }),
+    ];
+
+    const filtered = inspector.getLog({ limit: 100, tabId: 'tab-1', type: 'xhr' });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].id).toBe(1);
   });
 
   // ─── getDomains ───
 
   it('getDomains returns domain stats sorted by request count', () => {
-    mut.domainStats.set('a.com', { domain: 'a.com', requests: 10, apis: [], lastSeen: 1 });
-    mut.domainStats.set('b.com', { domain: 'b.com', requests: 50, apis: ['/api/v1'], lastSeen: 2 });
-    mut.domainStats.set('c.com', { domain: 'c.com', requests: 5, apis: [], lastSeen: 3 });
+    mut.requests = [
+      createRequest({ id: 1, domain: 'a.com', url: 'https://a.com/app' }),
+      createRequest({ id: 2, domain: 'b.com', url: 'https://b.com/api/v1' }),
+      createRequest({ id: 3, domain: 'b.com', url: 'https://b.com/api/v2' }),
+      createRequest({ id: 4, domain: 'c.com', url: 'https://c.com/app' }),
+      createRequest({ id: 5, domain: 'b.com', url: 'https://b.com/api/v3' }),
+    ];
 
     const domains = inspector.getDomains();
     expect(domains).toHaveLength(3);
     expect(domains[0].domain).toBe('b.com');
-    expect(domains[0].requests).toBe(50);
-    expect(domains[0].apiCount).toBe(1);
+    expect(domains[0].requests).toBe(3);
+    expect(domains[0].apiCount).toBe(3);
     expect(domains[2].domain).toBe('c.com');
   });
 
@@ -145,12 +163,29 @@ describe('NetworkInspector', () => {
   // ─── getApis ───
 
   it('getApis returns only domains with discovered endpoints', () => {
-    mut.domainStats.set('api.com', { domain: 'api.com', requests: 5, apis: ['/v1/users', '/v1/items'], lastSeen: 1 });
-    mut.domainStats.set('cdn.com', { domain: 'cdn.com', requests: 100, apis: [], lastSeen: 2 });
+    mut.requests = [
+      createRequest({ domain: 'api.com', url: 'https://api.com/v1/users' }),
+      createRequest({ id: 2, domain: 'api.com', url: 'https://api.com/v1/items' }),
+      createRequest({ id: 3, domain: 'cdn.com', url: 'https://cdn.com/style.css', contentType: 'text/css' }),
+    ];
 
     const apis = inspector.getApis();
     expect(Object.keys(apis)).toEqual(['api.com']);
     expect(apis['api.com']).toEqual(['/v1/users', '/v1/items']);
+  });
+
+  it('getApis and getDomains scope summaries by tabId', () => {
+    mut.requests = [
+      createRequest({ id: 1, domain: 'api.com', tabId: 'tab-1', url: 'https://api.com/v1/users' }),
+      createRequest({ id: 2, domain: 'api.com', tabId: 'tab-2', url: 'https://api.com/v1/admin' }),
+      createRequest({ id: 3, domain: 'cdn.com', tabId: 'tab-2', url: 'https://cdn.com/app.js', contentType: 'application/javascript' }),
+    ];
+
+    expect(inspector.getApis({ tabId: 'tab-1' })).toEqual({ 'api.com': ['/v1/users'] });
+    expect(inspector.getDomains({ tabId: 'tab-2' })).toEqual([
+      { domain: 'api.com', requests: 1, lastSeen: mut.requests[1].timestamp, apiCount: 1 },
+      { domain: 'cdn.com', requests: 1, lastSeen: mut.requests[2].timestamp, apiCount: 0 },
+    ]);
   });
 
   // ─── clear ───
@@ -164,6 +199,23 @@ describe('NetworkInspector', () => {
     expect(inspector.getLog()).toHaveLength(0);
     expect(inspector.getDomains()).toHaveLength(0);
     expect(inspector.getApis()).toEqual({});
+  });
+
+  it('clear removes only the targeted tab when tabId is provided', () => {
+    mut.requests = [
+      createRequest({ id: 1, tabId: 'tab-1', domain: 'a.com', url: 'https://a.com/v1/users' }),
+      createRequest({ id: 2, tabId: 'tab-2', domain: 'b.com', url: 'https://b.com/v1/users' }),
+    ];
+    mut.rebuildDomainStats();
+
+    inspector.clear('tab-1');
+
+    expect(inspector.getLog()).toEqual([
+      expect.objectContaining({ id: 2, tabId: 'tab-2' }),
+    ]);
+    expect(inspector.getDomains()).toEqual([
+      expect.objectContaining({ domain: 'b.com', requests: 1 }),
+    ]);
   });
 
   // ─── addRequest & sliding window ───

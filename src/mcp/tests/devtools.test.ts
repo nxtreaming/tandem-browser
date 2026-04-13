@@ -77,7 +77,7 @@ describe('MCP devtools tools', () => {
       mockApiCall.mockResolvedValueOnce({ ok: true });
       const result = await handler({});
       expectTextContent(result);
-      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/console/clear');
+      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/console/clear', undefined, undefined);
     });
   });
 
@@ -158,9 +158,12 @@ describe('MCP devtools tools', () => {
 
       const result = await handler({ method: 'Page.reload', params: { ignoreCache: true } });
       expectTextContent(result);
-      expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/cdp', {
-        method: 'Page.reload', params: { ignoreCache: true },
-      });
+      expect(mockApiCall).toHaveBeenCalledWith(
+        'POST',
+        '/devtools/cdp',
+        { method: 'Page.reload', params: { ignoreCache: true } },
+        undefined,
+      );
     });
   });
 
@@ -172,6 +175,7 @@ describe('MCP devtools tools', () => {
       mockApiCall.mockResolvedValueOnce({ connected: true });
       const result = await handler({});
       expectTextContent(result);
+      expect(mockApiCall).toHaveBeenCalledWith('GET', '/devtools/status', undefined, undefined);
     });
   });
 
@@ -184,6 +188,37 @@ describe('MCP devtools tools', () => {
       const result = await handler({});
       expectTextContent(result);
       expect(mockApiCall).toHaveBeenCalledWith('POST', '/devtools/toggle');
+    });
+  });
+
+  describe('tab-aware forwarding', () => {
+    it('forwards tabId for network body lookups', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+      const handler = getHandler(tools, 'tandem_devtools_network_body');
+
+      await handler({ requestId: 'req-1', tabId: 'tab-7' });
+
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-7');
+      expect(mockApiCall).toHaveBeenCalledWith(
+        'GET',
+        '/devtools/network/req-1/body',
+        undefined,
+        { 'X-Tab-Id': 'tab-7' },
+      );
+    });
+
+    it('forwards tabId for status and raw CDP calls', async () => {
+      mockApiCall.mockResolvedValueOnce({});
+      mockApiCall.mockResolvedValueOnce({});
+      const statusHandler = getHandler(tools, 'tandem_devtools_status');
+      const cdpHandler = getHandler(tools, 'tandem_devtools_cdp');
+
+      await statusHandler({ tabId: 'tab-8' });
+      await cdpHandler({ method: 'Page.reload', tabId: 'tab-8' });
+
+      expect(vi.mocked(tabHeaders)).toHaveBeenCalledWith('tab-8');
+      expect(mockApiCall).toHaveBeenNthCalledWith(1, 'GET', '/devtools/status', undefined, { 'X-Tab-Id': 'tab-8' });
+      expect(mockApiCall).toHaveBeenNthCalledWith(2, 'POST', '/devtools/cdp', { method: 'Page.reload', params: undefined }, { 'X-Tab-Id': 'tab-8' });
     });
   });
 });

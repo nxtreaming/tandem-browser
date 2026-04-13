@@ -67,8 +67,14 @@ export class DevToolsManager {
   constructor(tabManager: TabManager) {
     this.tabManager = tabManager;
     this.consoleCapture = new ConsoleCapture();
-    this.networkCapture = new NetworkCapture(() => this.ensureAttached());
-    this.pageInspector = new PageInspector(() => this.ensureAttached());
+    this.networkCapture = new NetworkCapture(
+      () => this.ensureAttached(),
+      (wcId) => this.attachToTab(wcId, { makePrimary: false }),
+    );
+    this.pageInspector = new PageInspector(
+      () => this.ensureAttached(),
+      (wcId) => this.attachToTab(wcId, { makePrimary: false }),
+    );
   }
 
   // === 3. Dependency setters ===
@@ -180,20 +186,20 @@ export class DevToolsManager {
 
   // ── Delegated: Console (→ ConsoleCapture) ──
 
-  getConsoleEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string }): ConsoleEntry[] {
+  getConsoleEntries(opts?: { level?: string; sinceId?: number; limit?: number; search?: string; tabId?: string }): ConsoleEntry[] {
     return this.consoleCapture.getEntries(opts);
   }
 
-  getConsoleErrors(limit?: number): ConsoleEntry[] {
-    return this.consoleCapture.getErrors(limit);
+  getConsoleErrors(limit?: number, tabId?: string): ConsoleEntry[] {
+    return this.consoleCapture.getErrors(limit, tabId);
   }
 
-  getConsoleCounts(): Record<string, number> {
-    return this.consoleCapture.getCounts();
+  getConsoleCounts(tabId?: string): Record<string, number> {
+    return this.consoleCapture.getCounts(tabId);
   }
 
-  clearConsole(): void {
-    this.consoleCapture.clear();
+  clearConsole(tabId?: string): void {
+    this.consoleCapture.clear(tabId);
   }
 
   // ── Delegated: Network (→ NetworkCapture) ──
@@ -206,38 +212,43 @@ export class DevToolsManager {
     statusMax?: number;
     failed?: boolean;
     search?: string;
+    tabId?: string;
+    wcId?: number;
   }): CDPNetworkEntry[] {
     return this.networkCapture.getEntries(opts);
   }
 
-  async getResponseBody(requestId: string): Promise<{ body: string; base64Encoded: boolean } | null> {
-    return this.networkCapture.getResponseBody(requestId);
+  async getResponseBody(
+    requestId: string,
+    opts?: { tabId?: string; wcId?: number },
+  ): Promise<{ body: string; base64Encoded: boolean } | null> {
+    return this.networkCapture.getResponseBody(requestId, opts);
   }
 
-  clearNetwork(): void {
-    this.networkCapture.clear();
+  clearNetwork(tabId?: string): void {
+    this.networkCapture.clear(tabId);
   }
 
   // ── Delegated: Page Inspection (→ PageInspector) ──
 
-  async queryDOM(selector: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    return this.pageInspector.queryDOM(selector, maxResults);
+  async queryDOM(selector: string, maxResults = 10, wcId?: number): Promise<DOMNodeInfo[]> {
+    return this.pageInspector.queryDOM(selector, maxResults, wcId);
   }
 
-  async queryXPath(expression: string, maxResults = 10): Promise<DOMNodeInfo[]> {
-    return this.pageInspector.queryXPath(expression, maxResults);
+  async queryXPath(expression: string, maxResults = 10, wcId?: number): Promise<DOMNodeInfo[]> {
+    return this.pageInspector.queryXPath(expression, maxResults, wcId);
   }
 
-  async getStorage(): Promise<StorageData> {
-    return this.pageInspector.getStorage();
+  async getStorage(wcId?: number): Promise<StorageData> {
+    return this.pageInspector.getStorage(wcId);
   }
 
-  async getPerformanceMetrics(): Promise<PerformanceMetrics | null> {
-    return this.pageInspector.getPerformanceMetrics();
+  async getPerformanceMetrics(wcId?: number): Promise<PerformanceMetrics | null> {
+    return this.pageInspector.getPerformanceMetrics(wcId);
   }
 
-  async screenshotElement(selector: string): Promise<Buffer | null> {
-    return this.pageInspector.screenshotElement(selector);
+  async screenshotElement(selector: string, wcId?: number): Promise<Buffer | null> {
+    return this.pageInspector.screenshotElement(selector, wcId);
   }
 
   // ── Raw CDP ──
@@ -304,25 +315,30 @@ export class DevToolsManager {
 
   // ── Status ──
 
-  getStatus(): {
+  getStatus(target?: {
+    tabId?: string;
+    wcId?: number;
+  }): {
     attached: boolean;
     tabId: string | null;
     wcId: number | null;
     console: { entries: number; errors: number; lastId: number };
     network: { entries: number };
   } {
-    const tabId = this.primaryWcId ? this.findTabIdByWcId(this.primaryWcId) || null : null;
+    const scopedWcId = target?.wcId ?? (target?.tabId ? this.findWcIdByTabId(target.tabId) ?? null : null);
+    const wcId = target ? scopedWcId : this.primaryWcId;
+    const tabId = target?.tabId ?? (wcId ? this.findTabIdByWcId(wcId) || null : null);
     return {
-      attached: this.primaryWcId !== null,
+      attached: wcId !== null && this.attachedSessions.has(wcId),
       tabId,
-      wcId: this.primaryWcId,
+      wcId,
       console: {
-        entries: this.consoleCapture.entryCount,
-        errors: this.consoleCapture.getErrors().length,
-        lastId: this.consoleCapture.lastEntryId,
+        entries: this.consoleCapture.getEntryCount(tabId ?? undefined),
+        errors: this.consoleCapture.getErrors(Number.MAX_SAFE_INTEGER, tabId ?? undefined).length,
+        lastId: this.consoleCapture.getLastEntryId(tabId ?? undefined),
       },
       network: {
-        entries: this.networkCapture.entryCount,
+        entries: this.networkCapture.getEntryCount({ tabId: tabId ?? undefined, wcId: wcId ?? undefined }),
       },
     };
   }
@@ -507,7 +523,7 @@ export class DevToolsManager {
       }
 
       // Network events
-      this.networkCapture.handleEvent(method, params, tabId);
+      this.networkCapture.handleEvent(method, params, tabId, wcId);
 
       // Dispatch to subscribers (always — security modules need to see all events)
       for (const sub of this.subscribers) {
@@ -584,5 +600,9 @@ export class DevToolsManager {
   private findTabIdByWcId(wcId: number): string | undefined {
     const tabs = this.tabManager.listTabs();
     return tabs.find(t => t.webContentsId === wcId)?.id;
+  }
+
+  private findWcIdByTabId(tabId: string): number | undefined {
+    return this.tabManager.getTab(tabId)?.webContentsId;
   }
 }

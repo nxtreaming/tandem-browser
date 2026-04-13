@@ -145,6 +145,9 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
   runtime.contextBridge = new ContextBridge();
   runtime.pipManager = new PiPManager();
   runtime.networkInspector = new NetworkInspector();
+  runtime.networkInspector.setTabIdResolver((webContentsId) =>
+    runtime.tabManager.listTabs().find(tab => tab.webContentsId === webContentsId)?.id ?? null,
+  );
   if (dispatcher) {
     runtime.networkInspector.registerWith(dispatcher);
   }

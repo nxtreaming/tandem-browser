@@ -20,6 +20,9 @@ export interface NetworkRequest {
   initiator: string;
   domain: string;
   durationMs: number;
+  resourceType?: string;
+  tabId?: string;
+  wcId?: number;
   requestHeaders: Record<string, string>;
   responseHeaders: Record<string, string[]>;
 }
@@ -29,6 +32,14 @@ interface DomainData {
   requests: number;
   apis: string[];
   lastSeen: number;
+}
+
+interface NetworkQueryOptions {
+  limit?: number;
+  domain?: string;
+  type?: string;
+  tabId?: string;
+  wcId?: number;
 }
 
 interface HarHeader {
@@ -111,6 +122,7 @@ export class NetworkInspector {
   private maxRequests = 1000;
   private networkDir: string;
   private domainStats: Map<string, DomainData> = new Map();
+  private tabIdResolver?: (wcId: number) => string | null;
 
   // === 2. Constructor ===
   constructor() {
@@ -122,6 +134,10 @@ export class NetworkInspector {
 
   // === 3. Dependency setters ===
 
+  setTabIdResolver(resolver: (wcId: number) => string | null): void {
+    this.tabIdResolver = resolver;
+  }
+
   /** Register as a dispatcher consumer (late registration supported) */
   registerWith(dispatcher: RequestDispatcher): void {
     dispatcher.registerBeforeRequest({
@@ -131,6 +147,8 @@ export class NetworkInspector {
         const domain = this.extractDomain(details.url);
         if (domain && !details.url.startsWith('file://') && !details.url.startsWith('devtools://')) {
           const id = ++this.counter;
+          const wcId = this.getWebContentsId(details);
+          const tabId = wcId !== undefined ? this.tabIdResolver?.(wcId) ?? undefined : undefined;
           this.pendingRequests.set(String(details.id ?? id), {
             id,
             url: details.url,
@@ -142,6 +160,9 @@ export class NetworkInspector {
             contentType: '',
             size: 0,
             durationMs: 0,
+            resourceType: this.getResourceType(details),
+            tabId,
+            wcId,
             requestHeaders: {},
             responseHeaders: {},
           });
@@ -197,6 +218,9 @@ export class NetworkInspector {
             initiator: pending.initiator!,
             domain: pending.domain!,
             durationMs: Math.max(0, Date.now() - pending.timestamp!),
+            resourceType: pending.resourceType,
+            tabId: pending.tabId,
+            wcId: pending.wcId,
             requestHeaders: pending.requestHeaders || {},
             responseHeaders: pending.responseHeaders || details.responseHeaders || {},
           };
@@ -248,28 +272,60 @@ export class NetworkInspector {
   }
 
   /** Get recent requests, optionally filtered */
-  getLog(limit: number = 100, domain?: string): NetworkRequest[] {
-    let filtered = this.requests;
-    if (domain) {
-      filtered = filtered.filter(r => r.domain === domain);
-    }
+  getLog(opts: NetworkQueryOptions = {}): NetworkRequest[] {
+    const filtered = this.filterRequests(opts);
+    const limit = opts.limit ?? 100;
     return filtered.slice(-limit);
   }
 
   /** Get discovered API endpoints grouped by domain */
-  getApis(): Record<string, string[]> {
-    const result: Record<string, string[]> = {};
-    for (const [domain, data] of this.domainStats) {
-      if (data.apis.length > 0) {
-        result[domain] = data.apis;
+  getApis(opts: Omit<NetworkQueryOptions, 'limit'> = {}): Record<string, string[]> {
+    const result = new Map<string, Set<string>>();
+    for (const request of this.filterRequests(opts)) {
+      if (!this.isApiEndpoint(request)) {
+        continue;
       }
+      const apiPath = this.extractApiPath(request.url);
+      if (!apiPath) {
+        continue;
+      }
+      if (!result.has(request.domain)) {
+        result.set(request.domain, new Set());
+      }
+      result.get(request.domain)!.add(apiPath);
     }
-    return result;
+
+    return Object.fromEntries(
+      Array.from(result.entries()).map(([domain, apis]) => [domain, Array.from(apis)]),
+    );
   }
 
   /** Get domain list with request counts */
-  getDomains(): Array<{ domain: string; requests: number; lastSeen: number; apiCount: number }> {
-    return Array.from(this.domainStats.values()).map(d => ({
+  getDomains(opts: Omit<NetworkQueryOptions, 'limit'> = {}): Array<{ domain: string; requests: number; lastSeen: number; apiCount: number }> {
+    const domains = new Map<string, DomainData>();
+
+    for (const request of this.filterRequests(opts)) {
+      let entry = domains.get(request.domain);
+      if (!entry) {
+        entry = {
+          domain: request.domain,
+          requests: 0,
+          apis: [],
+          lastSeen: 0,
+        };
+        domains.set(request.domain, entry);
+      }
+      entry.requests += 1;
+      entry.lastSeen = Math.max(entry.lastSeen, request.timestamp);
+      if (this.isApiEndpoint(request)) {
+        const apiPath = this.extractApiPath(request.url);
+        if (apiPath && !entry.apis.includes(apiPath)) {
+          entry.apis.push(apiPath);
+        }
+      }
+    }
+
+    return Array.from(domains.values()).map(d => ({
       domain: d.domain,
       requests: d.requests,
       lastSeen: d.lastSeen,
@@ -279,13 +335,18 @@ export class NetworkInspector {
 
   /**
    * Export logged requests as a HAR 1.2 archive.
-   * @param limit - max entries to include (default 100)
-   * @param domain - optional domain filter
    */
-  toHar(limit: number = 100, domain?: string): HarExport {
-    const entries = this.getLog(limit, domain).map((request) => this.toHarEntry(request));
+  toHar(opts: NetworkQueryOptions = {}): HarExport {
+    const entries = this.getLog(opts).map((request) => this.toHarEntry(request));
     const startedDateTime = entries[0]?.startedDateTime ?? new Date().toISOString();
-    const title = domain ? `Network log for ${domain}` : 'Tandem network log';
+    const scopeLabel = opts.tabId
+      ? `tab ${opts.tabId}`
+      : opts.wcId !== undefined
+        ? `webContents ${opts.wcId}`
+        : 'active tab';
+    const title = opts.domain
+      ? `Network log for ${opts.domain} (${scopeLabel})`
+      : `Tandem network log (${scopeLabel})`;
 
     return {
       log: {
@@ -309,7 +370,15 @@ export class NetworkInspector {
   }
 
   /** Clear all logged data */
-  clear(): void {
+  clear(tabId?: string): void {
+    if (tabId) {
+      this.requests = this.requests.filter(request => request.tabId !== tabId);
+      this.pendingRequests = new Map(
+        Array.from(this.pendingRequests.entries()).filter(([, pending]) => pending.tabId !== tabId),
+      );
+      this.rebuildDomainStats();
+      return;
+    }
     this.requests = [];
     this.pendingRequests.clear();
     this.domainStats.clear();
@@ -347,6 +416,43 @@ export class NetworkInspector {
       const apiPath = this.extractApiPath(req.url);
       if (apiPath && !domainData.apis.includes(apiPath)) {
         domainData.apis.push(apiPath);
+      }
+    }
+  }
+
+  private filterRequests(opts: NetworkQueryOptions = {}): NetworkRequest[] {
+    let filtered = this.requests;
+    if (opts.tabId) {
+      filtered = filtered.filter(request => request.tabId === opts.tabId);
+    }
+    if (opts.wcId !== undefined) {
+      filtered = filtered.filter(request => request.wcId === opts.wcId);
+    }
+    if (opts.domain) {
+      filtered = filtered.filter(request => request.domain === opts.domain);
+    }
+    if (opts.type) {
+      const type = opts.type.toLowerCase();
+      filtered = filtered.filter(request => request.resourceType?.toLowerCase() === type);
+    }
+    return filtered;
+  }
+
+  private rebuildDomainStats(): void {
+    this.domainStats.clear();
+    for (const request of this.requests) {
+      let domainData = this.domainStats.get(request.domain);
+      if (!domainData) {
+        domainData = { domain: request.domain, requests: 0, apis: [], lastSeen: 0 };
+        this.domainStats.set(request.domain, domainData);
+      }
+      domainData.requests += 1;
+      domainData.lastSeen = request.timestamp;
+      if (this.isApiEndpoint(request)) {
+        const apiPath = this.extractApiPath(request.url);
+        if (apiPath && !domainData.apis.includes(apiPath)) {
+          domainData.apis.push(apiPath);
+        }
       }
     }
   }
@@ -390,6 +496,14 @@ export class NetworkInspector {
     } catch {
       return '';
     }
+  }
+
+  private getWebContentsId(details: { webContentsId?: number }): number | undefined {
+    return typeof details.webContentsId === 'number' ? details.webContentsId : undefined;
+  }
+
+  private getResourceType(details: { resourceType?: string }): string | undefined {
+    return typeof details.resourceType === 'string' ? details.resourceType : undefined;
   }
 
   private toHarEntry(request: NetworkRequest): HarEntry {

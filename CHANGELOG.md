@@ -2,6 +2,18 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.71.2] - 2026-04-13
+
+- fix: harden tab-scoped devtools and network inspection across HTTP API and MCP
+
+### Fixed
+
+- DevTools read routes now resolve an explicit tab target, default to the active tab, and return scope metadata so `status`, `console`, `network`, `performance`, `storage`, `evaluate`, DOM queries, and raw CDP calls no longer imply global state when they are tab-scoped
+- CDP network capture now keys requests by `webContents` target instead of raw `requestId` alone, preventing cross-tab collisions and making `/devtools/network/:requestId/body` trustworthy when multiple attached tabs are active
+- The webRequest-based network inspector now records tab identity and resource type, so `/network/log`, `/network/apis`, `/network/domains`, and `/network/har` can be filtered per tab instead of mixing traffic from unrelated tabs or extension noise
+- MCP DevTools and network tools now describe active-tab-by-default behavior accurately, forward `tabId` only where the HTTP API truly honors it, and expose scoped status/body/summary calls that match the underlying routes
+- Added focused route, MCP, DevTools capture, and network inspector tests to keep scoped-vs-global behavior aligned across the API surface
+
 ## [v0.71.1] - 2026-04-13
 
 - fix: stabilize multi-actor workspace, tab, SSE, and MCP ownership context
