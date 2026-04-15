@@ -107,10 +107,10 @@ interface PairingStore {
 // ─── Crypto helpers ─────────────────────────────────
 
 function randomChars(length: number): string {
-  const bytes = crypto.randomBytes(length);
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += SAFE_CHARS[bytes[i]! % SAFE_CHARS.length];
+    const idx = crypto.randomInt(SAFE_CHARS.length);
+    result += SAFE_CHARS[idx];
   }
   return result;
 }
