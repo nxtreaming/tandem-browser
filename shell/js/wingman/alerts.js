@@ -14,7 +14,7 @@ export function initAlerts(renderer) {
     window.tandem.onWingmanAlert((data) => {
       document.getElementById('alert-title').textContent = data.title;
       document.getElementById('alert-body').textContent = data.body;
-      _overlay.classList.add('visible');
+      _overlay?.classList.add('visible');
       setTimeout(dismissAlert, 15000);
     });
   }

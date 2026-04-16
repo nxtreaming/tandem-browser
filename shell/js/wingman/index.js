@@ -2,9 +2,12 @@
  * Wingman module entry point — all wingman UI + alerts + chat.
  *
  * Loaded from: shell/index.html as <script type="module" src="js/wingman/index.js">
- * window exports: chatRouter, dismissAlert, openWingmanPanel, toggleWingmanPanel, updatePanelLayout
+ * window exports (set across the family): chatRouter, dismissAlert,
+ *   openWingmanPanel, toggleWingmanPanel, updatePanelLayout.
+ *   This file sets: chatRouter, openWingmanPanel, toggleWingmanPanel, updatePanelLayout.
+ *   dismissAlert is set by ./alerts.js.
  */
-    import { initAlerts, dismissAlert } from './alerts.js';
+    import { initAlerts } from './alerts.js';
     import { initScreenshot, captureScreenshotMode } from './screenshot.js';
 
     const renderer = window.__tandemRenderer;
@@ -14,7 +17,7 @@
     }
 
     initAlerts(renderer);
-    initScreenshot(renderer);
+    initScreenshot();
 
     function getTabs() {
       return renderer.getTabs();

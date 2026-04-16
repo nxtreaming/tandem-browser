@@ -96,11 +96,11 @@ export async function captureScreenshotMode(mode) {
 }
 
 /**
- * Wire the screenshot button to the renderer bridge.
- * renderer is window.__tandemRenderer, passed explicitly to avoid
- * implicit global coupling.
+ * Wire the screenshot button. No renderer-bridge dependency today —
+ * the menu is shown via window.tandem.showScreenshotMenu (IPC preload).
+ * Kept as a no-arg init to stay symmetric with other wingman/* init fns.
  */
-export function initScreenshot(renderer) {
+export function initScreenshot() {
   screenshotButton.addEventListener('click', (event) => {
     event.stopPropagation();
     const rect = screenshotButton.getBoundingClientRect();
