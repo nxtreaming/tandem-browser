@@ -142,7 +142,7 @@ footer a:hover{color:var(--text2)}
 <div class="hero">
 <div class="hero-label">Open source &middot; MIT license &middot; developer preview &middot; v0.73.1</div>
 <h1>Tandem Browser is the <em>human-AI symbiotic browser</em></h1>
-<p>A local-first browser where humans and AI agents work in shared context. Same tabs, same sessions, same authenticated browser state, with explicit handoffs when the human needs to step in. Not generic browser automation, an actual shared browser workspace for the web that already exists.</p>
+<p>A local-first browser where humans and AI agents work in shared context. Same tabs, same sessions, same authenticated browser state, with explicit handoffs when the human needs to step in. Local or remote, one agent or several. Not generic browser automation, an actual shared browser workspace for the web that already exists.</p>
 <div class="hero-stats">
 <div class="stat"><span class="stat-num">513</span><span class="stat-label">GitHub stars</span></div>
 <div class="stat"><span class="stat-num">250</span><span class="stat-label">MCP tools</span></div>
@@ -159,6 +159,7 @@ footer a:hover{color:var(--text2)}
 <div class="proof-card"><strong>Human-AI symbiosis</strong><span>Built around humans and agents working together in the same browser, not taking turns through prompts.</span></div>
 <div class="proof-card"><strong>Open source, MIT</strong><span>Real public repo, source available now, developer preview, not vaporware.</span></div>
 <div class="proof-card"><strong>Works with your AI stack</strong><span>MCP and HTTP for local and remote agents. Connect on the same machine or over a private Tailscale network.</span></div>
+<div class="proof-card"><strong>Remote MCP is live</strong><span>Remote agents can now connect over Tailscale through MCP, not just raw HTTP.</span></div>
 <div class="proof-card"><strong>Worth watching for teams</strong><span>Shared human-AI browser workflows, not detached automation or brittle wrappers.</span></div>
 </div>
 </div>
@@ -250,7 +251,7 @@ footer a:hover{color:var(--text2)}
 <section>
 <div class="section-label">Multi-agent symbiosis</div>
 <div class="section-title">Multiple AI agents + one human. Same browser.</div>
-<p style="font-size:.85rem;color:var(--text2);max-width:580px">Tandem Browser supports multiple AI agents and a human working simultaneously in the same browser. Each gets their own workspace. All share the same tabs, cookies, and sessions. Tab locks prevent conflicts.</p>
+<p style="font-size:.85rem;color:var(--text2);max-width:640px">Tandem Browser supports multiple AI agents and a human working simultaneously in the same browser. Agents can connect locally or remotely over Tailscale. Each gets their own workspace. All share the same tabs, cookies, and sessions. Tab locks prevent conflicts.</p>
 <div class="riders">
 <div class="rider">
 <div class="rider-icon">&#128100;</div>
@@ -264,8 +265,8 @@ footer a:hover{color:var(--text2)}
 </div>
 <div class="rider">
 <div class="rider-icon">&#9881;</div>
-<h3>Claude (claude.ai)</h3>
-<p>Connected via MCP. 6 tabs in its own workspace. Reads, writes, navigates.</p>
+<h3>Claude Code on Windows</h3>
+<p>Connected remotely over Tailscale via MCP. Works inside its own workspace while sharing the same live browser context.</p>
 </div>
 </div>
 </section>
@@ -274,7 +275,7 @@ footer a:hover{color:var(--text2)}
 
 <section>
 <div class="section-label">Live demo</div>
-<div class="section-title">What Claude did through Tandem Browser in one session</div>
+<div class="section-title">What agents can do through Tandem Browser now</div>
 <div class="demo-block">
 <div class="prompt">$ claude via tandem MCP</div>
 <code>&gt; Opened Gmail, composed email, filled To/Subject/Body, clicked Send</code>
@@ -283,7 +284,7 @@ footer a:hover{color:var(--text2)}
 <code>&gt; Read YouTube search results for "tandem browser"</code>
 <code>&gt; Read pinboards, screenshots, workspace config</code>
 <code>&gt; Drew annotations visible to both human and AI</code>
-<div class="comment">No Gmail API. No Coolblue wrapper. Just the accessibility tree.</div>
+<div class="comment">No Gmail API. No Coolblue wrapper. Just the accessibility tree, shared browser context, and now remote MCP over Tailscale too.</div>
 </div>
 </section>
 
