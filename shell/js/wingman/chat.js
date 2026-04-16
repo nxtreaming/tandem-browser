@@ -14,6 +14,17 @@
  *
  * initChat() return shape matches prior `chatRouter` object:
  *   { ensureConnected, disconnect, router, dualMode, sendMessage }
+ *
+ * Notes on return shape:
+ *   - `sendMessage(text)` is a raw programmatic send (no image-paste plumbing,
+ *     no input-field clearing, no typing-indicator toggle). It's used by
+ *     main-process inject flows and the chat-inject IPC handler. For the
+ *     interactive send path, see the internal `sendMessage` wired to the
+ *     input field's Enter handler and the send button click.
+ *   - `router` and `dualMode` are exposed so external code (classic scripts,
+ *     IPC handlers) can observe or drive the underlying state without
+ *     going through the UI. Treat both as read-mostly; mutating router
+ *     state from outside will desync the selector UI.
  */
 
 import { createStreamingRenderer } from './chat-streaming.js';

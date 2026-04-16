@@ -7,10 +7,6 @@
  *
  * createStreamingRenderer({ messagesEl }) returns:
  *   - appendMessage(role, text, ts, source, image) → HTMLElement
- *   - scrollToBottom()
- *   - ensureElementAtBottom(element)
- *   - escapeHtml(s)
- *   - formatTime(ts)
  *   - handleRouterMessage(msg, type, backendId, ctx)  // single-mode
  *   - handleDualMessage(msg, type, backendId, ctx)    // dual-mode
  *   - clear()  // wipe streaming state (used on backend switch)
@@ -300,10 +296,6 @@ export function createStreamingRenderer({ messagesEl }) {
 
   return {
     appendMessage,
-    scrollToBottom,
-    ensureElementAtBottom,
-    escapeHtml,
-    formatTime,
     handleRouterMessage,
     handleDualMessage,
     clear,
