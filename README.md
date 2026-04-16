@@ -7,12 +7,9 @@
 [![Coverage](https://codecov.io/gh/hydro13/tandem-browser/branch/main/graph/badge.svg)](https://codecov.io/gh/hydro13/tandem-browser)
 [![Ask a question](https://img.shields.io/badge/discussions-Q%26A-blue)](https://github.com/hydro13/tandem-browser/discussions/categories/q-a)
 
-**The human-AI symbiotic browser. Shared browser context for humans and agents.**
+**The human-AI symbiotic browser. A shared browser workspace for humans and multiple AI agents.**
 
-Tandem Browser is a local-first Electron browser where a human and an AI agent browse
-together. The agent sees what you see, navigates your tabs, reads your pages,
-and operates inside your authenticated sessions, while an 8-layer security
-model keeps web content from attacking the agent layer.
+Tandem Browser is a local-first Electron browser where a human and one or more AI agents browse together. Agents can connect on the same machine or remotely over Tailscale, operate inside the same real browser context, and work across tabs, workspaces, and authenticated sessions while an 8-layer security model keeps web content from attacking the agent layer.
 
 Tandem Browser is built for the web that already exists. It does not require sites to
 ship special agent integrations before a human and an AI can work together in
@@ -24,6 +21,16 @@ the product story. The core idea is shared browser context, human oversight,
 and security around real browser work.
 
 Tandem Browser is the local-first browser layer for real human-AI collaboration, not a wrapper or an automation toy.
+
+## What's new now
+
+Tandem Browser now supports:
+
+- local MCP and local HTTP access
+- remote MCP over Tailscale
+- remote HTTP over Tailscale
+- multiple agents connected to the same browser at once
+- in-product pairing and onboarding through **Settings -> Connected Agents**
 
 Want the fastest path in?
 - **Try Tandem locally** -> [Quick Start](#quick-start)
@@ -95,6 +102,15 @@ browser work, local-first control, and governance around what the agent is
 doing.
 
 For the longer version, see [docs/tandem-browser-vs-webmcp.md](docs/tandem-browser-vs-webmcp.md).
+
+## Why this matters
+
+Most AI browser tooling still falls into one of two buckets:
+
+- browser automation in a separate session
+- AI features bolted onto a browser without true shared context
+
+Tandem Browser takes a different path. Humans and agents work in the same real browser, with the same tabs, sessions, cookies, and visibility, plus explicit handoffs and a serious security model around that collaboration.
 
 ## Quick Start
 
