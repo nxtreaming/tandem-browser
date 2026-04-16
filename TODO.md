@@ -4,7 +4,7 @@
 > Historical release summaries belong in `CHANGELOG.md`.
 > Architecture and product context belong in `PROJECT.md`.
 
-Last updated: April 14, 2026
+Last updated: April 16, 2026
 
 ## Purpose
 
@@ -62,6 +62,7 @@ Last updated: April 14, 2026
 - [ ] Make `ContextBridge` summaries natively actor/workspace-aware so `/context/summary` and other non-MCP consumers stop relying on MCP-side enrichment for ownership context
 - [ ] Expand the new handoff system beyond the first Activity-tab inbox with a dedicated handoff history/detail view; task-linked ready/resume/approve/reject actions now flow through a shared task↔handoff coordinator
 - [x] Add GitHub Actions verification for `npm run verify` on pushes and pull requests
+- [ ] Remove deprecated voice-transcription and live-mode main-process code after the shell-side cleanup lands (PR #TBD): preload bindings `window.tandem.transcribeAudio` and `window.tandem.onLiveModeChanged`, IPC handlers, HTTP route `POST /live/toggle` on port 8765, audio transcription pipeline, and MCP tools `tandem_live_toggle`, `tandem_live_status`, `tandem_audio_start`, `tandem_audio_stop`, `tandem_audio_status`, `tandem_audio_recordings`. The shell no longer references any of these.
 
 ## Later
 
