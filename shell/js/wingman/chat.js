@@ -1,7 +1,6 @@
 /**
  * Wingman chat — multi-backend router orchestration, backend selector UI,
- * send + input handlers, image paste, mic button (Task 5 will extract),
- * connection status.
+ * send + input handlers, image paste, connection status.
  *
  * Loaded from: shell/js/wingman/index.js
  * window exports: chatRouter — set by index.js from initChat() return.
@@ -396,97 +395,6 @@ export function initChat() {
     inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + 'px';
   });
   sendBtn.addEventListener('click', sendMessage);
-
-  // ── Mic button — native voice to text (Apple Speech / Whisper) ──
-  // (Task 5 will extract this into its own module.)
-  const micBtn = document.getElementById('chat-mic-btn');
-  let micRecording = false;
-  let micMediaRecorder = null;
-  let micChunks = [];
-  let micStream = null;
-
-  // Show mic button only on Linux (macOS users use system dictation Fn+Fn)
-  if (micBtn && window.tandem?.getPlatform) {
-    const platform = window.tandem.getPlatform();
-    if (platform !== 'darwin') micBtn.style.display = '';
-  }
-
-  if (micBtn) {
-    micBtn.addEventListener('click', async () => {
-      if (micRecording) {
-        // Stop recording → transcribe
-        micRecording = false;
-        micBtn.classList.remove('active');
-        micBtn.textContent = '⏳';
-        micBtn.title = 'Transcribing...';
-        if (micMediaRecorder && micMediaRecorder.state !== 'inactive') {
-          micMediaRecorder.stop();
-        }
-      } else {
-        // Start recording
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          micChunks = [];
-          micMediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
-
-          micMediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) micChunks.push(e.data);
-          };
-
-          micMediaRecorder.onstop = async () => {
-            // Stop mic stream
-            if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-
-            if (micChunks.length === 0) {
-              micBtn.textContent = '🎤';
-              micBtn.title = 'Voice input';
-              return;
-            }
-
-            // Combine chunks → ArrayBuffer
-            const blob = new Blob(micChunks, { type: 'audio/webm' });
-            const arrayBuffer = await blob.arrayBuffer();
-
-            // Send to main process for transcription
-            try {
-              const result = await window.tandem.transcribeAudio(arrayBuffer, 'nl-BE');
-              if (result.ok && result.text) {
-                const current = inputEl.value.trim();
-                inputEl.value = current ? current + ' ' + result.text.trim() : result.text.trim();
-                inputEl.dispatchEvent(new Event('input'));
-                inputEl.style.height = '';
-                inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + 'px';
-                inputEl.focus();
-              } else {
-                console.warn('[mic-btn] Transcription failed:', result.error);
-              }
-            } catch (e) {
-              console.error('[mic-btn] Transcription error:', e);
-            }
-
-            micBtn.textContent = '🎤';
-            micBtn.title = 'Voice input';
-            micMediaRecorder = null;
-            micChunks = [];
-          };
-
-          micMediaRecorder.start();
-          micRecording = true;
-          micBtn.classList.add('active');
-          micBtn.textContent = '🔴';
-          micBtn.title = 'Recording... (click to stop & transcribe)';
-
-        } catch (err) {
-          console.error('[mic-btn] Failed to start recording:', err);
-          micBtn.textContent = '🎤';
-          micBtn.title = 'Voice input';
-          if (err.name === 'NotAllowedError') {
-            alert('Microphone access denied.\n\nGo to System Settings → Privacy & Security → Microphone and enable Tandem.');
-          }
-        }
-      }
-    });
-  }
 
   // ── Initialize ──
 

@@ -559,7 +559,7 @@
     const chatRouter = initChat();
 
     // ═══════════════════════════════════════════════
-    // Emergency stop + Approval System (Phase 4)
+    // Emergency stop + Approval System
     // ═══════════════════════════════════════════════
     (() => {
       const noodremBtn = document.getElementById('noodrem-btn');
@@ -580,36 +580,6 @@
 
       if (noodremBtn) {
         noodremBtn.addEventListener('click', fireNoodrem);
-      }
-
-      // ═══ Live Mode Toggle ═══
-      const liveToggleBtn = document.getElementById('live-toggle-btn');
-      let liveEnabled = false;
-      if (liveToggleBtn) {
-        liveToggleBtn.addEventListener('click', async () => {
-          try {
-            const res = await fetch('http://localhost:8765/live/toggle', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ enabled: !liveEnabled }),
-            });
-            const data = await res.json();
-            liveEnabled = data.enabled;
-            liveToggleBtn.style.color = liveEnabled ? '#e94560' : 'var(--text-dim)';
-            liveToggleBtn.style.borderColor = liveEnabled ? '#e94560' : 'rgba(255,255,255,0.15)';
-            liveToggleBtn.title = liveEnabled ? 'Live Mode ON — Wingman is watching' : 'Live Mode OFF';
-          } catch (e) {
-            console.error('Live toggle failed:', e);
-          }
-        });
-        // Listen for live mode changes from main process
-        if (window.tandem && window.tandem.onLiveModeChanged) {
-          window.tandem.onLiveModeChanged((data) => {
-            liveEnabled = data.enabled;
-            liveToggleBtn.style.color = liveEnabled ? '#e94560' : 'var(--text-dim)';
-            liveToggleBtn.style.borderColor = liveEnabled ? '#e94560' : 'rgba(255,255,255,0.15)';
-          });
-        }
       }
 
       // Escape key = emergency stop (global handler, always works)
