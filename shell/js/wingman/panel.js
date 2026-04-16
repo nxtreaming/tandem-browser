@@ -4,7 +4,11 @@
  *
  * Loaded from: shell/js/wingman/index.js
  * window exports: openWingmanPanel, toggleWingmanPanel, updatePanelLayout
- *   (set here so classic scripts + main-process IPC can call them).
+ *   (set inside initPanel so classic scripts + main-process IPC can call them).
+ *
+ * initPanel return shape: { openWingmanPanel, toggleWingmanPanel,
+ *   updatePanelLayout, setActivePanelTab, isWingmanPanelOpen, panelToggleBtn,
+ *   wingmanBadge } — exposed so index.js (handoff layer) can reuse the refs.
  */
 
 export function initPanel({ hooks = {} } = {}) {
@@ -25,7 +29,7 @@ export function initPanel({ hooks = {} } = {}) {
   // Restore saved panel width
   const savedPanelWidth = localStorage.getItem('wingman-panel-width');
   if (savedPanelWidth) {
-    const w = parseInt(savedPanelWidth);
+    const w = parseInt(savedPanelWidth, 10);
     if (w >= 280 && w <= 700) wingmanPanel.style.width = w + 'px';
   }
 
@@ -117,8 +121,10 @@ export function initPanel({ hooks = {} } = {}) {
   panelToggleBtn.addEventListener('click', toggleWingmanPanel);
 
   // Wingman badge single click toggles panel. The long-press-to-settings
-  // timer lives in index.js; its own mouseup/mouseleave clears it before
-  // 'click' fires, so we don't need to see the timer here.
+  // timer lives in index.js; its mouseup/mouseleave listeners (registered
+  // in index.js after initPanel) clear the long-press timer before the
+  // click event reaches us — browser event order on a physical click is
+  // mousedown → mouseup → click regardless of listener registration order.
   wingmanBadge.addEventListener('click', () => {
     toggleWingmanPanel();
   });
@@ -161,5 +167,7 @@ export function initPanel({ hooks = {} } = {}) {
     updatePanelLayout,
     setActivePanelTab,
     isWingmanPanelOpen,
+    panelToggleBtn,
+    wingmanBadge,
   };
 }

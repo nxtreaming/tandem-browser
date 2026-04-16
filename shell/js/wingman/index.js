@@ -26,26 +26,17 @@
     }
 
     // ═══════════════════════════════════════════════
-    // Wingman badge → right-click or long-press → open settings
-    const wingmanBadge = document.querySelector('.wingman-badge');
-    wingmanBadge.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      window.openSettings?.();
-    });
-    let wingmanBadgePressTimer = null;
-    wingmanBadge.addEventListener('mousedown', () => {
-      wingmanBadgePressTimer = setTimeout(() => window.openSettings?.(), 600);
-    });
-    wingmanBadge.addEventListener('mouseup', () => { clearTimeout(wingmanBadgePressTimer); });
-    wingmanBadge.addEventListener('mouseleave', () => { clearTimeout(wingmanBadgePressTimer); });
-    wingmanBadge.style.cursor = 'pointer';
-    wingmanBadge.title = 'Right-click for settings';
-
-    // ═══════════════════════════════════════════════
     // Wingman Panel
     // ═══════════════════════════════════════════════
 
-    const panelToggleBtn = document.getElementById('wingman-panel-toggle');
+    // Forward declarations — reassigned below after initPanel(). The
+    // `isWingmanPanelOpen` sentinel returns false so any accidental
+    // pre-init call doesn't throw a TDZ ReferenceError.
+    let isWingmanPanelOpen = () => false;
+    let panelToggleBtn = null;
+    let wingmanBadge = null;
+    let wingmanBadgePressTimer = null;
+
     const activityEl = document.getElementById('activity-feed');
     const handoffListEl = document.getElementById('handoff-list');
     const handoffEmptyEl = document.getElementById('handoff-empty');
@@ -225,13 +216,31 @@
       scheduleHandoffAttentionEscalation();
     }
 
-    const { isWingmanPanelOpen } = initPanel({
+    ({ isWingmanPanelOpen, panelToggleBtn, wingmanBadge } = initPanel({
       hooks: {
         getPreferredTabOnOpen: () => openHandoffs.size > 0 ? 'activity' : 'chat',
         onPanelOpened: () => acknowledgeVisibleHandoffs(),
         onPanelClosed: () => scheduleHandoffAttentionEscalation(),
       },
+    }));
+
+    // ═══════════════════════════════════════════════
+    // Wingman badge → right-click or long-press → open settings.
+    // Registered after initPanel so `wingmanBadge` is resolved; the
+    // badge single-click (bound inside initPanel) still fires correctly
+    // because browser event order on a physical click is
+    // mousedown → mouseup → click, not listener-registration order.
+    wingmanBadge.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      window.openSettings?.();
     });
+    wingmanBadge.addEventListener('mousedown', () => {
+      wingmanBadgePressTimer = setTimeout(() => window.openSettings?.(), 600);
+    });
+    wingmanBadge.addEventListener('mouseup', () => { clearTimeout(wingmanBadgePressTimer); });
+    wingmanBadge.addEventListener('mouseleave', () => { clearTimeout(wingmanBadgePressTimer); });
+    wingmanBadge.style.cursor = 'pointer';
+    wingmanBadge.title = 'Right-click for settings';
 
     if (window.tandem) {
       async function activateHandoff(handoffId) {
