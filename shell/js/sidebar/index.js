@@ -7,67 +7,18 @@
  *   via window.__tandemShowTabContextMenu, already set via window. inside the IIFE).
  */
 
+import { ICONS, WORKSPACE_ICONS } from './constants.js';
+import {
+  getToken, getConfig, setConfig,
+  isSetupPanelOpen, setSetupPanelOpen,
+  getWorkspaces, setWorkspaces,
+  getActiveWorkspaceId, setActiveWorkspaceId,
+} from './config.js';
+
   // ═══════════════════════════════════════
   // SIDEBAR
   // ═══════════════════════════════════════
   const ocSidebar = (() => {
-    // Icon definitions — two styles similar to Opera:
-    // - Utility items: Heroicons outline (gray, turns white on hover/active)
-    // - Messenger items: colored brand icons on a colored rounded background
-    const ICONS = {
-      // === UTILITY ITEMS (Heroicons outline) ===
-      workspaces: { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg>`, brand: null },
-      news:       { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" /></svg>`, brand: null },
-      pinboards:  { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 8.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v8.25A2.25 2.25 0 0 0 6 16.5h2.25m8.25-8.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-7.5A2.25 2.25 0 0 1 8.25 18v-1.5m8.25-8.25h-6a2.25 2.25 0 0 0-2.25 2.25v6" /></svg>`, brand: null },
-      bookmarks:  { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>`, brand: null },
-      history:    { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`, brand: null },
-      downloads:  { svg: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>`, brand: null },
-
-      // === COMMUNICATION ITEMS (colored brand icons, custom background) ===
-      calendar:  { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>`, brand: '#4285F4' },
-      gmail:     { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`, brand: '#EA4335' },
-      whatsapp:  { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`, brand: '#25D366' },
-      telegram:  { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`, brand: '#2AABEE' },
-      discord:   { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.101 18.08.114 18.1.134 18.114a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>`, brand: '#5865F2' },
-      slack:     { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`, brand: '#4A154B' },
-      instagram: { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>`, brand: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' },
-      x:         { svg: `<svg viewBox="0 0 24 24" fill="white"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`, brand: '#000000' },
-    };
-
-    let config = null;
-    let isSetupPanelOpen = false;
-    const TOKEN = window.__TANDEM_TOKEN__ || '';
-
-    // === WORKSPACE STATE ===
-    let wsWorkspaces = [];
-    let wsActiveId = null;
-
-    const WORKSPACE_ICONS = {
-      home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>',
-      briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>',
-      'shopping-bag': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>',
-      play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg>',
-      airplane: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>',
-      coffee: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z"/></svg>',
-      document: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>',
-      'face-smile': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z"/></svg>',
-      camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z"/></svg>',
-      'book-open': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>',
-      gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>',
-      bicycle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="17.5" r="3.5"/><circle cx="17.5" cy="17.5" r="3.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M6.5 17.5 9 9h3m5.5 8.5L15 9h-3m0 0-1.5-4H14m-3.5 4 2 5h3"/></svg>',
-      car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.143-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193l-2.254-3.011A2.25 2.25 0 0 0 14.07 4.5H9.93a2.25 2.25 0 0 0-1.8.9L5.876 8.433a17.902 17.902 0 0 0-3.213 9.193c-.053.62.469 1.124 1.09 1.124H5.25"/></svg>',
-      crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18M3.75 14.25l2.25-9 4.5 4.5L12 5.25l1.5 4.5 4.5-4.5 2.25 9H3.75Z"/></svg>',
-      sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"/></svg>',
-      moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/></svg>',
-      ghost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2C7.58 2 4 5.58 4 10v11l2.5-2 2.5 2 3-2 3 2 2.5-2 2.5 2V10c0-4.42-3.58-8-8-8Z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>',
-      heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/></svg>',
-      hourglass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7 2h10M7 22h10M12 12c-3 0-5-2.5-5-5V3h10v4c0 2.5-2 5-5 5Zm0 0c3 0 5 2.5 5 5v4H7v-4c0-2.5 2-5 5-5Z"/></svg>',
-      leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 21c2-4 4-7 12-13C12 10 8 12 6 21Zm0 0C5 15 6 8 18 3c0 6-1 12-12 18Z"/></svg>',
-      'list-bullet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>',
-      rocket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12l.041-.02a.75.75 0 0 0-.714-.714A18.06 18.06 0 0 0 15.59 14.37ZM9.75 17.25v4.25a.75.75 0 0 1-.41.67l-2.58 1.29a.75.75 0 0 1-1.09-.58l-.42-2.93m4.5-2.66a14.98 14.98 0 0 1-6.16-12.12L3.66 5.09a.75.75 0 0 0-.714.714 18.06 18.06 0 0 0 6.804 11.826ZM6.25 18.94l-2.58 1.29a.75.75 0 0 1-1.08-.58l-.42-2.93M15 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>',
-      skull: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a8 8 0 0 0-8 8c0 3.09 1.75 5.76 4.31 7.1.17.09.19.17.19.28V20a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-2.62c0-.11.02-.19.19-.28A7.997 7.997 0 0 0 20 10a8 8 0 0 0-8-8Z"/><circle cx="9.5" cy="10" r="1.5" fill="currentColor"/><circle cx="14.5" cy="10" r="1.5" fill="currentColor"/><path stroke-linecap="round" d="M10 21v-1m4 1v-1"/></svg>',
-      star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>',
-    };
 
     function getIconSvg(slug) {
       if (WORKSPACE_ICONS[slug]) return WORKSPACE_ICONS[slug];
@@ -80,7 +31,7 @@
 
     async function loadQuickLinksConfig() {
       const response = await fetch('http://localhost:8765/config', {
-        headers: { Authorization: `Bearer ${TOKEN}` }
+        headers: { Authorization: `Bearer ${getToken()}` }
       });
       if (!response.ok) throw new Error('Failed to load quick links');
       return response.json();
@@ -111,7 +62,7 @@
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${TOKEN}`
+          Authorization: `Bearer ${getToken()}`
         },
         body: JSON.stringify({ general: { quickLinks } })
       });
@@ -133,7 +84,7 @@
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${TOKEN}`
+          Authorization: `Bearer ${getToken()}`
         },
         body: JSON.stringify({ general: { quickLinks } })
       });
@@ -142,11 +93,11 @@
     }
 
     async function loadConfig() {
-      const r = await fetch('http://localhost:8765/sidebar/config', { headers: { Authorization: `Bearer ${TOKEN}` } });
+      const r = await fetch('http://localhost:8765/sidebar/config', { headers: { Authorization: `Bearer ${getToken()}` } });
       const data = await r.json();
-      config = data.config;
-      config.activeItemId = null; // always start with panel closed
-      applyPinState(config.panelPinned || false);
+      setConfig(data.config);
+      getConfig().activeItemId = null; // always start with panel closed
+      applyPinState(getConfig().panelPinned || false);
       render();
     }
 
@@ -165,7 +116,7 @@
 
     function renderItemHTML(item) {
       const icon = ICONS[item.id];
-      const isActive = config.activeItemId === item.id;
+      const isActive = getConfig().activeItemId === item.id;
       const isMessenger = COMMUNICATION_IDS.includes(item.id);
 
       if (isMessenger && icon?.brand) {
@@ -188,9 +139,9 @@
     }
 
     function renderWorkspaceIcons() {
-      if (!wsWorkspaces.length) return '';
-      const icons = wsWorkspaces.map(ws => {
-        const isActive = ws.id === wsActiveId;
+      if (!getWorkspaces().length) return '';
+      const icons = getWorkspaces().map(ws => {
+        const isActive = ws.id === getActiveWorkspaceId();
         return `
           <button class="sidebar-item workspace-icon ${isActive ? 'active' : ''}"
             data-ws-id="${ws.id}" title="${ws.name}">
@@ -207,12 +158,12 @@
     }
 
     function render() {
-      if (!config) return;
+      if (!getConfig()) return;
       const sidebar = document.getElementById('sidebar');
       const itemsEl = document.getElementById('sidebar-items');
-      sidebar.dataset.state = config.state;
+      sidebar.dataset.state = getConfig().state;
 
-      const sorted = config.items.filter(i => i.enabled).sort((a, b) => a.order - b.order);
+      const sorted = getConfig().items.filter(i => i.enabled).sort((a, b) => a.order - b.order);
       // Section 1 = workspaces (dynamic icons, not from config items)
       const sec2 = sorted.filter(i => i.order >= 10 && i.order < 20);
       const sec3 = sorted.filter(i => i.order >= 20);
@@ -232,13 +183,13 @@
       // Panel — skip title/open state when setup panel is open
       const panel = document.getElementById('sidebar-panel');
       const panelTitle = document.getElementById('sidebar-panel-title');
-      if (!isSetupPanelOpen) {
-        if (config.activeItemId) {
-          const activeItem = config.items.find(i => i.id === config.activeItemId);
+      if (!isSetupPanelOpen()) {
+        if (getConfig().activeItemId) {
+          const activeItem = getConfig().items.find(i => i.id === getConfig().activeItemId);
           panel.classList.add('open');
           panelTitle.textContent = activeItem?.label || '';
           // Apply saved width for this item
-          const savedWidth = getPanelWidth(config.activeItemId);
+          const savedWidth = getPanelWidth(getConfig().activeItemId);
           setPanelWidth(savedWidth);
         } else {
           panel.classList.remove('open');
@@ -249,8 +200,8 @@
 
       // Wide toggle button
       const toggleBtn = document.getElementById('sidebar-toggle-width');
-      const toggleLabel = config.state === 'wide' ? 'Collapse' : 'Expand';
-      toggleBtn.innerHTML = (config.state === 'wide' ? '\u2039' : '\u203a') + `<span class="sidebar-footer-label">${toggleLabel}</span>`;
+      const toggleLabel = getConfig().state === 'wide' ? 'Collapse' : 'Expand';
+      toggleBtn.innerHTML = (getConfig().state === 'wide' ? '\u2039' : '\u203a') + `<span class="sidebar-footer-label">${toggleLabel}</span>`;
       toggleBtn.title = toggleLabel;
     }
 
@@ -346,11 +297,11 @@
 
     async function activateItem(id) {
       await fetch(`http://localhost:8765/sidebar/items/${id}/activate`, {
-        method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }
+        method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }
       });
-      isSetupPanelOpen = false;
-      const newActive = config.activeItemId === id ? null : id;
-      config.activeItemId = newActive;
+      setSetupPanelOpen(false);
+      const newActive = getConfig().activeItemId === id ? null : id;
+      getConfig().activeItemId = newActive;
       render();
 
       if (newActive && COMMUNICATION_IDS.includes(newActive)) {
@@ -369,24 +320,24 @@
     }
 
     async function toggleState() {
-      const newState = config.state === 'wide' ? 'narrow' : 'wide';
+      const newState = getConfig().state === 'wide' ? 'narrow' : 'wide';
       await fetch('http://localhost:8765/sidebar/state', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: newState })
       });
-      config.state = newState;
+      getConfig().state = newState;
       render();
     }
 
     async function toggleVisibility() {
-      const newState = config.state === 'hidden' ? 'narrow' : 'hidden';
+      const newState = getConfig().state === 'hidden' ? 'narrow' : 'hidden';
       await fetch('http://localhost:8765/sidebar/state', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: newState })
       });
-      config.state = newState;
+      getConfig().state = newState;
       render();
     }
 
@@ -515,7 +466,7 @@
           try {
             await fetch('http://localhost:8765/bookmarks/remove', {
               method: 'DELETE',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ id }),
             });
             await reloadBmData();
@@ -526,7 +477,7 @@
 
     async function reloadBmData() {
       try {
-        const res = await fetch('http://localhost:8765/bookmarks', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/bookmarks', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         bmState.all = data.bookmarks?.[0] || { children: [] };
         // Re-navigate to current folder if possible
@@ -576,7 +527,7 @@
           if (!isFolder && newUrl) body.url = newUrl;
           await fetch('http://localhost:8765/bookmarks/update', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
             body: JSON.stringify(body),
           });
           await reloadBmData();
@@ -624,7 +575,7 @@
 
       // Fetch bookmarks if not cached
       if (!bmState.all) {
-        const res = await fetch('http://localhost:8765/bookmarks', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/bookmarks', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         bmState.all = data.bookmarks?.[0] || { children: [] }; // Bookmarks Bar root
       }
@@ -666,7 +617,7 @@
         searchTimer = setTimeout(async () => {
           bmState.searchMode = true;
           const res = await fetch(`http://localhost:8765/bookmarks/search?q=${encodeURIComponent(q)}`, {
-            headers: { Authorization: `Bearer ${TOKEN}` }
+            headers: { Authorization: `Bearer ${getToken()}` }
           });
           const data = await res.json();
           const listEl = document.getElementById('bm-list');
@@ -710,7 +661,7 @@
           try {
             await fetch('http://localhost:8765/bookmarks/add', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ name, url, parentId }),
             });
             await reloadBmData();
@@ -748,7 +699,7 @@
           try {
             await fetch('http://localhost:8765/bookmarks/add-folder', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ name, parentId }),
             });
             await reloadBmData();
@@ -786,7 +737,7 @@
 
       // Fetch history
       try {
-        const res = await fetch('http://localhost:8765/history', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/history', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         const entries = data.entries || [];
         const listEl = document.getElementById('history-list');
@@ -805,14 +756,14 @@
         clearTimeout(historySearchTimer);
         const q = e.target.value.trim();
         if (!q) {
-          const res = await fetch('http://localhost:8765/history', { headers: { Authorization: `Bearer ${TOKEN}` } });
+          const res = await fetch('http://localhost:8765/history', { headers: { Authorization: `Bearer ${getToken()}` } });
           const data = await res.json();
           const listEl = document.getElementById('history-list');
           if (listEl) { listEl.innerHTML = renderHistoryItems(data.entries || []); attachHistoryClickHandlers(listEl); }
           return;
         }
         historySearchTimer = setTimeout(async () => {
-          const res = await fetch(`http://localhost:8765/history/search?q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+          const res = await fetch(`http://localhost:8765/history/search?q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${getToken()}` } });
           const data = await res.json();
           const listEl = document.getElementById('history-list');
           if (listEl) { listEl.innerHTML = renderHistoryItems(data.results || []); attachHistoryClickHandlers(listEl); }
@@ -851,7 +802,7 @@
       if (!section || !list) return;
 
       try {
-        const res = await fetch('http://localhost:8765/sync/devices', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/sync/devices', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         const devices = data.devices || [];
         if (!devices.length) { section.style.display = 'none'; return; }
@@ -910,7 +861,7 @@
         </div>`);
 
       try {
-        const res = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         pbRenderBoardList(data.boards || []);
       } catch {
@@ -946,7 +897,7 @@
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const boardId = btn.dataset.boardId;
-          await fetch(`http://localhost:8765/pinboards/${boardId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${TOKEN}` } });
+          await fetch(`http://localhost:8765/pinboards/${boardId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
           loadPinboardPanel();
         });
       });
@@ -982,7 +933,7 @@
 
       // Fetch board data to apply saved layout/background
       try {
-        const boardRes = await fetch(`http://localhost:8765/pinboards/${boardId}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const boardRes = await fetch(`http://localhost:8765/pinboards/${boardId}`, { headers: { Authorization: `Bearer ${getToken()}` } });
         const boardData = await boardRes.json();
         if (boardData.ok && boardData.board) {
           pbState.currentLayout = boardData.board.layout || 'default';
@@ -1044,7 +995,7 @@
             opt.classList.add('active');
             await fetch(`http://localhost:8765/pinboards/${boardId}/settings`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ layout })
             });
           });
@@ -1058,7 +1009,7 @@
             opt.classList.add('active');
             await fetch(`http://localhost:8765/pinboards/${boardId}/settings`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ background: bg })
             });
           });
@@ -1080,7 +1031,7 @@
         if (!text) return;
         await fetch(`http://localhost:8765/pinboards/${boardId}/items`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ type: 'text', content: text })
         });
         textarea.value = '';
@@ -1102,7 +1053,7 @@
       });
 
       try {
-        const res = await fetch(`http://localhost:8765/pinboards/${boardId}/items`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch(`http://localhost:8765/pinboards/${boardId}/items`, { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         pbRenderItems(data.items || []);
       } catch {
@@ -1157,7 +1108,7 @@
         const content = overlay.querySelector('.pb-edit-content-input').value.trim();
         await fetch(`http://localhost:8765/pinboards/${boardId}/items/${item.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ title, content, note: content })
         });
         close();
@@ -1168,7 +1119,7 @@
     async function pbRefreshItems(boardId) {
       if (!boardId || !document.getElementById('pb-item-list')) return;
       try {
-        const res = await fetch(`http://localhost:8765/pinboards/${boardId}/items`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch(`http://localhost:8765/pinboards/${boardId}/items`, { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         pbRenderItems(data.items || []);
         await pbUpdateBoardSwitcher(boardId);
@@ -1177,7 +1128,7 @@
 
     async function pbUpdateBoardSwitcher(currentId) {
       try {
-        const res = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const res = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await res.json();
         const select = document.getElementById('pb-board-switcher');
         if (!select) return;
@@ -1273,7 +1224,7 @@
           card.style.opacity = '0';
           card.style.transform = 'scale(0.9)';
         }
-        await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${TOKEN}` } });
+        await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
         setTimeout(() => {
           if (card) card.remove();
           if (container.querySelectorAll('.pb-card').length === 0) {
@@ -1327,7 +1278,7 @@
                 if (newText && newText !== originalText) {
                   await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                     body: JSON.stringify({ content: newText })
                   });
                 }
@@ -1360,7 +1311,7 @@
                 if (newText && newText !== originalText) {
                   await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                     body: JSON.stringify({ title: newText })
                   });
                 }
@@ -1411,7 +1362,7 @@
         const newOrder = [...container.querySelectorAll('.pb-card')].map(c => c.dataset.itemId);
         await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/reorder`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ itemIds: newOrder })
         });
         container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
@@ -1424,7 +1375,7 @@
       const emoji = await showPrompt('Board emoji (optional)', 'e.g. 📌', '📌') || '📌';
       await fetch('http://localhost:8765/pinboards', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ name, emoji })
       });
       loadPinboardPanel();
@@ -1442,8 +1393,8 @@
       const titleEl = document.getElementById('sidebar-panel-title');
       const content = document.getElementById('sidebar-panel-content');
 
-      isSetupPanelOpen = true;
-      config.activeItemId = null;
+      setSetupPanelOpen(true);
+      getConfig().activeItemId = null;
       titleEl.textContent = 'Sidebar Setup';
       panel.classList.add('open');
 
@@ -1479,13 +1430,13 @@
           const id = e.target.dataset.itemId;
           await fetch(`http://localhost:8765/sidebar/items/${id}/toggle`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${TOKEN}` }
+            headers: { Authorization: `Bearer ${getToken()}` }
           });
           const r = await fetch('http://localhost:8765/sidebar/config', {
-            headers: { Authorization: `Bearer ${TOKEN}` }
+            headers: { Authorization: `Bearer ${getToken()}` }
           });
           const data = await r.json();
-          config = data.config;
+          setConfig(data.config);
           render();
         });
       });
@@ -1509,7 +1460,7 @@
     const MAX_PANEL_WIDTH = () => window.innerWidth - 100; // always fits any screen
 
     function getPanelWidth(id) {
-      return (config.panelWidths && config.panelWidths[id]) || DEFAULT_PANEL_WIDTH;
+      return (getConfig().panelWidths && getConfig().panelWidths[id]) || DEFAULT_PANEL_WIDTH;
     }
 
     function setPanelWidth(width) {
@@ -1519,12 +1470,12 @@
     }
 
     async function savePanelWidth(id, width) {
-      if (!config.panelWidths) config.panelWidths = {};
-      config.panelWidths[id] = width;
+      if (!getConfig().panelWidths) getConfig().panelWidths = {};
+      getConfig().panelWidths[id] = width;
       await fetch('http://localhost:8765/sidebar/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
-        body: JSON.stringify({ panelWidths: config.panelWidths })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ panelWidths: getConfig().panelWidths })
       });
     }
 
@@ -1547,7 +1498,7 @@
       resizeStartX = e.clientX;
       const panel = document.getElementById('sidebar-panel');
       resizeStartWidth = panel.offsetWidth;
-      resizeActiveId = config.activeItemId;
+      resizeActiveId = getConfig().activeItemId;
       resizeHandle.classList.add('dragging');
       document.body.style.userSelect = 'none';
       dragCover.style.display = 'block'; // block webview mouse capture
@@ -1575,11 +1526,11 @@
     // === WORKSPACE FUNCTIONS ===
     async function loadWorkspaces() {
       try {
-        const r = await fetch('http://localhost:8765/workspaces', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const r = await fetch('http://localhost:8765/workspaces', { headers: { Authorization: `Bearer ${getToken()}` } });
         const data = await r.json();
         if (data.ok) {
-          wsWorkspaces = data.workspaces;
-          wsActiveId = data.activeId;
+          setWorkspaces(data.workspaces);
+          setActiveWorkspaceId(data.activeId);
           render();
           filterTabBar();
         }
@@ -1589,13 +1540,13 @@
     async function switchWorkspace(id) {
       try {
         const r = await fetch(`http://localhost:8765/workspaces/${id}/switch`, {
-          method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }
+          method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }
         });
         const data = await r.json();
         if (data.ok) {
-          wsActiveId = data.workspace.id;
+          setActiveWorkspaceId(data.workspace.id);
           // Update the local workspace's tabIds
-          const ws = wsWorkspaces.find(w => w.id === id);
+          const ws = getWorkspaces().find(w => w.id === id);
           if (ws) Object.assign(ws, data.workspace);
           render();
           filterTabBar();
@@ -1604,7 +1555,7 @@
     }
 
     function getNextWorkspaceName() {
-      const existing = wsWorkspaces.map(w => w.name);
+      const existing = getWorkspaces().map(w => w.name);
       let n = 1;
       while (existing.includes(`Workspace ${n}`)) n++;
       return `Workspace ${n}`;
@@ -1677,24 +1628,24 @@
           if (isEdit) {
             const r = await fetch(`http://localhost:8765/workspaces/${existingWs.id}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ name, icon: selectedIcon })
             });
             const data = await r.json();
             if (data.ok) {
-              const idx = wsWorkspaces.findIndex(w => w.id === existingWs.id);
-              if (idx >= 0) wsWorkspaces[idx] = data.workspace;
+              const idx = getWorkspaces().findIndex(w => w.id === existingWs.id);
+              if (idx >= 0) getWorkspaces()[idx] = data.workspace;
               render();
             }
           } else {
             const r = await fetch('http://localhost:8765/workspaces', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
               body: JSON.stringify({ name, icon: selectedIcon })
             });
             const data = await r.json();
             if (data.ok) {
-              wsWorkspaces.push(data.workspace);
+              getWorkspaces().push(data.workspace);
               render();
             }
           }
@@ -1721,7 +1672,7 @@
         content.querySelector('#ws-form-delete-yes').addEventListener('click', async () => {
           try {
             await fetch(`http://localhost:8765/workspaces/${existingWs.id}`, {
-              method: 'DELETE', headers: { Authorization: `Bearer ${TOKEN}` }
+              method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` }
             });
             await loadWorkspaces();
           } catch (e) { console.error('workspace delete failed:', e); }
@@ -1732,7 +1683,7 @@
 
     function filterTabBar() {
       // Find active workspace
-      const ws = wsWorkspaces.find(w => w.id === wsActiveId);
+      const ws = getWorkspaces().find(w => w.id === getActiveWorkspaceId());
       if (!ws) return;
       const allowedTabIds = new Set(ws.tabIds);
 
@@ -1766,8 +1717,8 @@
     }
 
     async function openWorkspacePanel() {
-      isSetupPanelOpen = false;
-      config.activeItemId = '__workspaces';
+      setSetupPanelOpen(false);
+      getConfig().activeItemId = '__workspaces';
       const panel = document.getElementById('sidebar-panel');
       const titleEl = document.getElementById('sidebar-panel-title');
       const content = document.getElementById('sidebar-panel-content');
@@ -1783,8 +1734,8 @@
       // Refresh workspace data
       await loadWorkspaces();
 
-      const rows = wsWorkspaces.map(ws => {
-        const isActive = ws.id === wsActiveId;
+      const rows = getWorkspaces().map(ws => {
+        const isActive = ws.id === getActiveWorkspaceId();
         return `
           <div class="ws-panel-item ${isActive ? 'active' : ''}" data-ws-panel-id="${ws.id}">
             <div class="ws-panel-icon-svg">${getIconSvg(ws.icon)}</div>
@@ -1815,7 +1766,7 @@
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const id = btn.dataset.wsEdit;
-          const ws = wsWorkspaces.find(w => w.id === id);
+          const ws = getWorkspaces().find(w => w.id === id);
           if (ws) showWorkspaceForm(content, 'edit', ws);
         });
       });
@@ -1841,18 +1792,18 @@
       document.getElementById('sidebar-toggle-width').addEventListener('click', toggleState);
 
       document.getElementById('sidebar-panel-pin').addEventListener('click', async () => {
-        config.panelPinned = !config.panelPinned;
-        applyPinState(config.panelPinned);
+        getConfig().panelPinned = !getConfig().panelPinned;
+        applyPinState(getConfig().panelPinned);
         await fetch('http://localhost:8765/sidebar/config', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
-          body: JSON.stringify({ panelPinned: config.panelPinned })
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ panelPinned: getConfig().panelPinned })
         });
       });
 
       document.getElementById('sidebar-panel-reload').addEventListener('click', () => {
-        if (config.activeItemId && webviewCache.has(config.activeItemId)) {
-          webviewCache.get(config.activeItemId).reload();
+        if (getConfig().activeItemId && webviewCache.has(getConfig().activeItemId)) {
+          webviewCache.get(getConfig().activeItemId).reload();
         }
       });
 
@@ -1868,20 +1819,20 @@
           if (!child.classList.contains('sidebar-webview')) child.remove();
         });
         document.getElementById('sidebar-panel-title').textContent = '';
-        isSetupPanelOpen = false;
-        config.activeItemId = null;
+        setSetupPanelOpen(false);
+        getConfig().activeItemId = null;
         render();
       });
 
       document.getElementById('sidebar-customize').addEventListener('click', () => {
-        if (isSetupPanelOpen) {
+        if (isSetupPanelOpen()) {
           // Toggle off — close the panel
           const panel = document.getElementById('sidebar-panel');
           panel.classList.remove('open');
-          isSetupPanelOpen = false;
+          setSetupPanelOpen(false);
           hideWebviews();
         } else {
-          renderSetupPanel(config.items);
+          renderSetupPanel(getConfig().items);
         }
       });
 
@@ -1917,10 +1868,10 @@
       // Listen for workspace switch events from main process
       if (window.tandem && window.tandem.onWorkspaceSwitched) {
         window.tandem.onWorkspaceSwitched((workspace) => {
-          wsActiveId = workspace.id;
+          setActiveWorkspaceId(workspace.id);
           // Update local workspace data
-          const idx = wsWorkspaces.findIndex(w => w.id === workspace.id);
-          if (idx >= 0) wsWorkspaces[idx] = workspace;
+          const idx = getWorkspaces().findIndex(w => w.id === workspace.id);
+          if (idx >= 0) getWorkspaces()[idx] = workspace;
           render();
           filterTabBar();
         });
@@ -1947,7 +1898,7 @@
     function getTabWorkspaceId(domTabId) {
       const wcId = getWebContentsIdForTab(domTabId);
       if (wcId === null) return null;
-      const ws = wsWorkspaces.find(w => w.tabIds && w.tabIds.includes(wcId));
+      const ws = getWorkspaces().find(w => w.tabIds && w.tabIds.includes(wcId));
       return ws ? ws.id : null;
     }
 
@@ -1957,12 +1908,12 @@
       try {
         await fetch(`http://localhost:8765/workspaces/${targetWsId}/move-tab`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
           body: JSON.stringify({ tabId: wcId })
         });
         await loadWorkspaces();
         filterTabBar();
-        const ws = wsWorkspaces.find(w => w.id === targetWsId);
+        const ws = getWorkspaces().find(w => w.id === targetWsId);
         console.log(`Tab moved to workspace ${ws ? ws.name : targetWsId}`);
       } catch (e) { console.error('moveTabToWorkspace failed:', e); }
     }
@@ -1977,12 +1928,12 @@
       const wv = document.querySelector('webview[data-tab-id="'+domTabId+'"]');
       const isMuted = wv ? wv.audioMuted : false;
       const currentWsId = getTabWorkspaceId(domTabId);
-      const targets = wsWorkspaces.filter(ws => ws.id !== currentWsId);
+      const targets = getWorkspaces().filter(ws => ws.id !== currentWsId);
 
       // Pre-fetch pinboards (fast — same-machine API call)
       let pbBoards = [];
       try {
-        const pbRes = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${TOKEN}` } });
+        const pbRes = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${getToken()}` } });
         const pbData = await pbRes.json();
         pbBoards = pbData.boards || [];
       } catch { /* Tandem not running or no boards */ }
@@ -2105,7 +2056,7 @@
               const tabTitle = wv ? wv.getTitle() : '';
               await fetch('http://localhost:8765/pinboards/' + board.id + '/items', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                 body: JSON.stringify({ type: 'link', url: tabUrl, title: tabTitle })
               });
               // Visual flash feedback on the tab
@@ -2159,7 +2110,7 @@
             closeCtxMenu();
             await fetch('http://localhost:8765/tabs/' + encodeURIComponent(domTabId) + '/emoji', {
               method: 'DELETE',
-              headers: { Authorization: 'Bearer ' + TOKEN }
+              headers: { Authorization: 'Bearer ' + getToken() }
             });
           });
           emojiSub.appendChild(removeItem);
@@ -2185,7 +2136,7 @@
             closeCtxMenu();
             await fetch('http://localhost:8765/tabs/' + encodeURIComponent(domTabId) + '/emoji', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
               body: JSON.stringify({ emoji: emoji })
             });
           });
