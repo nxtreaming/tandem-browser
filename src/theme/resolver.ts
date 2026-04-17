@@ -18,3 +18,7 @@ export function resolveInitialTheme(
   if (setting === 'system') return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
   return 'dark';
 }
+
+export function buildThemeAdditionalArg(theme: ResolvedTheme): string {
+  return `--tandem-theme=${theme}`;
+}
