@@ -323,13 +323,6 @@
         renderBookmarksBar();
       });
     });
-    // Backup mechanism: listen for the store's window event. Redundant with the
-    // subscribe() above, but guarantees the top bar re-renders after mutations
-    // even if the subscribe chain ever misfires.
-    window.addEventListener('tandem:bookmarks-changed', () => {
-      updateBookmarkStar();
-      renderBookmarksBar();
-    });
 
     bmPopupCancel.addEventListener('click', closeBookmarkPopup);
 
@@ -455,22 +448,32 @@
       return dropdown;
     }
 
-    function createBarElement(item) {
+    function createBarElement(item, idx) {
       if (item.type === 'url' && item.url) {
         return createBookmarkLink(item);
       } else if (item.type === 'folder' && item.children) {
         const folder = document.createElement('div');
         folder.className = 'bm-folder';
+        folder.dataset.barIdx = String(idx);
         folder.innerHTML = `<span class="bm-folder-icon">📁</span> ${escapeHtml((item.name || 'Folder').substring(0, 25))}`;
         const dropdown = createFolderDropdown(item.children);
         folder.appendChild(dropdown);
-        folder.addEventListener('click', (e) => {
+        folder.addEventListener('click', async (e) => {
           e.stopPropagation();
           if (dropdown.classList.contains('open')) {
             closeAllBookmarkDropdowns();
-          } else {
-            openBookmarkDropdown(dropdown);
+            return;
           }
+          // Per-interaction refetch: pull the latest list from the backend
+          // before opening. store.load() notifies subscribers, which fully
+          // rebuilds the bar DOM — so `folder`/`dropdown` from this closure
+          // are now detached. Re-find the fresh folder by position and open
+          // ITS dropdown, guaranteeing the content reflects current data.
+          const store = getStore();
+          if (store) await store.load();
+          const freshFolder = bookmarksBar.querySelector(`.bm-folder[data-bar-idx="${idx}"]`);
+          const freshDropdown = freshFolder?.querySelector(':scope > .bm-dropdown');
+          if (freshDropdown) openBookmarkDropdown(freshDropdown);
         });
         return folder;
       }
@@ -486,8 +489,9 @@
       bookmarksBar.classList.add('visible');
 
       const elements = [];
-      for (const item of barItems) {
-        const el = createBarElement(item);
+      for (let i = 0; i < barItems.length; i++) {
+        const item = barItems[i];
+        const el = createBarElement(item, i);
         if (el) {
           bookmarksBar.appendChild(el);
           elements.push({ el, item });
@@ -554,13 +558,18 @@
       }
 
       chevron.appendChild(overflowDropdown);
-      chevron.addEventListener('click', (e) => {
+      chevron.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (overflowDropdown.classList.contains('open')) {
           closeAllBookmarkDropdowns();
-        } else {
-          openBookmarkDropdown(overflowDropdown);
+          return;
         }
+        // Per-interaction refetch (same rationale as folder click above).
+        const store = getStore();
+        if (store) await store.load();
+        const freshChevron = bookmarksBar.querySelector('.bm-overflow');
+        const freshDropdown = freshChevron?.querySelector(':scope > .bm-dropdown');
+        if (freshDropdown) openBookmarkDropdown(freshDropdown);
       });
 
       bookmarksBar.appendChild(chevron);
