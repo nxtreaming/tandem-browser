@@ -72,3 +72,54 @@ describe('shell theme module', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
   });
 });
+
+describe('applyTheme scope option', () => {
+  beforeEach(() => {
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.removeAttribute('data-tandem-initial-theme');
+    document.body.innerHTML = '';
+  });
+
+  it('applies data-theme to a scope element when provided, leaving document root untouched', async () => {
+    const { applyTheme } = await loadFresh();
+    const scope = document.createElement('div');
+    document.body.appendChild(scope);
+    document.documentElement.removeAttribute('data-theme');
+
+    applyTheme('light', { scope });
+
+    expect(scope.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('removes data-theme from scope element when setting dark', async () => {
+    const { applyTheme } = await loadFresh();
+    const scope = document.createElement('div');
+    scope.setAttribute('data-theme', 'light');
+    document.body.appendChild(scope);
+
+    applyTheme('dark', { scope });
+
+    expect(scope.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('without scope still targets document root (regression)', async () => {
+    const { applyTheme } = await loadFresh();
+    document.documentElement.removeAttribute('data-theme');
+
+    applyTheme('light');
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+  });
+
+  it('ignores invalid theme values even when scope is provided', async () => {
+    const { applyTheme } = await loadFresh();
+    const scope = document.createElement('div');
+    scope.setAttribute('data-theme', 'light');
+    document.body.appendChild(scope);
+
+    applyTheme('bogus', { scope });
+
+    expect(scope.getAttribute('data-theme')).toBe('light');
+  });
+});
