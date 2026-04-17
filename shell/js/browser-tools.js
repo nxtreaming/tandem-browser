@@ -579,14 +579,37 @@
       if (bookmarksBarVisible && barItems.length > 0) layoutBookmarksBar();
     });
 
+    // TEMP DIAGNOSTIC — visible rerender counter on the bookmarks bar.
+    // Lets us confirm via screenshot whether the subscribe chain fires
+    // after a mutation. Remove once the sync bug is fully nailed down.
+    let _renderFireCount = 0;
+    function _diagnostic(barItemsLen) {
+      _renderFireCount++;
+      const t = new Date().toTimeString().slice(0, 8);
+      bookmarksBar.setAttribute('data-diag', `rb:${_renderFireCount} t:${t} n:${barItemsLen}`);
+      let badge = document.getElementById('bm-diag-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'bm-diag-badge';
+        badge.style.cssText = 'position:fixed;top:80px;right:8px;z-index:9999;background:#222;color:#0f0;font:10px/1.2 monospace;padding:2px 4px;border:1px solid #0f0;border-radius:2px;pointer-events:none;';
+        document.body.appendChild(badge);
+      }
+      try {
+        const tempFolder = barItems[0]?.children?.find(c => c.name === 'AI')?.children?.find(c => c.name === 'temp');
+        const bookmark = tempFolder?.children?.[0];
+        badge.textContent = `rb:${_renderFireCount} ${t} n:${barItemsLen} ${bookmark?.name?.slice(0, 24) || '?'}`;
+      } catch { badge.textContent = `rb:${_renderFireCount} ${t} n:${barItemsLen}`; }
+    }
+
     // Render the bar from whatever's currently in the store. Called by the
     // store subscription on every mutation, and by loadBookmarksBar() after
     // an explicit (re)load.
     function renderBookmarksBar() {
-      if (!bookmarksBarVisible) return;
+      if (!bookmarksBarVisible) { _diagnostic(-1); return; }
       const store = getStore();
-      if (!store) return;
+      if (!store) { _diagnostic(-2); return; }
       barItems = store.getBar();
+      _diagnostic(barItems.length);
       if (barItems.length === 0) {
         bookmarksBar.classList.remove('visible');
         return;

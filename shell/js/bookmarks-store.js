@@ -35,11 +35,12 @@ function notify() {
  */
 export async function load() {
   try {
-    // cache: 'no-store' — the Electron renderer HTTP cache would otherwise
-    // serve a stale /bookmarks response, causing the top bar to show the
-    // pre-mutation list even after a rename (the classic "one rename behind"
-    // symptom). Every load() must hit the backend.
-    const res = await fetch(`${API}/bookmarks`, {
+    // Cache-busting query param + cache:'no-store'. The Electron renderer
+    // was observed serving stale /bookmarks responses even with
+    // cache:'no-store' (confirmed via live MCP mutation: backend had the
+    // new name, frontend kept showing the previous fetch). The unique
+    // timestamp forces a fresh URL every call so no cache layer can match.
+    const res = await fetch(`${API}/bookmarks?_=${Date.now()}`, {
       headers: { Authorization: `Bearer ${token()}` },
       cache: 'no-store',
     });
