@@ -323,6 +323,13 @@
         renderBookmarksBar();
       });
     });
+    // Backup mechanism: listen for the store's window event. Redundant with the
+    // subscribe() above, but guarantees the top bar re-renders after mutations
+    // even if the subscribe chain ever misfires.
+    window.addEventListener('tandem:bookmarks-changed', () => {
+      updateBookmarkStar();
+      renderBookmarksBar();
+    });
 
     bmPopupCancel.addEventListener('click', closeBookmarkPopup);
 

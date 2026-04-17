@@ -27,6 +27,11 @@ function notify() {
   for (const fn of _subscribers) {
     try { fn(); } catch (err) { console.error('[bookmarks-store] subscriber threw', err); }
   }
+  // Belt-and-suspenders: also dispatch a window event. Classic-script consumers
+  // (browser-tools.js) listen to this as a backup in case the subscribe chain
+  // is ever interrupted — so the top bookmarks bar always re-renders after a
+  // mutation, even if subscribe() somehow didn't fire for it.
+  window.dispatchEvent(new CustomEvent('tandem:bookmarks-changed'));
 }
 
 /**
