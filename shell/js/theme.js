@@ -20,12 +20,17 @@ const INITIAL_ATTR = 'data-tandem-initial-theme';
 const CONFIG_URL = 'http://localhost:8765/config';
 const BC_NAME = 'tandem-theme';
 
-export function applyTheme(theme) {
+// opts.scope: optional Element to receive the data-theme attribute instead of
+// <html>. Used by per-workspace theme scoping so workspace-specific views can
+// opt out of the document-wide theme without affecting the rest of the shell.
+// When omitted, behavior is unchanged — the attribute is written to
+// document.documentElement.
+export function applyTheme(theme, opts) {
   if (!VALID_THEMES.has(theme)) return;
-  const html = document.documentElement;
-  if (theme === 'light') html.setAttribute('data-theme', 'light');
-  else if (theme === 'system') html.setAttribute('data-theme', 'system');
-  else html.removeAttribute('data-theme'); // dark is the CSS default
+  const target = (opts && opts.scope) || document.documentElement;
+  if (theme === 'light') target.setAttribute('data-theme', 'light');
+  else if (theme === 'system') target.setAttribute('data-theme', 'system');
+  else target.removeAttribute('data-theme'); // dark is the CSS default
 }
 
 export function readInitialTheme() {
