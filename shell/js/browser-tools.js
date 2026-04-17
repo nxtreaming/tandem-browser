@@ -614,12 +614,15 @@
       const store = getStore();
       if (!store) { _diagnostic(-2); return; }
       barItems = store.getBar();
-      _diagnostic(barItems.length);
       if (barItems.length === 0) {
         bookmarksBar.classList.remove('visible');
+        _diagnostic(0);
         return;
       }
       layoutBookmarksBar();
+      // Must run AFTER layoutBookmarksBar — it does bookmarksBar.innerHTML=''
+      // which would wipe the inline badge if we prepended it before.
+      _diagnostic(barItems.length);
     }
 
     // Ensure the store is populated, then render. Used for initial boot and
