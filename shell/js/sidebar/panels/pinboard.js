@@ -19,12 +19,16 @@ export const PINBOARD_PANEL_IDS = ['pinboards'];
 
 // Local state for the currently-open board. currentBoardId is null on the
 // board-list view and set to the board's id once the user opens one.
+// currentItems is the most-recently rendered items array; delegated handlers
+// attached once in pbOpenBoard read from it via closure each time they fire,
+// so they always see the fresh list without being re-registered on refresh.
 const pbState = {
   currentBoardId: null,
   currentBoardName: '',
   currentBoardEmoji: '',
   currentLayout: 'default',
   currentBackground: 'dark',
+  currentItems: [],
 };
 
 // One-time hookup: refresh the open board when a pin is added via the
@@ -106,14 +110,42 @@ function pbRenderBoardList(boards) {
       <span class="pb-board-emoji">${pbEscape(b.emoji)}</span>
       <span class="pb-board-name">${pbEscape(b.name)}</span>
       <span class="pb-board-count">${b.itemCount}</span>
+      <button class="pb-board-rename" data-board-id="${b.id}" title="Rename board">✏️</button>
       <button class="pb-board-delete" data-board-id="${b.id}" title="Delete board">&times;</button>
     </div>
   `).join('');
 
   container.querySelectorAll('.pb-board-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.classList.contains('pb-board-delete')) return;
+      if (e.target.closest('.pb-board-delete')) return;
+      if (e.target.closest('.pb-board-rename')) return;
       pbOpenBoard(el.dataset.boardId, el.dataset.name, el.dataset.emoji);
+    });
+  });
+  container.querySelectorAll('.pb-board-rename').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const boardId = btn.dataset.boardId;
+      const item = btn.closest('.pb-board-item');
+      const currentName = item?.dataset.name || '';
+      // showPrompt is a classic global from shell/js/modal.js; see pbCreateBoard
+      // for the same pattern. The third arg pre-fills the input with the
+      // existing name so rename feels like an edit rather than a fresh entry.
+      const newName = await window.showPrompt('Rename board', 'Board name…', currentName);
+      if (newName === null || newName === undefined) return;
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === currentName) return;
+      try {
+        const res = await fetch(`http://localhost:8765/pinboards/${boardId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ name: trimmed })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        pbReportError('rename board', err);
+      }
+      loadPinboardPanel();
     });
   });
   container.querySelectorAll('.pb-board-delete').forEach(btn => {
@@ -295,6 +327,13 @@ async function pbOpenBoard(boardId, name, emoji) {
     }
   });
 
+  // Attach container-level delegated listeners ONCE per board open. The
+  // #pb-item-list container persists across refreshes (pbRenderItems only
+  // replaces its innerHTML), so registering listeners here instead of in
+  // pbRenderItems prevents listener stacking — a single trash click used
+  // to fan out into N DELETEs after N refreshes, causing N−1 HTTP 404s.
+  pbAttachItemListHandlers(boardId);
+
   try {
     const res = await fetch(`http://localhost:8765/pinboards/${boardId}/items`, { headers: { Authorization: `Bearer ${getToken()}` } });
     const data = await res.json();
@@ -302,6 +341,200 @@ async function pbOpenBoard(boardId, name, emoji) {
   } catch {
     document.getElementById('pb-item-list').innerHTML = '<div class="bm-empty">Failed to load items</div>';
   }
+}
+
+// Register all delegated listeners on the #pb-item-list container. Called once
+// from pbOpenBoard; handlers read live state from pbState.currentItems and
+// pbState.currentBoardId, so they stay correct across item refreshes without
+// needing re-registration.
+function pbAttachItemListHandlers(boardId) {
+  const container = document.getElementById('pb-item-list');
+  if (!container) return;
+
+  // Remove (trash) click handler with fade-out animation
+  container.addEventListener('click', async (e) => {
+    const removeBtn = e.target.closest('.pb-remove-btn');
+    if (!removeBtn) return;
+    e.stopPropagation();
+    const itemId = removeBtn.dataset.itemId;
+    if (!itemId || !pbState.currentBoardId) return;
+    const card = removeBtn.closest('.pb-card');
+    if (card) {
+      card.style.transition = 'opacity 0.2s, transform 0.2s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.9)';
+    }
+    try {
+      const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      if (card) {
+        card.style.opacity = '';
+        card.style.transform = '';
+      }
+      pbReportError('remove item', err);
+      return;
+    }
+    setTimeout(() => {
+      if (card) card.remove();
+      if (container.querySelectorAll('.pb-card').length === 0) {
+        container.className = 'pb-items-empty';
+        container.innerHTML = '<div class="bm-empty"><div style="font-size:48px;margin-bottom:12px;">📌</div><p>All items removed.</p></div>';
+      }
+    }, 250);
+  });
+
+  // Edit button click handler
+  container.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.pb-edit-btn');
+    if (!editBtn) return;
+    e.stopPropagation();
+    const itemId = editBtn.dataset.itemId;
+    const item = pbState.currentItems.find(i => i.id === itemId);
+    if (item && pbState.currentBoardId) pbOpenEditModal(item, pbState.currentBoardId);
+  });
+
+  // Click on link/image cards opens URL in a new tab. Ignored when the click
+  // originated inside the card action buttons row.
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('.pb-card-actions')) return;
+    const card = e.target.closest('.pb-card[data-has-url="true"]');
+    if (!card) return;
+    const url = card.dataset.url;
+    if (url && window.tandem) window.tandem.newTab(url);
+  });
+
+  // Inline editing: double-click on text/quote card body to edit content, or
+  // double-click on link card title to rename it.
+  container.addEventListener('dblclick', (e) => {
+    const body = e.target.closest('.pb-card-text-preview');
+    if (body) {
+      const card = body.closest('.pb-card');
+      if (!card) return;
+      const itemId = card.dataset.itemId;
+      const item = pbState.currentItems.find(i => i.id === itemId);
+      if (!item || (item.type !== 'text' && item.type !== 'quote')) return;
+      e.stopPropagation();
+      if (body.contentEditable === 'true') return;
+      const originalText = body.textContent;
+      body.contentEditable = 'true';
+      body.focus();
+      body.addEventListener('blur', async function onBlur() {
+        body.removeEventListener('blur', onBlur);
+        body.contentEditable = 'false';
+        const newText = body.textContent.trim();
+        if (newText && newText !== originalText) {
+          try {
+            const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+              body: JSON.stringify({ content: newText })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          } catch (err) {
+            body.textContent = originalText;
+            pbReportError('save edit', err);
+          }
+        }
+      });
+      body.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Escape') {
+          body.textContent = originalText;
+          body.contentEditable = 'false';
+        }
+      });
+      return;
+    }
+
+    const titleEl = e.target.closest('.pb-card-title');
+    if (titleEl) {
+      const card = titleEl.closest('.pb-card');
+      if (!card) return;
+      const itemId = card.dataset.itemId;
+      const item = pbState.currentItems.find(i => i.id === itemId);
+      if (!item || item.type !== 'link') return;
+      e.stopPropagation();
+      if (titleEl.contentEditable === 'true') return;
+      const originalText = titleEl.textContent;
+      titleEl.contentEditable = 'true';
+      titleEl.style.whiteSpace = 'normal';
+      titleEl.focus();
+      titleEl.addEventListener('blur', async function onBlur() {
+        titleEl.removeEventListener('blur', onBlur);
+        titleEl.contentEditable = 'false';
+        titleEl.style.whiteSpace = '';
+        const newText = titleEl.textContent.trim();
+        if (newText && newText !== originalText) {
+          try {
+            const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+              body: JSON.stringify({ title: newText })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          } catch (err) {
+            titleEl.textContent = originalText;
+            pbReportError('save title', err);
+          }
+        }
+      });
+      titleEl.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Escape') {
+          titleEl.textContent = originalText;
+          titleEl.contentEditable = 'false';
+          titleEl.style.whiteSpace = '';
+        }
+      });
+    }
+  });
+
+  // Drag-and-drop reorder (container-level delegation)
+  let draggedCard = null;
+  container.addEventListener('dragstart', (e) => {
+    draggedCard = e.target.closest('.pb-card');
+    if (!draggedCard) return;
+    draggedCard.classList.add('pb-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedCard.dataset.itemId);
+  });
+  container.addEventListener('dragend', () => {
+    if (draggedCard) { draggedCard.classList.remove('pb-dragging'); draggedCard = null; }
+    container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
+  });
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.pb-card');
+    if (target && target !== draggedCard) {
+      container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
+      target.classList.add('pb-drag-over');
+    }
+  });
+  container.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.pb-card');
+    if (!target || !draggedCard || target === draggedCard) return;
+    const cards = [...container.querySelectorAll('.pb-card')];
+    const draggedIdx = cards.indexOf(draggedCard);
+    const targetIdx = cards.indexOf(target);
+    if (draggedIdx < targetIdx) { target.after(draggedCard); } else { target.before(draggedCard); }
+    const newOrder = [...container.querySelectorAll('.pb-card')].map(c => c.dataset.itemId);
+    try {
+      const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ itemIds: newOrder })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      pbReportError('reorder items', err);
+    }
+    container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
+  });
+
+  // Reference boardId so the signature is self-documenting even though we
+  // actually read the live value from pbState.currentBoardId inside handlers.
+  void boardId;
 }
 
 function pbApplyGridClasses() {
@@ -392,7 +625,13 @@ async function pbUpdateBoardSwitcher(currentId) {
   } catch { /* ignore */ }
 }
 
+// DOM-only render: replaces #pb-item-list innerHTML and stashes the current
+// items in pbState.currentItems for delegated handlers (wired once in
+// pbOpenBoard via pbAttachItemListHandlers) to read. No listener registration
+// happens here — doing so would stack listeners on the persistent container
+// across refreshes and multiply every mutation click by the refresh count.
 function pbRenderItems(items) {
+  pbState.currentItems = items;
   const container = document.getElementById('pb-item-list');
   if (!container) return;
   container.className = 'pb-grid';
@@ -459,191 +698,6 @@ function pbRenderItems(items) {
         </div>
       </div>`;
   }).join('');
-
-  // Remove handler with fade-out
-  container.addEventListener('click', async (e) => {
-    const removeBtn = e.target.closest('.pb-remove-btn');
-    if (!removeBtn) return;
-    e.stopPropagation();
-    const itemId = removeBtn.dataset.itemId;
-    if (!itemId || !pbState.currentBoardId) return;
-    const card = removeBtn.closest('.pb-card');
-    if (card) {
-      card.style.transition = 'opacity 0.2s, transform 0.2s';
-      card.style.opacity = '0';
-      card.style.transform = 'scale(0.9)';
-    }
-    try {
-      const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      // Restore the card visually since the server rejected the delete.
-      if (card) {
-        card.style.opacity = '';
-        card.style.transform = '';
-      }
-      pbReportError('remove item', err);
-      return;
-    }
-    setTimeout(() => {
-      if (card) card.remove();
-      if (container.querySelectorAll('.pb-card').length === 0) {
-        container.className = 'pb-items-empty';
-        container.innerHTML = '<div class="bm-empty"><div style="font-size:48px;margin-bottom:12px;">📌</div><p>All items removed.</p></div>';
-      }
-    }, 250);
-  });
-
-  // Edit handler
-  container.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('.pb-edit-btn');
-    if (!editBtn) return;
-    e.stopPropagation();
-    const itemId = editBtn.dataset.itemId;
-    const item = items.find(i => i.id === itemId);
-    if (item && pbState.currentBoardId) pbOpenEditModal(item, pbState.currentBoardId);
-  });
-
-  // Click on link/image cards opens URL in new tab
-  container.querySelectorAll('.pb-card[data-has-url="true"]').forEach(card => {
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.pb-card-actions')) return;
-      const url = card.dataset.url;
-      if (url && window.tandem) window.tandem.newTab(url);
-    });
-  });
-
-  // Drag-and-drop reorder
-  pbSetupDragAndDrop(container);
-
-  // Inline editing: double-click on text/quote card body or link card title
-  container.querySelectorAll('.pb-card').forEach(card => {
-    const itemId = card.dataset.itemId;
-    const item = items.find(i => i.id === itemId);
-    if (!item) return;
-
-    if (item.type === 'text' || item.type === 'quote') {
-      const body = card.querySelector('.pb-card-text-preview');
-      if (body) {
-        body.addEventListener('dblclick', (e) => {
-          e.stopPropagation();
-          if (body.contentEditable === 'true') return;
-          const originalText = body.textContent;
-          body.contentEditable = 'true';
-          body.focus();
-          body.addEventListener('blur', async function onBlur() {
-            body.removeEventListener('blur', onBlur);
-            body.contentEditable = 'false';
-            const newText = body.textContent.trim();
-            if (newText && newText !== originalText) {
-              try {
-                const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-                  body: JSON.stringify({ content: newText })
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              } catch (err) {
-                body.textContent = originalText;
-                pbReportError('save edit', err);
-              }
-            }
-          });
-          body.addEventListener('keydown', (ke) => {
-            if (ke.key === 'Escape') {
-              body.textContent = originalText;
-              body.contentEditable = 'false';
-            }
-          });
-        });
-      }
-    }
-
-    if (item.type === 'link') {
-      const titleEl = card.querySelector('.pb-card-title');
-      if (titleEl) {
-        titleEl.addEventListener('dblclick', (e) => {
-          e.stopPropagation();
-          if (titleEl.contentEditable === 'true') return;
-          const originalText = titleEl.textContent;
-          titleEl.contentEditable = 'true';
-          titleEl.style.whiteSpace = 'normal';
-          titleEl.focus();
-          titleEl.addEventListener('blur', async function onBlur() {
-            titleEl.removeEventListener('blur', onBlur);
-            titleEl.contentEditable = 'false';
-            titleEl.style.whiteSpace = '';
-            const newText = titleEl.textContent.trim();
-            if (newText && newText !== originalText) {
-              try {
-                const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/${itemId}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-                  body: JSON.stringify({ title: newText })
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              } catch (err) {
-                titleEl.textContent = originalText;
-                pbReportError('save title', err);
-              }
-            }
-          });
-          titleEl.addEventListener('keydown', (ke) => {
-            if (ke.key === 'Escape') {
-              titleEl.textContent = originalText;
-              titleEl.contentEditable = 'false';
-              titleEl.style.whiteSpace = '';
-            }
-          });
-        });
-      }
-    }
-  });
-}
-
-function pbSetupDragAndDrop(container) {
-  let draggedCard = null;
-  container.addEventListener('dragstart', (e) => {
-    draggedCard = e.target.closest('.pb-card');
-    if (!draggedCard) return;
-    draggedCard.classList.add('pb-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', draggedCard.dataset.itemId);
-  });
-  container.addEventListener('dragend', () => {
-    if (draggedCard) { draggedCard.classList.remove('pb-dragging'); draggedCard = null; }
-    container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
-  });
-  container.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const target = e.target.closest('.pb-card');
-    if (target && target !== draggedCard) {
-      container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
-      target.classList.add('pb-drag-over');
-    }
-  });
-  container.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const target = e.target.closest('.pb-card');
-    if (!target || !draggedCard || target === draggedCard) return;
-    const cards = [...container.querySelectorAll('.pb-card')];
-    const draggedIdx = cards.indexOf(draggedCard);
-    const targetIdx = cards.indexOf(target);
-    if (draggedIdx < targetIdx) { target.after(draggedCard); } else { target.before(draggedCard); }
-    const newOrder = [...container.querySelectorAll('.pb-card')].map(c => c.dataset.itemId);
-    try {
-      const res = await fetch(`http://localhost:8765/pinboards/${pbState.currentBoardId}/items/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ itemIds: newOrder })
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      pbReportError('reorder items', err);
-    }
-    container.querySelectorAll('.pb-drag-over').forEach(el => el.classList.remove('pb-drag-over'));
-  });
 }
 
 // Public helper for other sidebar code (e.g. the tab context menu's "Add to
