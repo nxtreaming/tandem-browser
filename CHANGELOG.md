@@ -2,6 +2,23 @@
 
 All notable changes to Tandem Browser will be documented in this file.
 
+## [v0.74.0] - 2026-04-17
+
+- refactor: split the renderer shell into ES modules + fix a long-standing workspace assignment race
+
+### Changed
+
+- The renderer shell (`shell/js/sidebar/index.js` and `shell/js/wingman/index.js`) has been migrated from a single classic script per panel to ES modules with one file per responsibility. The monolithic sidebar file shrank from ~1700 LOC to ~250 LOC of wiring; panel logic now lives in focused `shell/js/sidebar/panels/*.js` and `shell/js/wingman/*.js` modules with explicit imports. Classic-script consumers still reach the shell via the existing `window.*` bridge so nothing outside the shell needed to change.
+- Sidebar state (`config.js`, `constants.js`), drag-and-drop, panel-resize, setup flow, webview lifecycle, history, bookmarks, pinboard, workspaces, and tab-context-menu are now each their own module with a narrow public surface. Wingman alerts, screenshot capture, panel shell, chat, and chat-streaming received the same treatment.
+- A renderer-side bookmarks store (`shell/js/bookmarks-store.js`) is now the single source of truth for the top bar and sidebar panel, so a bookmark added from the sidebar no longer waits for the next HTTP poll to appear in the top bar (and vice versa).
+- Review-driven tightening during the refactor: unused wingman mic / live-mode toggle removed, chat API surface trimmed and `sendMessage` documented, bookmark favicon helper de-duplicated, pinboard `pbEscape` now escapes quotes for attribute contexts, pinboard mutation errors surface to the user, pinboard listeners are de-duplicated, and the pinboard panel gained an inline board-rename UI.
+
+### Fixed
+
+- The `+` new-tab button now assigns the new tab to the currently-active workspace instead of falling back to Default. `WorkspaceManager.reconcileTabState` previously stripped the new `webContentsId` during the window between `web-contents-created` (when main assigns the tab) and `TabManager.tabs.set` (when `openTab` finishes), after which the orphan-push block relocated the tab to Default. A new `pendingAssignments` set protects just-assigned tabs from the strip until the runtime catches up. Regression test included. The underlying race was latent since v0.69.x; the sidebar ESM migration in this release changed call timing enough to make it reliable.
+- Workspace and pinboard names containing quotes or HTML no longer break the sidebar context menu or edit form — both code paths now escape for the attribute context they're inlined into.
+- Opening Tips/Help from the sidebar now creates a new tab instead of replacing the active tab's contents.
+
 ## [v0.73.1] - 2026-04-16
 
 - fix: register MCP session after transport assigns ID
