@@ -579,26 +579,31 @@
       if (bookmarksBarVisible && barItems.length > 0) layoutBookmarksBar();
     });
 
-    // TEMP DIAGNOSTIC — visible rerender counter on the bookmarks bar.
-    // Lets us confirm via screenshot whether the subscribe chain fires
-    // after a mutation. Remove once the sync bug is fully nailed down.
+    // TEMP DIAGNOSTIC — inline, unmissable. The previous position:fixed
+    // badge did not appear in screenshots; switching to (a) document.title,
+    // (b) an inline badge prepended to the bookmarks bar itself, and
+    // (c) a data-diag attribute so we can verify via any surface.
     let _renderFireCount = 0;
     function _diagnostic(barItemsLen) {
       _renderFireCount++;
       const t = new Date().toTimeString().slice(0, 8);
-      bookmarksBar.setAttribute('data-diag', `rb:${_renderFireCount} t:${t} n:${barItemsLen}`);
-      let badge = document.getElementById('bm-diag-badge');
-      if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'bm-diag-badge';
-        badge.style.cssText = 'position:fixed;top:80px;right:8px;z-index:9999;background:#222;color:#0f0;font:10px/1.2 monospace;padding:2px 4px;border:1px solid #0f0;border-radius:2px;pointer-events:none;';
-        document.body.appendChild(badge);
-      }
+      let tempBookmarkName = '?';
       try {
         const tempFolder = barItems[0]?.children?.find(c => c.name === 'AI')?.children?.find(c => c.name === 'temp');
-        const bookmark = tempFolder?.children?.[0];
-        badge.textContent = `rb:${_renderFireCount} ${t} n:${barItemsLen} ${bookmark?.name?.slice(0, 24) || '?'}`;
-      } catch { badge.textContent = `rb:${_renderFireCount} ${t} n:${barItemsLen}`; }
+        tempBookmarkName = tempFolder?.children?.[0]?.name?.slice(0, 24) || '?';
+      } catch { /* ignore */ }
+      const msg = `[DIAG rb:${_renderFireCount} t:${t} n:${barItemsLen} temp0:${tempBookmarkName}]`;
+      try { document.title = msg; } catch { /* ignore */ }
+      bookmarksBar.setAttribute('data-diag', msg);
+      // Inline badge: prepend to the bookmarks bar so it's always visible.
+      let inline = document.getElementById('bm-diag-inline');
+      if (!inline) {
+        inline = document.createElement('span');
+        inline.id = 'bm-diag-inline';
+        inline.style.cssText = 'background:#0f0;color:#000;font:bold 11px/1.4 monospace;padding:2px 6px;margin-right:8px;border-radius:3px;white-space:nowrap;';
+      }
+      inline.textContent = msg;
+      if (inline.parentNode !== bookmarksBar) bookmarksBar.prepend(inline);
     }
 
     // Render the bar from whatever's currently in the store. Called by the
