@@ -279,10 +279,9 @@ import { moveTabToWorkspace } from './tab-context-menu.js';
       });
 
       document.getElementById('sidebar-tips').addEventListener('click', () => {
-        const webview = document.querySelector('webview.active');
-        if (webview) {
-          const shellPath = window.location.href.replace(/\/[^/]*$/, '');
-          webview.loadURL(shellPath + '/help.html');
+        const shellPath = window.location.href.replace(/\/[^/]*$/, '');
+        if (window.tandem && window.tandem.newTab) {
+          window.tandem.newTab(shellPath + '/help.html');
         }
       });
 
