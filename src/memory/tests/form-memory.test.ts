@@ -100,12 +100,17 @@ describe('FormMemoryManager — file permissions', () => {
     });
 
     const mgr = new FormMemoryManager();
-    mgr.recordForm('https://example.com/login', [
+    // Use a sentinel domain to produce a deterministic file path —
+    // /tmp/tandem-test/forms/sentinel-domain-test.json — that we can match
+    // exactly without substring checks (which confuse URL-sanitization linters).
+    mgr.recordForm('https://sentinel-domain-test/login', [
       { name: 'user', type: 'text', id: 'u', value: 'alice' },
     ]);
 
+    const expectedPath = '/tmp/tandem-test/forms/sentinel-domain-test.json';
+
     const domainWrite = vi.mocked(fs.writeFileSync).mock.calls.find(
-      (c) => String(c[0]).includes('example.com') && String(c[0]).endsWith('.json')
+      (c) => c[0] === expectedPath
     );
     expect(domainWrite).toBeDefined();
     const options = domainWrite![2];
@@ -113,7 +118,7 @@ describe('FormMemoryManager — file permissions', () => {
     expect(options).toMatchObject({ mode: 0o600 });
 
     const chmodCall = vi.mocked(fs.chmodSync).mock.calls.find(
-      (c) => String(c[0]).includes('example.com') && String(c[0]).endsWith('.json')
+      (c) => c[0] === expectedPath
     );
     expect(chmodCall).toBeDefined();
     expect(chmodCall![1]).toBe(0o600);

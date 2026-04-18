@@ -46,7 +46,7 @@ export function isHttpUrl(rawValue: string, base?: string | URL): boolean {
   return !!parsed && (parsed.protocol === 'http:' || parsed.protocol === 'https:');
 }
 
-function isPrivateIPv4(ip: string): boolean {
+export function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split('.').map((s) => Number.parseInt(s, 10));
   if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
     return true;
@@ -61,7 +61,7 @@ function isPrivateIPv4(ip: string): boolean {
   return false;
 }
 
-function isPrivateIPv6(hostname: string): boolean {
+export function isPrivateIPv6(hostname: string): boolean {
   const v = hostname.toLowerCase();
   if (v === '::' || v === '::1') return true;
 

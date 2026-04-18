@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, getErrorMessage, hostnameMatches, isHttpUrl, isSafeNavigationUrl, tryParseUrl } from '../security';
+import {
+  escapeHtml,
+  getErrorMessage,
+  hostnameMatches,
+  isHttpUrl,
+  isPrivateIPv4,
+  isPrivateIPv6,
+  isSafeNavigationUrl,
+  tryParseUrl,
+} from '../security';
 
 describe('escapeHtml()', () => {
   it('escapes HTML metacharacters', () => {
@@ -148,5 +157,49 @@ describe('isSafeNavigationUrl()', () => {
 
   it('rejects URLs with no hostname', () => {
     expect(isSafeNavigationUrl('http://')).toBe(false);
+  });
+
+  it('accepts a public IPv6 literal', () => {
+    // Cloudflare public DNS — no match on ::/::1/mapped/fe8x/fc/fd patterns.
+    expect(isSafeNavigationUrl('http://[2606:4700:4700::1111]')).toBe(true);
+  });
+
+  it('rejects non-string and nullish inputs defensively', () => {
+    expect(isSafeNavigationUrl(null as unknown as string)).toBe(false);
+    expect(isSafeNavigationUrl(undefined as unknown as string)).toBe(false);
+    expect(isSafeNavigationUrl(123 as unknown as string)).toBe(false);
+  });
+});
+
+describe('isPrivateIPv4() — direct', () => {
+  it('treats malformed IPv4 (wrong segment count) as unsafe', () => {
+    expect(isPrivateIPv4('10.0.0')).toBe(true);
+    expect(isPrivateIPv4('10.0.0.0.0')).toBe(true);
+    expect(isPrivateIPv4('not.an.ip.addr')).toBe(true);
+  });
+
+  it('treats out-of-range octets as unsafe', () => {
+    expect(isPrivateIPv4('999.0.0.1')).toBe(true);
+    expect(isPrivateIPv4('-1.0.0.1')).toBe(true);
+  });
+
+  it('accepts a public IPv4 (returns false)', () => {
+    expect(isPrivateIPv4('8.8.8.8')).toBe(false);
+    expect(isPrivateIPv4('1.1.1.1')).toBe(false);
+  });
+});
+
+describe('isPrivateIPv6() — direct', () => {
+  it('detects IPv4-mapped IPv6 in dotted form', () => {
+    // Node's URL parser normalizes to hex, but a caller may pass the dotted
+    // form directly. The helper handles both forms defensively.
+    expect(isPrivateIPv6('::ffff:10.0.0.1')).toBe(true);
+    expect(isPrivateIPv6('::ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateIPv6('::ffff:8.8.8.8')).toBe(false);
+  });
+
+  it('returns false for public IPv6', () => {
+    expect(isPrivateIPv6('2606:4700:4700::1111')).toBe(false);
+    expect(isPrivateIPv6('2001:db8::1')).toBe(false);
   });
 });
