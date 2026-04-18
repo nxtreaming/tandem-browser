@@ -5,6 +5,7 @@ import AdmZip from 'adm-zip';
 import { tandemDir, ensureDir } from '../utils/paths';
 import { createLogger } from '../utils/logger';
 import { assertChromeExtensionId, resolvePathWithinRoot } from '../utils/security';
+import { verifyCrx3Signature } from './crx-verifier';
 
 const log = createLogger('CrxDownloader');
 
@@ -137,6 +138,38 @@ export class CrxDownloader {
 
     log.info(`🧩 CRX format verified: ${verification.format}, downloadedFromGoogle=${verification.downloadedFromGoogle}`);
 
+    // Audit #34 High-3: cryptographic signature verification.
+    // CRX2 has been deprecated since 2018 and the Chrome Web Store no longer
+    // serves it. Receiving a CRX2 here means either a very old cached copy
+    // or something attempting to bypass the newer signature scheme — refuse
+    // in either case.
+    if (verification.format === 'crx2') {
+      return {
+        success: false,
+        extensionId,
+        name: '',
+        version: '',
+        installPath: '',
+        signatureVerified: false,
+        error: 'CRX2 format is deprecated and not accepted (no cryptographic verification possible)',
+      };
+    }
+
+    // CRX3: verify the RSA signature and bind to the requested extension ID.
+    const sigResult = verifyCrx3Signature(downloadResult.buffer, extensionId);
+    if (!sigResult.valid) {
+      return {
+        success: false,
+        extensionId,
+        name: '',
+        version: '',
+        installPath: '',
+        signatureVerified: false,
+        error: `CRX3 signature verification failed: ${sigResult.error}`,
+      };
+    }
+    log.info(`🧩 CRX3 signature verified for ${extensionId}`);
+
     // Extract CRX to extension directory
     let installPath: string;
     try {
@@ -202,18 +235,15 @@ export class CrxDownloader {
 
     log.info(`🧩 Extension ${extensionId} installed: ${manifestName} v${manifestVersion}`);
 
-    // CRX3 RSA signature verification not yet implemented — warn user
-    log.warn(`⚠️ Extension ${extensionId} installed WITHOUT cryptographic signature verification. Only install extensions from trusted sources (Chrome Web Store).`);
-
     return {
       success: true,
       extensionId,
       name: manifestName,
       version: manifestVersion,
       installPath,
-      signatureVerified: false,
+      signatureVerified: true,
       contentScriptPatterns,
-      warning: warning || 'Extension signature not verified — installed from Google CDN only',
+      warning,
     };
   }
 
