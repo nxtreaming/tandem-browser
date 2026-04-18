@@ -261,4 +261,119 @@ describe('verifyCrx3Signature()', () => {
     expect(result.valid).toBe(false);
     expect(result.error).toMatch(/no sha256_with_rsa|no rsa|no signature/i);
   });
+
+  it('returns valid=false when signed_header_data is missing entirely', () => {
+    // Header with an RSA proof but no signed_header_data field. parseCrxId
+    // then returns null → verification fails with "missing crx_id".
+    const fakeProof = encodeKeyProof(publicKeyDer, Buffer.alloc(256));
+    const header = encodeLengthDelimited(2, fakeProof);
+    const versionBuf = Buffer.alloc(4);
+    versionBuf.writeUInt32LE(CRX3_VERSION, 0);
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(header.length, 0);
+    const crx = Buffer.concat([CRX3_MAGIC, versionBuf, lenBuf, header, zipPayload]);
+
+    const result = verifyCrx3Signature(crx, expectedExtensionId);
+    expect(result.valid).toBe(false);
+    // Fails earlier (at the sig check), but in any case: not valid.
+  });
+
+  it('returns valid=false — public key is not a valid SPKI DER', () => {
+    // Build a CRX3 whose "public_key" bytes are garbage. createPublicKey
+    // throws inside verifyRsaProofSignature, which should be caught and
+    // turned into { valid: false }.
+    const signedHeaderData = encodeSignedData(crxIdBytesFor(expectedExtensionId));
+    const fakeSignature = Buffer.alloc(256, 1);
+    // derive the "expected id" from the garbage key so the ID-binding check
+    // passes and we actually exercise the signature-verify path
+    const garbageKey = Buffer.from('not a DER key');
+    const garbageId = deriveExtensionIdFromPublicKey(garbageKey);
+    const proof = encodeKeyProof(garbageKey, fakeSignature);
+    const header = Buffer.concat([
+      encodeLengthDelimited(2, proof),
+      encodeLengthDelimited(10000, signedHeaderData),
+    ]);
+    const versionBuf = Buffer.alloc(4);
+    versionBuf.writeUInt32LE(CRX3_VERSION, 0);
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(header.length, 0);
+    const crx = Buffer.concat([CRX3_MAGIC, versionBuf, lenBuf, header, zipPayload]);
+
+    const result = verifyCrx3Signature(crx, garbageId);
+    expect(result.valid).toBe(false);
+    expect(result.error).toMatch(/signature/i);
+  });
+
+  it('handles (skips) ECDSA proofs in field 3 without breaking parsing', () => {
+    // A real Chrome publisher key would use ECDSA; we just need to confirm
+    // the decoder's ECDSA branch doesn't trip over a field-3 entry.
+    const ecdsaProof = encodeKeyProof(Buffer.from('fake-ecdsa-key'), Buffer.from('fake-sig'));
+    const signedHeaderData = encodeSignedData(crxIdBytesFor(expectedExtensionId));
+    const signature = signOver(keyPair.privateKey, signedHeaderData, zipPayload);
+    const rsaProof = encodeKeyProof(publicKeyDer, signature);
+    const header = Buffer.concat([
+      encodeLengthDelimited(2, rsaProof),
+      encodeLengthDelimited(3, ecdsaProof), // field 3 = sha256_with_ecdsa
+      encodeLengthDelimited(10000, signedHeaderData),
+    ]);
+    const versionBuf = Buffer.alloc(4);
+    versionBuf.writeUInt32LE(CRX3_VERSION, 0);
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(header.length, 0);
+    const crx = Buffer.concat([CRX3_MAGIC, versionBuf, lenBuf, header, zipPayload]);
+
+    const { header: parsed } = parseCrx3Header(crx);
+    expect(parsed.rsaProofs).toHaveLength(1);
+    expect(parsed.ecdsaProofs).toHaveLength(1);
+
+    // End-to-end verify still passes because we only check RSA.
+    const result = verifyCrx3Signature(crx, expectedExtensionId);
+    expect(result.valid).toBe(true);
+  });
+
+  it('parseCrx3Header skips forwards-compatible fields of other wire types', () => {
+    // Add a varint field (wire type 0) and a 32-bit fixed field (wire type 5)
+    // with field numbers we don't care about. Parser should skip them.
+    const rsaProof = encodeKeyProof(publicKeyDer, Buffer.alloc(256));
+    const signedHeaderData = encodeSignedData(crxIdBytesFor(expectedExtensionId));
+
+    // Tag for field 42 wire type 0 (varint) = (42<<3)|0 = 336
+    // 336 as varint: 0xd0 0x02
+    const varintField = Buffer.from([0xd0, 0x02, 0x2a]); // field 42 varint = 42
+    // Tag for field 43 wire type 5 (fixed32) = (43<<3)|5 = 349
+    // 349 as varint: 0xdd 0x02
+    const fixed32Field = Buffer.from([0xdd, 0x02, 0x01, 0x02, 0x03, 0x04]);
+
+    const header = Buffer.concat([
+      varintField,
+      encodeLengthDelimited(2, rsaProof),
+      fixed32Field,
+      encodeLengthDelimited(10000, signedHeaderData),
+    ]);
+    const versionBuf = Buffer.alloc(4);
+    versionBuf.writeUInt32LE(CRX3_VERSION, 0);
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(header.length, 0);
+    const crx = Buffer.concat([CRX3_MAGIC, versionBuf, lenBuf, header, zipPayload]);
+
+    const { header: parsed } = parseCrx3Header(crx);
+    expect(parsed.rsaProofs).toHaveLength(1);
+    expect(parsed.signedHeaderData.length).toBeGreaterThan(0);
+  });
+
+  it('throws when CRX header_size claims more bytes than the file contains', () => {
+    const versionBuf = Buffer.alloc(4);
+    versionBuf.writeUInt32LE(CRX3_VERSION, 0);
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(1_000_000, 0); // absurd header size
+    const crx = Buffer.concat([CRX3_MAGIC, versionBuf, lenBuf, Buffer.alloc(10)]);
+    expect(() => parseCrx3Header(crx)).toThrow(/header_size/i);
+  });
+
+  it('verifyCrx3Signature surfaces a parse error as valid=false (never throws)', () => {
+    const tooShort = Buffer.alloc(8);
+    const result = verifyCrx3Signature(tooShort, expectedExtensionId);
+    expect(result.valid).toBe(false);
+    expect(result.error).toBeTruthy();
+  });
 });

@@ -139,11 +139,8 @@ export class CrxDownloader {
     log.info(`🧩 CRX format verified: ${verification.format}, downloadedFromGoogle=${verification.downloadedFromGoogle}`);
 
     // Audit #34 High-3: cryptographic signature verification.
-    // CRX2 has been deprecated since 2018 and the Chrome Web Store no longer
-    // serves it. Receiving a CRX2 here means either a very old cached copy
-    // or something attempting to bypass the newer signature scheme — refuse
-    // in either case.
-    if (verification.format === 'crx2') {
+    const sigGate = this.gateCrxForInstall(downloadResult.buffer, extensionId, verification.format);
+    if (!sigGate.ok) {
       return {
         success: false,
         extensionId,
@@ -151,21 +148,7 @@ export class CrxDownloader {
         version: '',
         installPath: '',
         signatureVerified: false,
-        error: 'CRX2 format is deprecated and not accepted (no cryptographic verification possible)',
-      };
-    }
-
-    // CRX3: verify the RSA signature and bind to the requested extension ID.
-    const sigResult = verifyCrx3Signature(downloadResult.buffer, extensionId);
-    if (!sigResult.valid) {
-      return {
-        success: false,
-        extensionId,
-        name: '',
-        version: '',
-        installPath: '',
-        signatureVerified: false,
-        error: `CRX3 signature verification failed: ${sigResult.error}`,
+        error: sigGate.error,
       };
     }
     log.info(`🧩 CRX3 signature verified for ${extensionId}`);
@@ -245,6 +228,37 @@ export class CrxDownloader {
       contentScriptPatterns,
       warning,
     };
+  }
+
+  /**
+   * Audit #34 High-3 gate: decide whether a downloaded CRX buffer may be
+   * installed. CRX2 is always rejected (deprecated since 2018, no signatures
+   * we trust). CRX3 must pass RSA signature verification, and its signing key
+   * must derive to the expected extension ID.
+   *
+   * Returns `{ ok: true }` when install should proceed, otherwise
+   * `{ ok: false, error }`. Factored out of `installExtension` so it can be
+   * unit-tested without running the real network download.
+   */
+  gateCrxForInstall(
+    buffer: Buffer,
+    extensionId: string,
+    format: 'crx2' | 'crx3',
+  ): { ok: true } | { ok: false; error: string } {
+    if (format === 'crx2') {
+      return {
+        ok: false,
+        error: 'CRX2 format is deprecated and not accepted (no cryptographic verification possible)',
+      };
+    }
+    const sig = verifyCrx3Signature(buffer, extensionId);
+    if (!sig.valid) {
+      return {
+        ok: false,
+        error: `CRX3 signature verification failed: ${sig.error}`,
+      };
+    }
+    return { ok: true };
   }
 
   /**
