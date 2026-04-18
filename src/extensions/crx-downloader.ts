@@ -5,6 +5,7 @@ import AdmZip from 'adm-zip';
 import { tandemDir, ensureDir } from '../utils/paths';
 import { createLogger } from '../utils/logger';
 import { assertChromeExtensionId, resolvePathWithinRoot } from '../utils/security';
+import { verifyCrx3Signature } from './crx-verifier';
 
 const log = createLogger('CrxDownloader');
 
@@ -137,6 +138,21 @@ export class CrxDownloader {
 
     log.info(`🧩 CRX format verified: ${verification.format}, downloadedFromGoogle=${verification.downloadedFromGoogle}`);
 
+    // Audit #34 High-3: cryptographic signature verification.
+    const sigGate = this.gateCrxForInstall(downloadResult.buffer, extensionId, verification.format);
+    if (!sigGate.ok) {
+      return {
+        success: false,
+        extensionId,
+        name: '',
+        version: '',
+        installPath: '',
+        signatureVerified: false,
+        error: sigGate.error,
+      };
+    }
+    log.info(`🧩 CRX3 signature verified for ${extensionId}`);
+
     // Extract CRX to extension directory
     let installPath: string;
     try {
@@ -202,19 +218,47 @@ export class CrxDownloader {
 
     log.info(`🧩 Extension ${extensionId} installed: ${manifestName} v${manifestVersion}`);
 
-    // CRX3 RSA signature verification not yet implemented — warn user
-    log.warn(`⚠️ Extension ${extensionId} installed WITHOUT cryptographic signature verification. Only install extensions from trusted sources (Chrome Web Store).`);
-
     return {
       success: true,
       extensionId,
       name: manifestName,
       version: manifestVersion,
       installPath,
-      signatureVerified: false,
+      signatureVerified: true,
       contentScriptPatterns,
-      warning: warning || 'Extension signature not verified — installed from Google CDN only',
+      warning,
     };
+  }
+
+  /**
+   * Audit #34 High-3 gate: decide whether a downloaded CRX buffer may be
+   * installed. CRX2 is always rejected (deprecated since 2018, no signatures
+   * we trust). CRX3 must pass RSA signature verification, and its signing key
+   * must derive to the expected extension ID.
+   *
+   * Returns `{ ok: true }` when install should proceed, otherwise
+   * `{ ok: false, error }`. Factored out of `installExtension` so it can be
+   * unit-tested without running the real network download.
+   */
+  gateCrxForInstall(
+    buffer: Buffer,
+    extensionId: string,
+    format: 'crx2' | 'crx3',
+  ): { ok: true } | { ok: false; error: string } {
+    if (format === 'crx2') {
+      return {
+        ok: false,
+        error: 'CRX2 format is deprecated and not accepted (no cryptographic verification possible)',
+      };
+    }
+    const sig = verifyCrx3Signature(buffer, extensionId);
+    if (!sig.valid) {
+      return {
+        ok: false,
+        error: `CRX3 signature verification failed: ${sig.error}`,
+      };
+    }
+    return { ok: true };
   }
 
   /**

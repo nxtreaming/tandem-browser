@@ -1,4 +1,5 @@
 import { describe, it, expect, afterAll, beforeEach, afterEach } from 'vitest';
+import type { KeyObject } from 'crypto';
 import { CrxDownloader } from '../crx-downloader';
 import { ChromeExtensionImporter } from '../chrome-importer';
 import { GALLERY_DEFAULTS } from '../gallery-defaults';
@@ -238,6 +239,116 @@ describe('CRX Header Parsing', () => {
     const result = verifyCrxFormat(crx, false);
     expect(result.valid).toBe(false);
     expect(result.error).toContain('outside Google domains');
+  });
+});
+
+// ─── CRX Install Gate Tests (audit #34 High-3) ───────────────────────────────
+
+describe('CrxDownloader.gateCrxForInstall', () => {
+  const downloader = new CrxDownloader();
+
+  // Build a locally-signed CRX3 using the same helpers as the verifier tests.
+  function encodeVarint(value: number): Buffer {
+    const bytes: number[] = [];
+    let v = value;
+    while (v > 0x7f) { bytes.push((v & 0x7f) | 0x80); v = Math.floor(v / 128); }
+    bytes.push(v & 0x7f);
+    return Buffer.from(bytes);
+  }
+  function encodeTag(fieldNumber: number, wireType: number): Buffer {
+    return encodeVarint((fieldNumber << 3) | wireType);
+  }
+  function encodeLengthDelimited(fieldNumber: number, payload: Buffer): Buffer {
+    return Buffer.concat([encodeTag(fieldNumber, 2), encodeVarint(payload.length), payload]);
+  }
+  function deriveIdFromKey(keyDer: Buffer): string {
+    const crypto = require('crypto');
+    const digest = crypto.createHash('sha256').update(keyDer).digest();
+    const out: string[] = [];
+    for (let i = 0; i < 16; i++) {
+      out.push(String.fromCharCode(97 + ((digest[i] >> 4) & 0xf)));
+      out.push(String.fromCharCode(97 + (digest[i] & 0xf)));
+    }
+    return out.join('');
+  }
+  function crxIdBytes(extensionId: string): Buffer {
+    const out = Buffer.alloc(16);
+    for (let i = 0; i < 16; i++) {
+      out[i] = ((extensionId.charCodeAt(i * 2) - 97) << 4) | (extensionId.charCodeAt(i * 2 + 1) - 97);
+    }
+    return out;
+  }
+  function buildSignedCrx3(extensionId: string, zip: Buffer, privateKey: KeyObject, publicKeyDer: Buffer): Buffer {
+    const crypto = require('crypto');
+    const signedHeaderData = encodeLengthDelimited(1, crxIdBytes(extensionId));
+    const lenBuf = Buffer.alloc(4); lenBuf.writeUInt32LE(signedHeaderData.length, 0);
+    const signer = crypto.createSign('sha256');
+    signer.update(Buffer.from('CRX3 SignedData\0', 'binary'));
+    signer.update(lenBuf);
+    signer.update(signedHeaderData);
+    signer.update(zip);
+    const signature = signer.sign(privateKey);
+    const rsaProof = Buffer.concat([
+      encodeLengthDelimited(1, publicKeyDer),
+      encodeLengthDelimited(2, signature),
+    ]);
+    const header = Buffer.concat([
+      encodeLengthDelimited(2, rsaProof),
+      encodeLengthDelimited(10000, signedHeaderData),
+    ]);
+    const magic = Buffer.from('Cr24');
+    const ver = Buffer.alloc(4); ver.writeUInt32LE(3, 0);
+    const headerLen = Buffer.alloc(4); headerLen.writeUInt32LE(header.length, 0);
+    return Buffer.concat([magic, ver, headerLen, header, zip]);
+  }
+
+  it('rejects CRX2 outright regardless of buffer content', () => {
+    const crx2 = buildCrx2(createTestZip({ name: 'X', version: '1.0' }));
+    const result = downloader.gateCrxForInstall(crx2, 'a'.repeat(32), 'crx2');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/crx2/i);
+      expect(result.error).toMatch(/deprecated/i);
+    }
+  });
+
+  it('rejects CRX3 with an invalid signature', () => {
+    const zip = createTestZip({ name: 'X', version: '1.0' });
+    const crx3WithoutSig = buildCrx3(zip); // fake header, no real signatures
+    const result = downloader.gateCrxForInstall(crx3WithoutSig, 'a'.repeat(32), 'crx3');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/signature verification failed/i);
+    }
+  });
+
+  it('accepts a correctly-signed CRX3 whose key-derived ID matches', () => {
+    const crypto = require('crypto');
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const publicKeyDer = publicKey.export({ type: 'spki', format: 'der' }) as Buffer;
+    const expectedId = deriveIdFromKey(publicKeyDer);
+
+    const zip = createTestZip({ name: 'X', version: '1.0' });
+    const signedCrx = buildSignedCrx3(expectedId, zip, privateKey, publicKeyDer);
+
+    const result = downloader.gateCrxForInstall(signedCrx, expectedId, 'crx3');
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects a signed CRX3 when expectedExtensionId does not match key', () => {
+    const crypto = require('crypto');
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const publicKeyDer = publicKey.export({ type: 'spki', format: 'der' }) as Buffer;
+    const actualId = deriveIdFromKey(publicKeyDer);
+    const zip = createTestZip({ name: 'X', version: '1.0' });
+    const signedCrx = buildSignedCrx3(actualId, zip, privateKey, publicKeyDer);
+
+    const wrongId = 'a'.repeat(32);
+    const result = downloader.gateCrxForInstall(signedCrx, wrongId, 'crx3');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/extension id/i);
+    }
   });
 });
 
